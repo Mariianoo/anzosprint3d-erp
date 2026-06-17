@@ -362,6 +362,23 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
   </div>
 </div>
 
+<!-- ─────────── RESET PASSWORD SCREEN ─────────── -->
+<div id="reset-pass-screen" style="display:none;position:fixed;inset:0;z-index:1001;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);align-items:center;justify-content:center">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon"><i class="ti ti-lock-cog"></i></div>
+      <div class="login-logo-text">
+        <h1>Redefinir Senha</h1>
+        <p>Escolha sua nova senha</p>
+      </div>
+    </div>
+    <div class="lf"><label>Nova senha</label><input type="password" id="rp-pass1" placeholder="Mínimo 6 caracteres"></div>
+    <div class="lf"><label>Confirmar nova senha</label><input type="password" id="rp-pass2" placeholder="Repita a senha" onkeydown="if(event.key==='Enter')doSetNewPassword()"></div>
+    <button class="btn-login" id="rp-btn" onclick="doSetNewPassword()"><i class="ti ti-check"></i> Salvar nova senha</button>
+    <div id="rp-msg" style="font-size:13px;text-align:center;margin-top:10px;min-height:18px"></div>
+  </div>
+</div>
+
 <!-- ─────────── APP SHELL ─────────── -->
 <div id="app">
 
@@ -1918,6 +1935,19 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <button class="btn btn-primary" onclick="showToast('Dados da empresa salvos!')"><i class="ti ti-device-floppy"></i> Salvar Dados</button>
     </div>
     <div class="card">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:16px"><i class="ti ti-lock" style="margin-right:6px"></i>Segurança da Conta</h3>
+      <div id="sec-account-info" style="padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:13px;color:var(--text2);margin-bottom:16px">
+        Conta: <strong id="sec-email" style="color:var(--text)">—</strong>
+      </div>
+      <div class="form-group"><label>Nova senha</label><input type="password" id="sec-pass1" placeholder="Mínimo 6 caracteres"></div>
+      <div class="form-group"><label>Confirmar nova senha</label><input type="password" id="sec-pass2" placeholder="Repita a nova senha"></div>
+      <div id="sec-msg" style="font-size:13px;min-height:18px;margin-bottom:10px"></div>
+      <button class="btn btn-primary" id="sec-btn" onclick="changeMyPassword()"><i class="ti ti-key"></i> Alterar Senha</button>
+      <div style="margin-top:12px;padding:10px;background:var(--blue-light);border-radius:var(--radius);font-size:12px;color:#1e40af">
+        <i class="ti ti-info-circle"></i>&nbsp;Defina uma senha que você vai lembrar. Após alterar, use-a para entrar normalmente.
+      </div>
+    </div>
+    <div class="card">
       <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Parâmetros de Custo</h3>
       <div class="form-group"><label>Custo kWh (R$)</label><input type="number" value="0.80" step="0.01"></div>
       <div class="form-group"><label>Custo filamento PLA (R$/g)</label><input type="number" value="0.05" step="0.001"></div>
@@ -2841,10 +2871,53 @@ function iniciais(nome){ return (nome||'').split(' ').filter(Boolean).slice(0,2)
 async function doResetPassword() {
   if (!sb) { setLoginMsg('Supabase não configurado.', 'error'); return; }
   const email = document.getElementById('li-email').value.trim();
-  if (!email) { setLoginMsg('Digite seu e-mail primeiro.', 'error'); return; }
-  const { error } = await sb.auth.resetPasswordForEmail(email);
+  if (!email) { setLoginMsg('Digite seu e-mail primeiro e clique novamente.', 'error'); return; }
+  setLoginMsg('Enviando e-mail de recuperação...', 'info');
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
   if (error) setLoginMsg('Erro: ' + traduzAuthErro(error.message), 'error');
-  else setLoginMsg('E-mail de recuperação enviado para ' + email, 'success');
+  else setLoginMsg('E-mail enviado para ' + email + '. Verifique a caixa de entrada e o spam.', 'success');
+}
+
+// Define nova senha (após clicar no link do e-mail de recuperação)
+async function doSetNewPassword() {
+  if (!sb) return;
+  const p1 = document.getElementById('rp-pass1').value;
+  const p2 = document.getElementById('rp-pass2').value;
+  const msg = document.getElementById('rp-msg');
+  if (p1.length < 6) { msg.style.color='var(--red)'; msg.textContent='A senha deve ter ao menos 6 caracteres.'; return; }
+  if (p1 !== p2) { msg.style.color='var(--red)'; msg.textContent='As senhas não conferem.'; return; }
+  const btn = document.getElementById('rp-btn'); btn.disabled = true;
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  btn.disabled = false;
+  if (error) { msg.style.color='var(--red)'; msg.textContent='Erro: ' + traduzAuthErro(error.message); return; }
+  msg.style.color='var(--green)'; msg.textContent='Senha redefinida! Entrando...';
+  const { data } = await sb.auth.getUser();
+  setTimeout(() => {
+    document.getElementById('reset-pass-screen').style.display = 'none';
+    if (data && data.user) afterLogin(data.user);
+  }, 800);
+}
+
+// Troca de senha pelo usuário logado (nas Configurações)
+async function changeMyPassword() {
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  const p1 = document.getElementById('sec-pass1').value;
+  const p2 = document.getElementById('sec-pass2').value;
+  const msg = document.getElementById('sec-msg');
+  if (p1.length < 6) { msg.style.color='var(--red)'; msg.textContent='A senha deve ter ao menos 6 caracteres.'; return; }
+  if (p1 !== p2) { msg.style.color='var(--red)'; msg.textContent='As senhas não conferem.'; return; }
+  const btn = document.getElementById('sec-btn'); btn.disabled = true;
+  msg.style.color='var(--text2)'; msg.textContent='Alterando senha...';
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  btn.disabled = false;
+  if (error) { msg.style.color='var(--red)'; msg.textContent='Erro: ' + traduzAuthErro(error.message); return; }
+  msg.style.color='var(--green)'; msg.textContent='Senha alterada com sucesso!';
+  document.getElementById('sec-pass1').value = '';
+  document.getElementById('sec-pass2').value = '';
+  showToast('Senha alterada com sucesso!');
+  try { if (currentUser) await sb.from('auditoria_logs').insert({ usuario_id: currentUser.id, acao: 'alteracao', modulo: 'auth_senha' }); } catch(e){}
 }
 
 async function logout() {
@@ -2865,6 +2938,20 @@ async function logout() {
 async function checkExistingSession() {
   if (!sb) {
     document.getElementById('login-config-warning').style.display = 'block';
+    return;
+  }
+  // Detecta retorno do link de recuperação de senha
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      // Mostra a tela de definir nova senha
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('reset-pass-screen').style.display = 'flex';
+    }
+  });
+  // Se a URL tem o token de recuperação no hash, também mostra a tela
+  if (window.location.hash.includes('type=recovery')) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('reset-pass-screen').style.display = 'flex';
     return;
   }
   const { data } = await sb.auth.getSession();
@@ -3830,6 +3917,7 @@ const _origNav = nav;
 nav = function(page) {
   _origNav(page);
   if (page === 'clients')   { loadClientsDB(); }
+  if (page === 'settings')  { const e = document.getElementById('sec-email'); if (e) e.textContent = (currentProfile ? currentProfile.email : (currentUser ? currentUser.email : '—')); }
   if (page === 'quotations'){ refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); }
   if (page === 'orders')     { renderKanban(); renderOrdersTable(); }
   if (page === 'production') { renderProductionTable(); }
