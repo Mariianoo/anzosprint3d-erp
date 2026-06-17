@@ -366,15 +366,18 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 <div id="reset-pass-screen" style="display:none;position:fixed;inset:0;z-index:1001;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);align-items:center;justify-content:center">
   <div class="login-box">
     <div class="login-logo">
-      <div class="login-logo-icon"><i class="ti ti-lock-cog"></i></div>
+      <img id="reset-logo-img" src="" alt="Logo" style="width:64px;height:64px;border-radius:14px;object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.15)">
       <div class="login-logo-text">
-        <h1>Redefinir Senha</h1>
-        <p>Escolha sua nova senha</p>
+        <h1>Nova Senha</h1>
+        <p>Defina a senha de acesso</p>
       </div>
+    </div>
+    <div style="background:var(--blue-light);border-radius:8px;padding:10px;font-size:12px;color:#1e40af;margin-bottom:16px">
+      <i class="ti ti-shield-check"></i> Link de recuperação confirmado. Escolha uma senha que você vai lembrar.
     </div>
     <div class="lf"><label>Nova senha</label><input type="password" id="rp-pass1" placeholder="Mínimo 6 caracteres"></div>
     <div class="lf"><label>Confirmar nova senha</label><input type="password" id="rp-pass2" placeholder="Repita a senha" onkeydown="if(event.key==='Enter')doSetNewPassword()"></div>
-    <button class="btn-login" id="rp-btn" onclick="doSetNewPassword()"><i class="ti ti-check"></i> Salvar nova senha</button>
+    <button class="btn-login" id="rp-btn" onclick="doSetNewPassword()"><i class="ti ti-check"></i> Salvar e Entrar</button>
     <div id="rp-msg" style="font-size:13px;text-align:center;margin-top:10px;min-height:18px"></div>
   </div>
 </div>
@@ -1935,19 +1938,6 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <button class="btn btn-primary" onclick="showToast('Dados da empresa salvos!')"><i class="ti ti-device-floppy"></i> Salvar Dados</button>
     </div>
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:16px"><i class="ti ti-lock" style="margin-right:6px"></i>Segurança da Conta</h3>
-      <div id="sec-account-info" style="padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:13px;color:var(--text2);margin-bottom:16px">
-        Conta: <strong id="sec-email" style="color:var(--text)">—</strong>
-      </div>
-      <div class="form-group"><label>Nova senha</label><input type="password" id="sec-pass1" placeholder="Mínimo 6 caracteres"></div>
-      <div class="form-group"><label>Confirmar nova senha</label><input type="password" id="sec-pass2" placeholder="Repita a nova senha"></div>
-      <div id="sec-msg" style="font-size:13px;min-height:18px;margin-bottom:10px"></div>
-      <button class="btn btn-primary" id="sec-btn" onclick="changeMyPassword()"><i class="ti ti-key"></i> Alterar Senha</button>
-      <div style="margin-top:12px;padding:10px;background:var(--blue-light);border-radius:var(--radius);font-size:12px;color:#1e40af">
-        <i class="ti ti-info-circle"></i>&nbsp;Defina uma senha que você vai lembrar. Após alterar, use-a para entrar normalmente.
-      </div>
-    </div>
-    <div class="card">
       <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Parâmetros de Custo</h3>
       <div class="form-group"><label>Custo kWh (R$)</label><input type="number" value="0.80" step="0.01"></div>
       <div class="form-group"><label>Custo filamento PLA (R$/g)</label><input type="number" value="0.05" step="0.001"></div>
@@ -2590,6 +2580,7 @@ const DEFAULT_LOGO = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUND
 
 function applyLogo(src) {
   document.getElementById('login-logo-img').src = src;
+  const resetLogo = document.getElementById('reset-logo-img'); if (resetLogo) resetLogo.src = src;
   document.getElementById('sidebar-logo-img').src = src;
   document.getElementById('favicon-link').href = src;
   const preview = document.getElementById('settings-logo-preview');
@@ -3917,7 +3908,6 @@ const _origNav = nav;
 nav = function(page) {
   _origNav(page);
   if (page === 'clients')   { loadClientsDB(); }
-  if (page === 'settings')  { const e = document.getElementById('sec-email'); if (e) e.textContent = (currentProfile ? currentProfile.email : (currentUser ? currentUser.email : '—')); }
   if (page === 'quotations'){ refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); }
   if (page === 'orders')     { renderKanban(); renderOrdersTable(); }
   if (page === 'production') { renderProductionTable(); }
