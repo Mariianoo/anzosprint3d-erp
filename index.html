@@ -354,6 +354,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     <div class="lf" id="li-name-wrap" style="display:none"><label>Nome completo</label><input type="text" id="li-name" placeholder="André Anzo"></div>
     <div class="lf"><label>E-mail</label><input type="email" id="li-email" placeholder="seu@email.com"></div>
     <div class="lf"><label>Senha</label><input type="password" id="li-pass" placeholder="Sua senha" onkeydown="if(event.key==='Enter')doAuth()"></div>
+    <div id="li-pass-hint" style="display:none;font-size:11px;color:var(--text3);margin:-4px 0 4px;line-height:1.5">Mínimo 8 caracteres, com letra, número e caractere especial.</div>
 
     <button class="btn-login" id="li-submit" onclick="doAuth()"><i class="ti ti-login"></i> <span id="li-submit-label">Entrar no Sistema</span></button>
 
@@ -383,8 +384,11 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     <div style="background:var(--blue-light);border-radius:8px;padding:10px;font-size:12px;color:#1e40af;margin-bottom:16px">
       <i class="ti ti-shield-check"></i> Link de recuperação confirmado. Escolha uma senha que você vai lembrar.
     </div>
-    <div class="lf"><label>Nova senha</label><input type="password" id="rp-pass1" placeholder="Mínimo 6 caracteres"></div>
+    <div class="lf"><label>Nova senha</label><input type="password" id="rp-pass1" placeholder="Mínimo 8 caracteres"></div>
     <div class="lf"><label>Confirmar nova senha</label><input type="password" id="rp-pass2" placeholder="Repita a senha" onkeydown="if(event.key==='Enter')doSetNewPassword()"></div>
+    <div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;line-height:1.5">
+      A senha deve ter: <strong>8+ caracteres</strong>, ao menos <strong>1 letra</strong>, <strong>1 número</strong> e <strong>1 caractere especial</strong> (!@#$%&*).
+    </div>
     <button class="btn-login" id="rp-btn" onclick="doSetNewPassword()"><i class="ti ti-check"></i> Salvar e Entrar</button>
     <div id="rp-msg" style="font-size:13px;text-align:center;margin-top:10px;min-height:18px"></div>
   </div>
@@ -2781,6 +2785,8 @@ function toggleAuthMode() {
   document.getElementById('li-toggle-text').textContent = isSignup ? 'Já tem conta?' : 'Primeiro acesso?';
   document.getElementById('li-toggle-link').textContent = isSignup ? 'Fazer login' : 'Criar conta';
   document.getElementById('li-forgot').style.display = isSignup ? 'none' : 'inline';
+  const passHint = document.getElementById('li-pass-hint');
+  if (passHint) passHint.style.display = isSignup ? 'block' : 'none';
   setLoginMsg('');
 }
 
@@ -2806,6 +2812,8 @@ async function doAuth() {
 
   if (authMode === 'signup') {
     const nome = document.getElementById('li-name').value.trim() || email;
+    const erroForca = validarSenhaForte(pass);
+    if (erroForca) { setLoginMsg(erroForca, 'error'); btn.disabled = false; return; }
     setLoginMsg('Criando conta...', 'info');
     const { data, error } = await sb.auth.signUp({
       email, password: pass,
@@ -2881,12 +2889,22 @@ async function doResetPassword() {
 }
 
 // Define nova senha (após clicar no link do e-mail de recuperação)
+// Valida força da senha: mínimo 8 caracteres, letra, número e caractere especial
+function validarSenhaForte(senha) {
+  if (senha.length < 8) return 'A senha deve ter ao menos 8 caracteres.';
+  if (!/[A-Za-z]/.test(senha)) return 'A senha deve conter ao menos uma letra.';
+  if (!/[0-9]/.test(senha)) return 'A senha deve conter ao menos um número.';
+  if (!/[^A-Za-z0-9]/.test(senha)) return 'A senha deve conter ao menos um caractere especial (!@#$%&*...).';
+  return null; // válida
+}
+
 async function doSetNewPassword() {
   if (!sb) return;
   const p1 = document.getElementById('rp-pass1').value;
   const p2 = document.getElementById('rp-pass2').value;
   const msg = document.getElementById('rp-msg');
-  if (p1.length < 6) { msg.style.color='var(--red)'; msg.textContent='A senha deve ter ao menos 6 caracteres.'; return; }
+  const erroForca = validarSenhaForte(p1);
+  if (erroForca) { msg.style.color='var(--red)'; msg.textContent=erroForca; return; }
   if (p1 !== p2) { msg.style.color='var(--red)'; msg.textContent='As senhas não conferem.'; return; }
   const btn = document.getElementById('rp-btn'); btn.disabled = true;
   const { error } = await sb.auth.updateUser({ password: p1 });
@@ -2906,7 +2924,8 @@ async function changeMyPassword() {
   const p1 = document.getElementById('sec-pass1').value;
   const p2 = document.getElementById('sec-pass2').value;
   const msg = document.getElementById('sec-msg');
-  if (p1.length < 6) { msg.style.color='var(--red)'; msg.textContent='A senha deve ter ao menos 6 caracteres.'; return; }
+  const erroForca = validarSenhaForte(p1);
+  if (erroForca) { msg.style.color='var(--red)'; msg.textContent=erroForca; return; }
   if (p1 !== p2) { msg.style.color='var(--red)'; msg.textContent='As senhas não conferem.'; return; }
   const btn = document.getElementById('sec-btn'); btn.disabled = true;
   msg.style.color='var(--text2)'; msg.textContent='Alterando senha...';
