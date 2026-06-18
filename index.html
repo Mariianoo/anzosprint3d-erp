@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ANZO'S Print 3D ERP</title>
+<!-- ══ PWA ══ -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ANZO'S ERP">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="icon" type="image/png" id="favicon-link" href="">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2686,6 +2694,7 @@ function renderClientsDB() {
 
 async function saveClientDB() {
   if (!sb) { showToast('Supabase não configurado.'); return; }
+  if (!navigator.onLine) { showToast('Você está offline. Conecte-se para salvar.'); return; }
   const tipoVal = document.getElementById('nc-type').value === 'Pessoa Jurídica' ? 'juridica' : 'fisica';
   const payload = {
     nome: document.getElementById('nc-name').value.trim(),
@@ -7572,7 +7581,40 @@ function initCharts() {
 // ── Inicialização: verifica sessão Supabase ao carregar ──
 document.addEventListener('DOMContentLoaded', () => {
   checkExistingSession();
+  registerServiceWorker();
+  setupOfflineIndicator();
 });
+
+// ── PWA: registra o service worker ──
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(reg => console.log('Service Worker registrado:', reg.scope))
+      .catch(err => console.warn('Falha ao registrar Service Worker:', err));
+  }
+}
+
+// ── Indicador de status online/offline ──
+function setupOfflineIndicator() {
+  const update = () => {
+    let bar = document.getElementById('offline-bar');
+    if (!navigator.onLine) {
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'offline-bar';
+        bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2000;background:#92400e;color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:600';
+        bar.innerHTML = '<i class="ti ti-wifi-off"></i> Você está offline — visualizando dados salvos. Alterações precisam de conexão.';
+        document.body.appendChild(bar);
+      }
+    } else {
+      if (bar) bar.remove();
+    }
+  };
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  update();
+}
+
 </script>
 </body>
 </html>
