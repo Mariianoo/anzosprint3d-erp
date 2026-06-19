@@ -2053,7 +2053,12 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <div class="form-group"><label>CEP</label><input type="text" id="nc-cep" placeholder="00000-000" maxlength="9" oninput="formatCepInput(this)" onblur="lookupCep()"></div>
       <div class="form-group"><label>Tipo</label><select id="nc-type" onchange="updateDocMask()"><option>Pessoa Física</option><option>Pessoa Jurídica</option></select></div>
     </div>
-    <div class="form-group"><label>Endereço <span id="nc-cep-status" style="font-size:11px;color:var(--text3);font-weight:400"></span></label><input type="text" id="nc-address" placeholder="Rua, número, complemento"></div>
+    <div class="form-group"><label>Endereço (Logradouro) <span id="nc-cep-status" style="font-size:11px;color:var(--text3);font-weight:400"></span></label><input type="text" id="nc-address" placeholder="Rua, avenida..."></div>
+    <div class="form-row">
+      <div class="form-group" style="max-width:140px"><label>Número</label><input type="text" id="nc-number" placeholder="Nº"></div>
+      <div class="form-group"><label>Bairro</label><input type="text" id="nc-district" placeholder="Bairro"></div>
+    </div>
+    <div class="form-group"><label>Complemento</label><input type="text" id="nc-complement" placeholder="Apto, bloco, casa, referência... (opcional)"></div>
     <div class="form-row">
       <div class="form-group"><label>Cidade</label><input type="text" id="nc-city" placeholder="Cidade"></div>
       <div class="form-group"><label>Estado</label><select id="nc-state"><option>SP</option><option>RJ</option><option>MG</option><option>RS</option><option>PR</option><option>SC</option><option>BA</option><option>GO</option><option>DF</option><option>ES</option><option>PE</option><option>CE</option><option>PA</option><option>MT</option><option>MS</option><option>AM</option><option>RN</option><option>PB</option><option>AL</option><option>SE</option><option>PI</option><option>MA</option><option>RO</option><option>TO</option><option>AC</option><option>AP</option><option>RR</option></select></div>
@@ -2973,6 +2978,9 @@ async function saveClientDB() {
     email: document.getElementById('nc-email').value.trim() || null,
     cep: document.getElementById('nc-cep').value.trim() || null,
     endereco: document.getElementById('nc-address').value.trim() || null,
+    numero: document.getElementById('nc-number').value.trim() || null,
+    bairro: document.getElementById('nc-district').value.trim() || null,
+    complemento: document.getElementById('nc-complement').value.trim() || null,
     cidade: document.getElementById('nc-city').value.trim() || null,
     estado: document.getElementById('nc-state').value,
     observacoes: document.getElementById('nc-obs').value.trim() || null,
@@ -3018,6 +3026,9 @@ async function editClientDB(id) {
   document.getElementById('nc-email').value = c.email || '';
   document.getElementById('nc-cep').value = c.cep || '';
   document.getElementById('nc-address').value = c.endereco || '';
+  document.getElementById('nc-number').value = c.numero || '';
+  document.getElementById('nc-district').value = c.bairro || '';
+  document.getElementById('nc-complement').value = c.complemento || '';
   document.getElementById('nc-city').value = c.cidade || '';
   if (c.estado) document.getElementById('nc-state').value = c.estado;
   document.getElementById('nc-obs').value = c.observacoes || '';
@@ -3283,7 +3294,7 @@ function openModal(id) {
     if (titleEl) titleEl.textContent = 'Novo Cliente';
     const labelEl = document.getElementById('nc-save-label');
     if (labelEl) labelEl.textContent = 'Salvar Cliente';
-    ['nc-name','nc-doc','nc-phone','nc-whatsapp','nc-email','nc-cep','nc-address','nc-city','nc-obs'].forEach(fid => { const el = document.getElementById(fid); if (el) el.value = ''; });
+    ['nc-name','nc-doc','nc-phone','nc-whatsapp','nc-email','nc-cep','nc-address','nc-number','nc-district','nc-complement','nc-city','nc-obs'].forEach(fid => { const el = document.getElementById(fid); if (el) el.value = ''; });
     document.getElementById('nc-cep-status').textContent = '';
     document.getElementById('nc-state').selectedIndex = 0;
     document.getElementById('nc-type').selectedIndex = 0;
@@ -3471,8 +3482,9 @@ async function lookupCep() {
       return;
     }
 
-    const addressParts = [data.logradouro, data.bairro].filter(Boolean);
-    document.getElementById('nc-address').value = addressParts.join(', ');
+    document.getElementById('nc-address').value = data.logradouro || '';
+    const distEl = document.getElementById('nc-district');
+    if (distEl) distEl.value = data.bairro || '';
     document.getElementById('nc-city').value = data.localidade || '';
 
     const stateSelect = document.getElementById('nc-state');
@@ -3490,7 +3502,10 @@ async function lookupCep() {
     }
 
     statusEl.textContent = '(endereço encontrado ✓)';
-    showToast('Endereço preenchido automaticamente!');
+    showToast('Endereço preenchido! Informe o número.');
+    // Foca o campo de número para o usuário completar
+    const numEl = document.getElementById('nc-number');
+    if (numEl) numEl.focus();
   } catch (err) {
     statusEl.textContent = '(erro ao buscar CEP)';
     showToast('Não foi possível consultar o CEP. Verifique sua conexão.');
