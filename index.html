@@ -330,6 +330,29 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 /* ── Notif dot ── */
 .notif-dot{position:relative}
 .notif-dot::after{content:'';position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--red);border:2px solid var(--surface)}
+/* ── Centro de Notificações ── */
+.notif-wrap{position:relative}
+.notif-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);box-sizing:border-box}
+.notif-panel{position:absolute;top:46px;right:0;width:360px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,0.18);z-index:1500;display:none;overflow:hidden}
+.notif-panel.open{display:block;animation:notifIn 0.16s ease}
+@keyframes notifIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.notif-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text)}
+.notif-clear{background:none;border:none;color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;padding:4px 6px;border-radius:6px}
+.notif-clear:hover{background:var(--surface2)}
+.notif-list{max-height:380px;overflow-y:auto}
+.notif-item{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;position:relative}
+.notif-item:hover{background:var(--surface2)}
+.notif-item:last-child{border-bottom:none}
+.notif-ico{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.notif-ico.crit{background:#fef2f2;color:#ef4444}
+.notif-ico.warn{background:#fffbeb;color:#f59e0b}
+.notif-ico.info{background:#eff6ff;color:#3b82f6}
+.notif-body{flex:1;min-width:0}
+.notif-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
+.notif-desc{font-size:12px;color:var(--text2);line-height:1.4}
+.notif-dismiss{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px;border-radius:4px;align-self:flex-start;flex-shrink:0}
+.notif-dismiss:hover{background:var(--border);color:var(--text)}
+.notif-empty{padding:36px 16px;text-align:center;color:var(--text2);font-size:13px}
 </style>
 </head>
 <body>
@@ -440,7 +463,20 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <button class="btn-icon" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
       <div class="header-title" id="header-title">Dashboard</div>
       <div class="header-actions">
-        <button class="btn-icon notif-dot" onclick="showToast('3 alertas: estoque baixo e pedidos atrasados')"><i class="ti ti-bell"></i></button>
+        <div class="notif-wrap">
+          <button class="btn-icon" id="notif-bell" onclick="toggleNotifications(event)"><i class="ti ti-bell"></i><span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notif-panel">
+            <div class="notif-header">
+              <span><i class="ti ti-bell"></i> Notificações</span>
+              <button class="notif-clear" id="notif-clear" onclick="dismissAllNotifications()" title="Dispensar todas">Limpar todas</button>
+            </div>
+            <div class="notif-list" id="notif-list"></div>
+            <div class="notif-empty" id="notif-empty" style="display:none">
+              <i class="ti ti-circle-check" style="font-size:28px;color:var(--green)"></i>
+              <div style="margin-top:6px">Tudo em dia! Nenhum alerta no momento.</div>
+            </div>
+          </div>
+        </div>
         <button class="btn-icon" onclick="toggleTheme()"><i class="ti ti-moon" id="theme-icon"></i></button>
         <button class="btn-icon" onclick="showToast('Sincronizado com Supabase Realtime ✓')"><i class="ti ti-refresh"></i></button>
         <button class="btn btn-secondary btn-sm" onclick="logout()"><i class="ti ti-logout"></i> Sair</button>
@@ -2630,8 +2666,186 @@ function resetLogo() {
 loadLogo();
 
 // ══════════════════════════════════════════════
-// PREFERÊNCIAS DO USUÁRIO (salvas no perfil — Supabase)
+// CENTRO DE NOTIFICAÇÕES
 // ══════════════════════════════════════════════
+let dismissedNotifs = [];   // ids dispensados nesta sessão
+let currentNotifs = [];
+
+// Monta a lista de alertas a partir dos dados reais do sistema
+function buildNotifications() {
+  const alerts = [];
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+
+  // Converte data DD/MM/YY ou DD/MM/YYYY em Date
+  const parseBR = (s) => {
+    if (!s) return null;
+    const p = s.split('/');
+    if (p.length !== 3) return null;
+    let [d, m, y] = p;
+    if (y.length === 2) y = '20' + y;
+    return new Date(+y, +m-1, +d);
+  };
+
+  // 1. Filamentos com estoque baixo (current <= 300g)
+  try {
+    if (typeof filamentsData !== 'undefined') {
+      filamentsData.forEach(f => {
+        if (f.current != null && f.current <= 300) {
+          alerts.push({ id:'fil-'+f.id, type:'crit', icon:'ti-cylinder',
+            title:'Filamento em estoque baixo',
+            desc:`${f.type||''} ${f.color||''} (${f.brand||''}) está em ${f.current}g.`.replace(/\s+/g,' ').trim(),
+            page:'filaments' });
+        }
+      });
+    }
+  } catch(e){}
+
+  // 2. Pedidos atrasados (deadline passou e não finalizado/entregue/cancelado)
+  try {
+    if (typeof ordersData !== 'undefined') {
+      ordersData.forEach(o => {
+        const st = (o.status||'').toLowerCase();
+        if (st.includes('entreg') || st.includes('cancel') || st.includes('finaliz')) return;
+        const prazo = parseBR(o.deadline);
+        if (prazo && prazo < hoje) {
+          alerts.push({ id:'ped-'+o.id, type:'crit', icon:'ti-clock-exclamation',
+            title:'Pedido atrasado',
+            desc:`${o.id} (${o.client||'cliente'}) está fora do prazo.`,
+            page:'orders' });
+        }
+      });
+    }
+  } catch(e){}
+
+  // 3. Insumos com estoque baixo
+  try {
+    if (typeof suppliesData !== 'undefined') {
+      suppliesData.forEach(s => {
+        if (s.stock != null && s.stock <= s.stockMin) {
+          alerts.push({ id:'sup-'+s.id, type:'warn', icon:'ti-packages',
+            title:'Insumo acabando',
+            desc:`${s.name} — ${s.stock} ${s.unit} em estoque.`,
+            page:'supplies' });
+        }
+      });
+    }
+  } catch(e){}
+
+  // 4. Contas a pagar vencidas ou vencendo (7 dias)
+  try {
+    if (typeof payablesData !== 'undefined') {
+      payablesData.forEach(p => {
+        if (p.status === 'pago') return;
+        if (!p.due) return;
+        const venc = new Date(p.due + 'T00:00:00');
+        const dias = Math.round((venc - hoje)/86400000);
+        if (dias < 0) {
+          alerts.push({ id:'cp-'+p.id, type:'crit', icon:'ti-cash',
+            title:'Conta a pagar vencida',
+            desc:`${p.desc||'Conta'} — venceu há ${Math.abs(dias)} dia(s).`,
+            page:'payables' });
+        } else if (dias <= 7) {
+          alerts.push({ id:'cp-'+p.id, type:'warn', icon:'ti-cash',
+            title:'Conta a pagar vencendo',
+            desc:`${p.desc||'Conta'} — vence em ${dias} dia(s).`,
+            page:'payables' });
+        }
+      });
+    }
+  } catch(e){}
+
+  // 5. Contas a receber vencidas
+  try {
+    if (typeof receivablesData !== 'undefined') {
+      receivablesData.forEach(r => {
+        if (r.status === 'recebido') return;
+        if (!r.due) return;
+        const venc = new Date(r.due + 'T00:00:00');
+        if (venc < hoje) {
+          alerts.push({ id:'cr-'+r.id, type:'warn', icon:'ti-receipt',
+            title:'Recebimento em atraso',
+            desc:`${r.client||'Cliente'} — ${typeof brl==='function' ? brl(r.value||0) : 'R$ '+(r.value||0)} em atraso.`,
+            page:'receivables' });
+        }
+      });
+    }
+  } catch(e){}
+
+  currentNotifs = alerts.filter(a => !dismissedNotifs.includes(a.id));
+  return currentNotifs;
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notif-list');
+  const empty = document.getElementById('notif-empty');
+  const badge = document.getElementById('notif-badge');
+  const clearBtn = document.getElementById('notif-clear');
+  if (!list) return;
+
+  const notifs = buildNotifications();
+
+  // Badge
+  if (badge) {
+    if (notifs.length > 0) { badge.style.display = 'flex'; badge.textContent = notifs.length > 9 ? '9+' : notifs.length; }
+    else badge.style.display = 'none';
+  }
+
+  if (notifs.length === 0) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    if (clearBtn) clearBtn.style.display = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (clearBtn) clearBtn.style.display = 'block';
+
+  list.innerHTML = notifs.map(n => `
+    <div class="notif-item" onclick="openNotification('${n.page}')">
+      <div class="notif-ico ${n.type}"><i class="ti ${n.icon}"></i></div>
+      <div class="notif-body">
+        <div class="notif-title">${n.title}</div>
+        <div class="notif-desc">${n.desc}</div>
+      </div>
+      <button class="notif-dismiss" onclick="event.stopPropagation();dismissNotification('${n.id}')" title="Dispensar"><i class="ti ti-x"></i></button>
+    </div>`).join('');
+}
+
+function toggleNotifications(ev) {
+  if (ev) ev.stopPropagation();
+  const panel = document.getElementById('notif-panel');
+  if (!panel) return;
+  const isOpen = panel.classList.contains('open');
+  if (isOpen) { panel.classList.remove('open'); return; }
+  renderNotifications();
+  panel.classList.add('open');
+}
+
+function openNotification(page) {
+  document.getElementById('notif-panel').classList.remove('open');
+  if (typeof nav === 'function') nav(page);
+}
+
+function dismissNotification(id) {
+  if (!dismissedNotifs.includes(id)) dismissedNotifs.push(id);
+  renderNotifications();
+}
+
+function dismissAllNotifications() {
+  currentNotifs.forEach(n => { if (!dismissedNotifs.includes(n.id)) dismissedNotifs.push(n.id); });
+  renderNotifications();
+  showToast('Notificações dispensadas.');
+}
+
+// Fecha o painel ao clicar fora
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.notif-wrap');
+  const panel = document.getElementById('notif-panel');
+  if (panel && panel.classList.contains('open') && wrap && !wrap.contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+
+
 // Objeto central de preferências. Para lembrar uma nova preferência no
 // futuro, basta adicionar a chave aqui e chamar setPref('chave', valor).
 let userPrefs = {
@@ -2925,7 +3139,7 @@ async function afterLogin(user) {
   // Mostra o app
   const ls = document.getElementById('login-screen');
   ls.style.transition = 'opacity 0.4s'; ls.style.opacity = '0';
-  setTimeout(() => { ls.style.display = 'none'; document.getElementById('app').classList.add('visible'); initCharts(); }, 420);
+  setTimeout(() => { ls.style.display = 'none'; document.getElementById('app').classList.add('visible'); initCharts(); renderNotifications(); }, 420);
   showToast(`Bem-vindo, ${currentProfile ? currentProfile.nome : 'usuário'}!`);
 }
 
