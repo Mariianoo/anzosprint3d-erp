@@ -773,32 +773,35 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
   <div class="page-header">
     <div class="page-header-row">
       <div><h2>Orçamentos</h2><p>Cálculo automático com custos reais e margens configuráveis</p></div>
-      <button class="btn btn-primary" onclick="openModal('modal-quotation')"><i class="ti ti-plus"></i> Novo Orçamento</button>
+      <button class="btn btn-primary" onclick="newQuoteFromCalc()"><i class="ti ti-plus"></i> Novo Orçamento</button>
     </div>
   </div>
   <div class="grid-4" style="margin-bottom:20px">
-    <div class="metric-card"><div class="metric-label">Aguardando</div><div class="metric-value" style="color:var(--amber)" id="qm-pending">3</div></div>
-    <div class="metric-card"><div class="metric-label">Aprovados</div><div class="metric-value" style="color:var(--green)" id="qm-approved">8</div></div>
-    <div class="metric-card"><div class="metric-label">Recusados</div><div class="metric-value" style="color:var(--red)" id="qm-rejected">2</div></div>
-    <div class="metric-card"><div class="metric-label">Valor Total (mês)</div><div class="metric-value" style="font-size:20px">R$ 24.800</div></div>
+    <div class="metric-card"><div class="metric-label">Rascunhos</div><div class="metric-value" style="color:var(--text2)" id="qm-draft">0</div></div>
+    <div class="metric-card"><div class="metric-label">Aguardando</div><div class="metric-value" style="color:var(--amber)" id="qm-pending">0</div></div>
+    <div class="metric-card"><div class="metric-label">Aprovados</div><div class="metric-value" style="color:var(--green)" id="qm-approved">0</div></div>
+    <div class="metric-card"><div class="metric-label">Valor Aprovado</div><div class="metric-value" style="font-size:20px" id="qm-total">R$ 0</div></div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+    <div class="search-input" style="min-width:220px"><i class="ti ti-search"></i><input id="quo-search" placeholder="Buscar por nº, cliente, descrição..." oninput="renderQuotesDB()"></div>
+    <select class="filter" id="quo-status-filter" onchange="renderQuotesDB()">
+      <option value="all">Todos os status</option>
+      <option value="rascunho">Rascunho</option>
+      <option value="aguardando">Aguardando</option>
+      <option value="aprovado">Aprovado</option>
+      <option value="recusado">Recusado</option>
+      <option value="convertido">Convertido</option>
+    </select>
   </div>
   <div class="table-wrap" style="margin-bottom:20px">
     <table>
-      <thead><tr><th>Nº</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Tempo</th><th>Valor</th><th>Status</th><th style="min-width:340px">Ações</th></tr></thead>
+      <thead><tr><th>Nº</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Tempo</th><th>Valor</th><th>Status</th><th style="min-width:200px">Ações</th></tr></thead>
       <tbody id="quotations-tbody">
-        <tr><td class="td-name">ORC-0023</td><td>Rafael Almeida</td><td>Suporte celular × 3</td><td>45 g</td><td>2,5 h</td><td style="font-weight:600">R$ 89,00</td><td><span class="badge badge-amber">Aguardando</span></td>
-          <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-success btn-sm" onclick="approveQuote(this)" title="Aprovar orçamento"><i class="ti ti-check"></i> Aprovar</button><button class="btn btn-danger btn-sm" onclick="rejectQuote(this)" title="Recusar orçamento"><i class="ti ti-x"></i> Recusar</button><button class="btn btn-secondary btn-sm" onclick="generateRowQuotePdf(this)" title="Gerar PDF do orçamento"><i class="ti ti-file-type-pdf"></i> PDF</button></div></td></tr>
-        <tr><td class="td-name">ORC-0022</td><td>Marina Costa</td><td>Busto personalizado × 1</td><td>280 g</td><td>18 h</td><td style="font-weight:600">R$ 320,00</td><td><span class="badge badge-green">Aprovado</span></td>
-          <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="convertToOrder(this,'ORC-0022','Marina Costa')" title="Converter este orçamento em um pedido"><i class="ti ti-shopping-cart"></i> Converter em pedido</button><button class="btn btn-secondary btn-sm" onclick="generateRowQuotePdf(this)" title="Gerar PDF do orçamento"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="revertQuote(this,'pending')" title="Reverter para Aguardando"><i class="ti ti-arrow-back-up"></i> Reverter</button></div></td></tr>
-        <tr><td class="td-name">ORC-0021</td><td>Loja Brinquedos JR</td><td>Miniaturas × 20</td><td>600 g</td><td>40 h</td><td style="font-weight:600">R$ 680,00</td><td><span class="badge badge-green">Aprovado</span></td>
-          <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="convertToOrder(this,'ORC-0021','Loja Brinquedos JR')" title="Converter este orçamento em um pedido"><i class="ti ti-shopping-cart"></i> Converter em pedido</button><button class="btn btn-secondary btn-sm" onclick="generateRowQuotePdf(this)" title="Gerar PDF do orçamento"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="revertQuote(this,'pending')" title="Reverter para Aguardando"><i class="ti ti-arrow-back-up"></i> Reverter</button></div></td></tr>
-        <tr><td class="td-name">ORC-0020</td><td>João P. Souza</td><td>Engrenagem industrial × 2</td><td>120 g</td><td>8 h</td><td style="font-weight:600">R$ 195,00</td><td><span class="badge badge-red">Recusado</span></td>
-          <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="generateRowQuotePdf(this)" title="Gerar PDF do orçamento"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="revertQuote(this,'pending')" title="Reverter para Aguardando"><i class="ti ti-arrow-back-up"></i> Reverter</button></div></td></tr>
-        <tr><td class="td-name">ORC-0019</td><td>Artes &amp; Design</td><td>Estatueta decorativa × 5</td><td>420 g</td><td>28 h</td><td style="font-weight:600">R$ 750,00</td><td><span class="badge badge-amber">Aguardando</span></td>
-          <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-success btn-sm" onclick="approveQuote(this)" title="Aprovar orçamento"><i class="ti ti-check"></i> Aprovar</button><button class="btn btn-danger btn-sm" onclick="rejectQuote(this)" title="Recusar orçamento"><i class="ti ti-x"></i> Recusar</button><button class="btn btn-secondary btn-sm" onclick="generateRowQuotePdf(this)" title="Gerar PDF do orçamento"><i class="ti ti-file-type-pdf"></i> PDF</button></div></td></tr>
+        <tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px"><i class="ti ti-loader"></i> Carregando orçamentos...</td></tr>
       </tbody>
     </table>
   </div>
+  <div style="margin-bottom:16px;font-size:13px;color:var(--text2)" id="quotes-count"></div>
 
   <!-- Calculator -->
   <div class="card">
@@ -807,10 +810,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     <!-- Base info -->
     <div class="grid-3">
       <div class="form-group"><label>Cliente</label>
-        <select id="q-client">
-          <option>Rafael Almeida</option><option>Marina Costa</option><option>Loja Brinquedos JR</option>
-          <option>João Pedro Souza</option><option>Artes &amp; Design Ltda</option><option>TechGroup Ltda</option>
-        </select>
+        <select id="q-client"><option value="">— selecionar cliente —</option></select>
       </div>
       <div class="form-group"><label>Modelo 3D</label>
         <select id="q-model" onchange="applyModelToQuote()"><option value="">— selecionar modelo —</option></select>
@@ -4252,7 +4252,7 @@ const _origNav = nav;
 nav = function(page) {
   _origNav(page);
   if (page === 'clients')   { loadClientsDB(); }
-  if (page === 'quotations'){ refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); }
+  if (page === 'quotations'){ refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); loadQuotesDB(); }
   if (page === 'orders')     { renderKanban(); renderOrdersTable(); }
   if (page === 'production') { renderProductionTable(); }
   if (page === 'filaments')  { renderFilaments(); }
@@ -6413,8 +6413,252 @@ function resetCalculator() {
 }
 
 
-// ── Calculator: save quote to table ──
-function saveCalculatorQuote() {
+// ══════════════════════════════════════════════
+// ORÇAMENTOS — Conectado ao Supabase
+// ══════════════════════════════════════════════
+let quotesDB = [];
+let editingQuoteId = null;
+
+const QUOTE_STATUS_BADGE = {
+  rascunho:   { label:'Rascunho',   cls:'badge-gray' },
+  aguardando: { label:'Aguardando', cls:'badge-amber' },
+  aprovado:   { label:'Aprovado',   cls:'badge-green' },
+  recusado:   { label:'Recusado',   cls:'badge-red' },
+  convertido: { label:'Convertido', cls:'badge-blue' },
+};
+
+function refreshQuoteClientOptions() {
+  const sel = document.getElementById('q-client');
+  if (!sel) return;
+  const cur = sel.value;
+  const opts = (clientesDB || []).map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+  sel.innerHTML = '<option value="">— selecionar cliente —</option>' + opts;
+  if (cur) sel.value = cur;
+}
+
+async function loadQuotesDB() {
+  if (!sb) return;
+  if (!clientesDB || clientesDB.length === 0) {
+    try {
+      const { data: cli } = await sb.from('clientes').select('id,nome').is('deleted_at', null).order('nome');
+      if (cli) clientesDB = cli;
+    } catch(e){}
+  }
+  refreshQuoteClientOptions();
+
+  const tbody = document.getElementById('quotations-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px"><i class="ti ti-loader"></i> Carregando orçamentos...</td></tr>';
+  const { data, error } = await sb.from('orcamentos').select('*').is('deleted_at', null).order('created_at', { ascending: false });
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:24px">Erro ao carregar: ${error.message}</td></tr>`;
+    return;
+  }
+  quotesDB = data || [];
+  renderQuotesDB();
+}
+
+function clienteNomeById(id) {
+  if (!id) return '—';
+  const c = (clientesDB || []).find(x => x.id === id);
+  return c ? c.nome : '—';
+}
+
+function renderQuotesDB() {
+  const tbody = document.getElementById('quotations-tbody');
+  if (!tbody) return;
+  const search = (document.getElementById('quo-search')?.value || '').toLowerCase();
+  const statusF = document.getElementById('quo-status-filter')?.value || 'all';
+
+  tbody.innerHTML = '';
+  let shown = 0;
+  quotesDB.forEach(q => {
+    const nome = clienteNomeById(q.cliente_id);
+    const matchSearch = !search || (q.numero||'').toLowerCase().includes(search)
+      || nome.toLowerCase().includes(search) || (q.descricao||'').toLowerCase().includes(search);
+    const matchStatus = statusF === 'all' || q.status === statusF;
+    if (!matchSearch || !matchStatus) return;
+    shown++;
+    const st = QUOTE_STATUS_BADGE[q.status] || QUOTE_STATUS_BADGE.rascunho;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="td-name">${q.numero}</td>
+      <td>${nome}</td>
+      <td>${q.descricao || '—'}</td>
+      <td>${q.peso_g != null ? q.peso_g + ' g' : '—'}</td>
+      <td>${q.horas != null ? q.horas + ' h' : '—'}</td>
+      <td style="font-weight:600">${brlFmt(q.preco_final || 0)}</td>
+      <td><span class="badge ${st.cls}">${st.label}</span></td>
+      <td>${quoteRowActions(q)}</td>`;
+    tbody.appendChild(tr);
+  });
+  if (shown === 0) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Nenhum orçamento encontrado.</td></tr>';
+  const countEl = document.getElementById('quotes-count');
+  if (countEl) countEl.textContent = `Exibindo ${shown} de ${quotesDB.length} orçamentos`;
+  updateQuoteKPIs();
+}
+
+function quoteRowActions(q) {
+  let btns = '';
+  if (q.status === 'aguardando' || q.status === 'rascunho') {
+    btns += `<button class="btn btn-success btn-sm" onclick="setQuoteStatus('${q.id}','aprovado')" title="Aprovar"><i class="ti ti-check"></i></button>`;
+    btns += `<button class="btn btn-danger btn-sm" onclick="setQuoteStatus('${q.id}','recusado')" title="Recusar"><i class="ti ti-x"></i></button>`;
+  }
+  if (q.status === 'aprovado' || q.status === 'recusado' || q.status === 'convertido') {
+    btns += `<button class="btn btn-secondary btn-sm" onclick="setQuoteStatus('${q.id}','aguardando')" title="Reverter para Aguardando"><i class="ti ti-arrow-back-up"></i></button>`;
+  }
+  btns += `<button class="btn btn-secondary btn-sm" onclick="editQuoteDB('${q.id}')" title="Editar"><i class="ti ti-edit"></i></button>`;
+  btns += `<button class="btn btn-danger btn-sm" onclick="deleteQuoteDB('${q.id}')" title="Excluir"><i class="ti ti-trash"></i></button>`;
+  return `<div style="display:flex;gap:4px;flex-wrap:wrap">${btns}</div>`;
+}
+
+function updateQuoteKPIs() {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  const count = (s) => quotesDB.filter(q => q.status === s).length;
+  set('qm-draft', count('rascunho'));
+  set('qm-pending', count('aguardando'));
+  set('qm-approved', count('aprovado'));
+  const totalAprovado = quotesDB.filter(q => q.status === 'aprovado').reduce((s,q) => s + (q.preco_final||0), 0);
+  set('qm-total', 'R$ ' + Math.round(totalAprovado).toLocaleString('pt-BR'));
+}
+
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+async function nextQuoteNumber() {
+  try {
+    const { data } = await sb.from('orcamentos').select('numero').order('created_at', { ascending: false }).limit(1);
+    if (data && data.length > 0 && data[0].numero) {
+      const n = parseInt((data[0].numero.match(/\d+/) || ['0'])[0]) + 1;
+      return 'ORC-' + String(n).padStart(4, '0');
+    }
+  } catch(e){}
+  return 'ORC-0001';
+}
+
+// Salva o orçamento (cabeçalho + itens) no banco
+async function saveCalculatorQuote() {
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  if (!navigator.onLine) { showToast('Você está offline. Conecte-se para salvar.'); return; }
+
+  const clienteId = document.getElementById('q-client').value || null;
+  let desc = document.getElementById('q-desc').value.trim();
+  if (!desc) desc = 'Item sem descrição';
+  const r = calcQuote();
+  if (!r.weight || !r.hours) { showToast('Informe o peso e o tempo de impressão.'); return; }
+
+  const header = {
+    cliente_id: clienteId,
+    descricao: desc,
+    peso_g: r.weight,
+    horas: r.hours,
+    custo_filamento: round2(r.filCost),
+    custo_materiais: round2(r.matTotal),
+    custo_mao_obra: round2(r.laborTotal),
+    custo_operacional: round2(r.opTotal),
+    custo_pos_proc: round2(r.post),
+    custo_embalagem: round2(r.pkg),
+    custo_frete: round2(r.ship),
+    custo_total: round2(r.total),
+    margem_pct: r.margin,
+    desconto: round2(r.discount),
+    preco_final: round2(r.price),
+  };
+
+  const btn = document.querySelector('#page-quotations [onclick="saveCalculatorQuote()"]');
+  if (btn) btn.disabled = true;
+
+  try {
+    let quoteId;
+    if (editingQuoteId) {
+      const { error } = await sb.from('orcamentos').update(header).eq('id', editingQuoteId);
+      if (error) throw error;
+      quoteId = editingQuoteId;
+      await sb.from('orcamento_itens').delete().eq('orcamento_id', quoteId);
+    } else {
+      header.numero = await nextQuoteNumber();
+      header.status = 'aguardando';
+      header.created_by = currentUser ? currentUser.id : null;
+      const { data, error } = await sb.from('orcamentos').insert(header).select('id').single();
+      if (error) throw error;
+      quoteId = data.id;
+    }
+
+    if (quoteMaterials.length > 0) {
+      const itens = quoteMaterials.map(m => ({
+        orcamento_id: quoteId,
+        descricao: m.name || 'Material',
+        quantidade: m.qty || 1,
+        valor_unit: m.unit || 0,
+      }));
+      const { error: itErr } = await sb.from('orcamento_itens').insert(itens);
+      if (itErr) throw itErr;
+    }
+
+    showToast(editingQuoteId ? 'Orçamento atualizado!' : 'Orçamento salvo com sucesso!');
+    editingQuoteId = null;
+    resetCalculator();
+    await loadQuotesDB();
+  } catch (e) {
+    showToast('Erro ao salvar: ' + (e.message || e));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function setQuoteStatus(id, status) {
+  if (!sb) return;
+  const upd = { status };
+  if (status === 'aprovado') { upd.aprovado_por = currentUser ? currentUser.id : null; upd.aprovado_em = new Date().toISOString(); }
+  const { error } = await sb.from('orcamentos').update(upd).eq('id', id);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  const labels = { aprovado:'aprovado', recusado:'recusado', aguardando:'revertido para aguardando' };
+  showToast('Orçamento ' + (labels[status] || status) + '.');
+  await loadQuotesDB();
+}
+
+async function editQuoteDB(id) {
+  const q = quotesDB.find(x => x.id === id);
+  if (!q) return;
+  editingQuoteId = id;
+  refreshQuoteClientOptions();
+  if (q.cliente_id) document.getElementById('q-client').value = q.cliente_id;
+  document.getElementById('q-desc').value = q.descricao || '';
+  document.getElementById('q-weight').value = q.peso_g || 0;
+  document.getElementById('q-hours').value = q.horas || 0;
+  document.getElementById('q-margin').value = q.margem_pct || 0;
+  document.getElementById('q-discount').value = q.desconto || 0;
+  quoteMaterials = [];
+  try {
+    const { data: itens } = await sb.from('orcamento_itens').select('*').eq('orcamento_id', id);
+    if (itens) itens.forEach(it => quoteMaterials.push({ id: nextMatId++, name: it.descricao, qty: Number(it.quantidade), unit: Number(it.valor_unit) }));
+  } catch(e){}
+  renderExtraMaterials();
+  calcQuote();
+  document.querySelector('#page-quotations .card').scrollIntoView({ behavior:'smooth', block:'start' });
+  showToast(`Editando ${q.numero}. Altere e clique em Salvar.`);
+}
+
+async function deleteQuoteDB(id) {
+  const q = quotesDB.find(x => x.id === id);
+  if (!q) return;
+  if (!confirm(`Excluir o orçamento ${q.numero}?`)) return;
+  const { error } = await sb.from('orcamentos').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+  showToast(`${q.numero} excluído.`);
+  await loadQuotesDB();
+}
+
+// Botão "Novo Orçamento": limpa a calculadora e rola até ela
+function newQuoteFromCalc() {
+  editingQuoteId = null;
+  resetCalculator();
+  refreshQuoteClientOptions();
+  const card = document.querySelector('#page-quotations .card');
+  if (card) card.scrollIntoView({ behavior:'smooth', block:'start' });
+  showToast('Preencha a calculadora e clique em Salvar Orçamento.');
+}
+
+// ── Calculator: save quote to table (LEGADO, não usado) ──
+function saveCalculatorQuoteLegacy() {
   const client = document.getElementById('q-client').value;
   let desc = document.getElementById('q-desc').value.trim();
   if (!desc) desc = 'Item sem descrição';
