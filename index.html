@@ -2630,6 +2630,56 @@ function resetLogo() {
 loadLogo();
 
 // ══════════════════════════════════════════════
+// PREFERÊNCIAS DO USUÁRIO (salvas no perfil — Supabase)
+// ══════════════════════════════════════════════
+// Objeto central de preferências. Para lembrar uma nova preferência no
+// futuro, basta adicionar a chave aqui e chamar setPref('chave', valor).
+let userPrefs = {
+  theme: 'light',          // 'light' | 'dark'
+  insightsView: 'list'     // 'list' | 'cards'
+};
+let prefsLoaded = false;
+let prefsSaveTimer = null;
+
+// Aplica as preferências carregadas à interface
+function applyUserPrefs() {
+  dark = (userPrefs.theme === 'dark');
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
+  const themeIcon = document.getElementById('theme-icon');
+  if (themeIcon) themeIcon.className = dark ? 'ti ti-sun' : 'ti ti-moon';
+  if (typeof setInsightsView === 'function') setInsightsView(userPrefs.insightsView, true);
+}
+
+// Carrega preferências do perfil no banco (após login)
+async function loadUserPrefs() {
+  if (!sb || !currentUser) { applyUserPrefs(); return; }
+  try {
+    const { data, error } = await sb.from('perfis').select('preferencias').eq('id', currentUser.id).single();
+    if (!error && data && data.preferencias && typeof data.preferencias === 'object') {
+      userPrefs = Object.assign(userPrefs, data.preferencias);
+    }
+  } catch (e) { /* usa defaults */ }
+  prefsLoaded = true;
+  applyUserPrefs();
+}
+
+// Salva no banco com debounce (evita gravar a cada clique rápido)
+function saveUserPrefs() {
+  if (!sb || !currentUser) return;
+  clearTimeout(prefsSaveTimer);
+  prefsSaveTimer = setTimeout(async () => {
+    try { await sb.from('perfis').update({ preferencias: userPrefs }).eq('id', currentUser.id); }
+    catch (e) { /* silencioso */ }
+  }, 600);
+}
+
+// Define uma preferência e persiste
+function setPref(key, value) {
+  userPrefs[key] = value;
+  saveUserPrefs();
+}
+
+// ══════════════════════════════════════════════
 // CLIENTES — Conectado ao Supabase
 // ══════════════════════════════════════════════
 let clientesDB = [];        // dados reais vindos do banco
@@ -2862,6 +2912,12 @@ async function afterLogin(user) {
     if (roleEl) roleEl.textContent = capitalize(perfil.perfil);
     const avatarEl = document.querySelector('.user-avatar');
     if (avatarEl) avatarEl.textContent = iniciais(perfil.nome);
+    // Carrega preferências (tema, visualização) e aplica
+    if (perfil.preferencias && typeof perfil.preferencias === 'object') {
+      userPrefs = Object.assign(userPrefs, perfil.preferencias);
+    }
+    prefsLoaded = true;
+    applyUserPrefs();
   }
   // Registra login na auditoria
   try { await sb.from('auditoria_logs').insert({ usuario_id: user.id, acao: 'login', modulo: 'auth' }); } catch(e){}
@@ -2985,6 +3041,7 @@ function toggleTheme() {
   dark = !dark;
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
   document.getElementById('theme-icon').className = dark ? 'ti ti-sun' : 'ti ti-moon';
+  setPref('theme', dark ? 'dark' : 'light');
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -6630,7 +6687,7 @@ function updateKPIs(d) {
 // ── Insights view toggle ──
 let insightsView = 'list'; // 'list' | 'cards'
 
-function setInsightsView(view) {
+function setInsightsView(view, silent) {
   insightsView = view;
   const list = document.getElementById('insights-list');
   const btnList = document.getElementById('insights-btn-list');
@@ -6639,7 +6696,6 @@ function setInsightsView(view) {
 
   if (view === 'cards') {
     list.classList.add('card-view');
-    // change flex-direction to row-wrap handled by class
     list.style.flexDirection = '';
     if (btnList) btnList.classList.remove('active');
     if (btnCards) btnCards.classList.add('active');
@@ -6649,6 +6705,8 @@ function setInsightsView(view) {
     if (btnList) btnList.classList.add('active');
     if (btnCards) btnCards.classList.remove('active');
   }
+  // Persiste a preferência (exceto quando está apenas aplicando o que foi carregado)
+  if (!silent) setPref('insightsView', view);
 }
 
 function updateInsights(d) {
