@@ -2928,6 +2928,26 @@ async function loadClientsDB() {
   renderClientsDB();
 }
 
+// Abre WhatsApp (web no desktop, app no celular) com mensagem inicial
+function openWhatsApp(numero, nome) {
+  let n = (numero || '').replace(/\D/g, '');
+  if (!n) { showToast('Cliente sem número de WhatsApp.'); return; }
+  // Adiciona DDI do Brasil (55) se não tiver
+  if (n.length <= 11) n = '55' + n;
+  const saudacao = nome ? `Olá, ${nome.split(' ')[0]}! ` : 'Olá! ';
+  const msg = encodeURIComponent(saudacao + 'Aqui é da ANZO\'S Print 3D.');
+  window.open(`https://wa.me/${n}?text=${msg}`, '_blank');
+}
+
+// Abre o programa de e-mail com destinatário preenchido
+function openEmail(email, nome) {
+  if (!email) { showToast('Cliente sem e-mail.'); return; }
+  const assunto = encodeURIComponent('ANZO\'S Print 3D');
+  const saudacao = nome ? `Olá, ${nome.split(' ')[0]},` : 'Olá,';
+  const corpo = encodeURIComponent(saudacao + '\n\n');
+  window.location.href = `mailto:${email}?subject=${assunto}&body=${corpo}`;
+}
+
 function renderClientsDB() {
   const tbody = document.getElementById('clients-tbody');
   if (!tbody) return;
@@ -2948,6 +2968,14 @@ function renderClientsDB() {
     const cor = clientAvatarColor(c.nome);
     const tipoBadge = c.tipo === 'juridica' ? '<span class="badge badge-purple">PJ</span>' : '<span class="badge badge-blue">PF</span>';
     const tr = document.createElement('tr');
+    // WhatsApp: usa whatsapp se houver, senão telefone
+    const zapNum = (c.whatsapp || c.telefone || '').replace(/\D/g, '');
+    const zapBtn = zapNum
+      ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border:none" onclick="openWhatsApp('${zapNum}','${(c.nome||'').replace(/'/g,'')}')" title="Enviar WhatsApp"><i class="ti ti-brand-whatsapp"></i></button>`
+      : `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.4" title="Sem WhatsApp/telefone"><i class="ti ti-brand-whatsapp"></i></button>`;
+    const mailBtn = c.email
+      ? `<button class="btn btn-sm" style="background:#3b82f6;color:#fff;border:none" onclick="openEmail('${c.email}','${(c.nome||'').replace(/'/g,'')}')" title="Enviar e-mail"><i class="ti ti-mail"></i></button>`
+      : `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.4" title="Sem e-mail"><i class="ti ti-mail"></i></button>`;
     tr.innerHTML = `
       <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar" style="background:${cor}22;color:${cor}">${ini}</div><div class="td-name">${c.nome}</div></div></td>
       <td>${c.documento || '—'}</td>
@@ -2955,6 +2983,8 @@ function renderClientsDB() {
       <td>${c.cidade ? c.cidade + ' / ' + (c.estado||'') : '—'}</td>
       <td>${tipoBadge}</td>
       <td><div style="display:flex;gap:4px">
+        ${zapBtn}
+        ${mailBtn}
         <button class="btn btn-secondary btn-sm" onclick="editClientDB('${c.id}')" title="Editar"><i class="ti ti-edit"></i></button>
         <button class="btn btn-danger btn-sm" onclick="deleteClientDB('${c.id}')" title="Excluir"><i class="ti ti-trash"></i></button>
       </div></td>`;
