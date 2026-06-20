@@ -431,8 +431,8 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <div class="nav-item active" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i><span>Dashboard</span></div>
       <div class="nav-section-label">Comercial</div>
       <div class="nav-item" onclick="nav('clients')"><i class="ti ti-users"></i><span>Clientes</span></div>
-      <div class="nav-item" onclick="nav('quotations')"><i class="ti ti-file-dollar"></i><span>Orçamentos</span><span class="nav-badge">3</span></div>
-      <div class="nav-item" onclick="nav('orders')"><i class="ti ti-shopping-cart"></i><span>Pedidos</span><span class="nav-badge">7</span></div>
+      <div class="nav-item" onclick="nav('quotations')"><i class="ti ti-file-dollar"></i><span>Orçamentos</span><span class="nav-badge" id="nav-badge-quotes" style="display:none">0</span></div>
+      <div class="nav-item" onclick="nav('orders')"><i class="ti ti-shopping-cart"></i><span>Pedidos</span><span class="nav-badge" id="nav-badge-orders">7</span></div>
       <div class="nav-section-label">Produção</div>
       <div class="nav-item" onclick="nav('production')"><i class="ti ti-assembly"></i><span>Produção</span></div>
       <div class="nav-item" onclick="nav('printers')"><i class="ti ti-printer"></i><span>Impressoras</span></div>
@@ -3180,7 +3180,7 @@ async function afterLogin(user) {
   // Mostra o app
   const ls = document.getElementById('login-screen');
   ls.style.transition = 'opacity 0.4s'; ls.style.opacity = '0';
-  setTimeout(() => { ls.style.display = 'none'; document.getElementById('app').classList.add('visible'); initCharts(); renderNotifications(); }, 420);
+  setTimeout(() => { ls.style.display = 'none'; document.getElementById('app').classList.add('visible'); initCharts(); renderNotifications(); refreshQuoteBadge(); }, 420);
   showToast(`Bem-vindo, ${currentProfile ? currentProfile.nome : 'usuário'}!`);
 }
 
@@ -6519,6 +6519,13 @@ function updateQuoteKPIs() {
   set('qm-approved', count('aprovado'));
   const totalAprovado = quotesDB.filter(q => q.status === 'aprovado').reduce((s,q) => s + (q.preco_final||0), 0);
   set('qm-total', 'R$ ' + Math.round(totalAprovado).toLocaleString('pt-BR'));
+  // Atualiza o badge do menu lateral (mostra orçamentos aguardando)
+  const badge = document.getElementById('nav-badge-quotes');
+  if (badge) {
+    const pend = count('aguardando');
+    if (pend > 0) { badge.style.display = ''; badge.textContent = pend; }
+    else badge.style.display = 'none';
+  }
 }
 
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
@@ -6645,6 +6652,20 @@ async function deleteQuoteDB(id) {
   if (error) { showToast('Erro ao excluir: ' + error.message); return; }
   showToast(`${q.numero} excluído.`);
   await loadQuotesDB();
+}
+
+// Atualiza só o badge do menu (sem renderizar a tabela) — usado no login
+async function refreshQuoteBadge() {
+  if (!sb) return;
+  try {
+    const { data } = await sb.from('orcamentos').select('id').is('deleted_at', null).eq('status', 'aguardando');
+    const badge = document.getElementById('nav-badge-quotes');
+    if (badge) {
+      const n = (data || []).length;
+      if (n > 0) { badge.style.display = ''; badge.textContent = n; }
+      else badge.style.display = 'none';
+    }
+  } catch(e){}
 }
 
 // Botão "Novo Orçamento": limpa a calculadora e rola até ela
