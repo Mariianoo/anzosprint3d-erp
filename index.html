@@ -3705,6 +3705,118 @@ let ordersData = [
 let nextOrderId = 48;
 let currentOrderId = null;
 
+// ── Mapeamento entre rótulos da interface e o enum do banco ──
+// O banco usa: aguardando, producao, pos_processamento, finalizado, entregue, devolucao, cancelado
+// A interface usa rótulos com acento. "Atrasado" é COMPUTADO (prazo vencido), não é status do banco.
+const STATUS_LABEL_TO_DB = {
+  'Aguardando':'aguardando', 'Produção':'producao', 'Pós-proc.':'pos_processamento',
+  'Finalizado':'finalizado', 'Entregue':'entregue', 'Devolução':'devolucao', 'Cancelado':'cancelado',
+};
+const STATUS_DB_TO_LABEL = {
+  aguardando:'Aguardando', producao:'Produção', pos_processamento:'Pós-proc.',
+  finalizado:'Finalizado', entregue:'Entregue', devolucao:'Devolução', cancelado:'Cancelado',
+};
+
+// Converte data ISO (YYYY-MM-DD) → DD/MM/YY para exibição
+function isoToBR(iso) {
+  if (!iso) return '';
+  const p = String(iso).split('T')[0].split('-');
+  if (p.length !== 3) return iso;
+  return `${p[2]}/${p[1]}/${p[0].slice(2)}`;
+}
+// Converte DD/MM/YY(YY) → ISO YYYY-MM-DD para gravar
+function brToISO(br) {
+  if (!br) return null;
+  const p = br.split('/');
+  if (p.length !== 3) return null;
+  let [d, m, y] = p;
+  if (y.length === 2) y = '20' + y;
+  return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+
+// Verifica se um pedido está atrasado (prazo vencido e não concluído)
+function isOrderLate(o) {
+  if (!o.deadline) return false;
+  if (['Finalizado','Entregue','Devolução','Cancelado'].includes(o.status)) return false;
+  const parts = o.deadline.split('/');
+  if (parts.length !== 3) return false;
+  let [d,m,y] = parts; if (y.length===2) y='20'+y;
+  const prazo = new Date(+y, +m-1, +d); prazo.setHours(0,0,0,0);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  return prazo < hoje;
+}
+
+// ── Carrega pedidos do banco ──
+async function loadOrdersDB() {
+  if (!sb) { renderKanban(); renderOrdersTable(); return; }
+  // Carrega clientes para resolver nomes
+  if (!clientesDB || clientesDB.length === 0) {
+    try { const { data: cli } = await sb.from('clientes').select('id,nome').is('deleted_at', null); if (cli) clientesDB = cli; } catch(e){}
+  }
+  const { data, error } = await sb.from('pedidos').select('*').is('deleted_at', null)
+    .order('status').order('ordem', { ascending: true }).order('created_at', { ascending: false });
+  if (error) { showToast('Erro ao carregar pedidos: ' + error.message); return; }
+
+  ordersData = (data || []).map(p => ({
+    _uuid: p.id,                                  // UUID real no banco
+    id: p.numero || p.id,                         // número exibido (PED-XXXX)
+    cliente_id: p.cliente_id,
+    orcamento_id: p.orcamento_id,
+    client: clienteNomeById(p.cliente_id),
+    desc: p.descricao || '',
+    value: Number(p.valor) || 0,
+    deadline: isoToBR(p.prazo),
+    resp: p.responsavel || '',
+    status: STATUS_DB_TO_LABEL[p.status] || 'Aguardando',
+    ordem: p.ordem || 0,
+    obs: p.observacoes || '',
+    history: [],   // histórico carregado sob demanda ao abrir o detalhe
+  }));
+  // Marca atrasados (status computado, sobrepõe o rótulo visual)
+  ordersData.forEach(o => { if (isOrderLate(o)) o._late = true; });
+  renderKanban();
+  renderOrdersTable();
+  refreshOrdersBadge();
+}
+
+// Atualiza o status (e histórico) de um pedido no banco
+async function persistOrderStatus(uuid, dbStatus, deStatus) {
+  if (!sb || !uuid) return;
+  try {
+    await sb.from('pedidos').update({ status: dbStatus }).eq('id', uuid);
+    await sb.from('pedido_historico').insert({
+      pedido_id: uuid,
+      de_status: deStatus || null,
+      para_status: dbStatus,
+      usuario_id: currentUser ? currentUser.id : null,
+      nota: 'Status alterado via Kanban.'
+    });
+  } catch(e){ /* silencioso */ }
+}
+
+// Persiste a ordem dos cards de uma coluna (Forma A)
+async function persistColumnOrder(statusLabel) {
+  if (!sb) return;
+  const dbStatus = STATUS_LABEL_TO_DB[statusLabel];
+  const inCol = ordersData.filter(o => o.status === statusLabel);
+  // Atualiza o campo ordem de cada um conforme a posição atual no array
+  try {
+    await Promise.all(inCol.map((o, idx) => {
+      o.ordem = idx;
+      return o._uuid ? sb.from('pedidos').update({ ordem: idx }).eq('id', o._uuid) : Promise.resolve();
+    }));
+  } catch(e){}
+}
+
+// Atualiza só o badge do menu (pedidos em aberto)
+async function refreshOrdersBadge() {
+  const badge = document.getElementById('nav-badge-orders');
+  if (!badge) return;
+  const abertos = ordersData.filter(o => !['Entregue','Cancelado','Devolução'].includes(o.status)).length;
+  if (abertos > 0) { badge.style.display = ''; badge.textContent = abertos; }
+  else badge.style.display = 'none';
+}
+
 // ── Kanban Drag & Drop state ──
 let dragOrderId = null;
 let dragSourceStatus = null;
@@ -3789,6 +3901,7 @@ function reorderOrder(draggedId, targetId, placeAbove) {
   if (targetIdx === -1) { ordersData.splice(fromIdx, 0, moved); return; }
   const insertIdx = placeAbove ? targetIdx : targetIdx + 1;
   ordersData.splice(insertIdx, 0, moved);
+  persistColumnOrder(moved.status);
   renderKanban();
   renderOrdersTable();
   showToast(`Prioridade de ${draggedId} atualizada na coluna.`);
@@ -3834,6 +3947,9 @@ function setupDropZone(colBody, colKey) {
     o.status = newStatus;
     if (!o.history) o.history = [];
     o.history.push({ at: nowStr(), by: getLoggedUser(), from: prevStatus, to: newStatus, note: 'Status alterado via arrastar e soltar (Kanban).' });
+    o._late = isOrderLate(o);
+    // Persiste no banco: status + reordena a coluna de destino
+    persistOrderStatus(o._uuid, STATUS_LABEL_TO_DB[newStatus], STATUS_LABEL_TO_DB[prevStatus]).then(() => persistColumnOrder(newStatus));
     renderKanban();
     renderOrdersTable();
     showToast(`${o.id} → ${newStatus}`);
@@ -3914,7 +4030,7 @@ function renderKanban() {
       const card = document.createElement('div');
       card.className = 'kanban-card';
       card.style.cursor = 'pointer';
-      const isLate = o.status === 'Atrasado';
+      const isLate = o._late || o.status === 'Atrasado';
       if (isLate) card.style.borderColor = '#fca5a5';
       card.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -3935,7 +4051,7 @@ function renderKanban() {
   setK('okpi-total', ordersData.length);
   setK('okpi-waiting', cols.aguardando.length);
   setK('okpi-production', cols.producao.length);
-  setK('okpi-late', ordersData.filter(o => o.status === 'Atrasado').length);
+  setK('okpi-late', ordersData.filter(o => o._late || o.status === 'Atrasado').length);
   setK('okpi-done', cols.finalizado.length);
   setK('okpi-devol', cols.devolucao.length);
 }
@@ -3979,11 +4095,21 @@ function filterOrdersBy(status) {
   renderOrdersTable();
 }
 
-function openOrderDetail(id) {
+async function openOrderDetail(id) {
   const o = ordersData.find(x => x.id === id);
   if (!o) return;
   currentOrderId = id;
   if (!o.history) o.history = [];
+  // Carrega histórico do banco (se ainda não carregado e há UUID)
+  if (o._uuid && sb && (!o.history || o.history.length === 0)) {
+    try {
+      const { data } = await sb.from('pedido_historico').select('*').eq('pedido_id', o._uuid).order('created_at');
+      if (data) o.history = data.map(h => ({
+        at: isoToBR(h.created_at) + ' ' + (new Date(h.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})),
+        by: '', from: STATUS_DB_TO_LABEL[h.de_status] || null, to: STATUS_DB_TO_LABEL[h.para_status] || h.para_status, note: h.nota || ''
+      }));
+    } catch(e){}
+  }
   const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.textContent = val; };
   set('od-num', o.id);
   set('od-client', o.client);
@@ -4256,7 +4382,7 @@ nav = function(page) {
   _origNav(page);
   if (page === 'clients')   { loadClientsDB(); }
   if (page === 'quotations'){ loadFilamentsForQuote().then(() => { refreshQuoteFilamentTypes(); calcQuote(); }); refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); loadQuotesDB(); }
-  if (page === 'orders')     { renderKanban(); renderOrdersTable(); }
+  if (page === 'orders')     { loadOrdersDB(); }
   if (page === 'production') { renderProductionTable(); }
   if (page === 'filaments')  { loadFilamentsDB(); }
   if (page === 'models')     { renderModels(); }
@@ -6664,6 +6790,9 @@ function quoteRowActions(q) {
     btns += `<button class="btn btn-success btn-sm" onclick="setQuoteStatus('${q.id}','aprovado')" title="Aprovar"><i class="ti ti-check"></i></button>`;
     btns += `<button class="btn btn-danger btn-sm" onclick="setQuoteStatus('${q.id}','recusado')" title="Recusar"><i class="ti ti-x"></i></button>`;
   }
+  if (q.status === 'aprovado') {
+    btns += `<button class="btn btn-primary btn-sm" onclick="convertQuoteToOrder('${q.id}')" title="Converter em pedido"><i class="ti ti-shopping-cart"></i></button>`;
+  }
   if (q.status === 'aprovado' || q.status === 'recusado' || q.status === 'convertido') {
     btns += `<button class="btn btn-secondary btn-sm" onclick="setQuoteStatus('${q.id}','aguardando')" title="Reverter para Aguardando"><i class="ti ti-arrow-back-up"></i></button>`;
   }
@@ -6813,6 +6942,56 @@ async function deleteQuoteDB(id) {
   if (error) { showToast('Erro ao excluir: ' + error.message); return; }
   showToast(`${q.numero} excluído.`);
   await loadQuotesDB();
+}
+
+// Converte um orçamento aprovado em pedido (cria registro real em pedidos)
+async function convertQuoteToOrder(id) {
+  const q = quotesDB.find(x => x.id === id);
+  if (!q) return;
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  if (!confirm(`Converter o orçamento ${q.numero} em um pedido?\n\nO cliente e os valores serão transferidos automaticamente.`)) return;
+  try {
+    const numero = await nextOrderNumber();
+    const pedido = {
+      numero,
+      cliente_id: q.cliente_id,
+      orcamento_id: q.id,
+      descricao: q.descricao,
+      valor: q.preco_final,
+      responsavel: currentProfile ? currentProfile.nome : '',
+      status: 'aguardando',
+      ordem: 0,
+      created_by: currentUser ? currentUser.id : null,
+    };
+    const { data, error } = await sb.from('pedidos').insert(pedido).select('id').single();
+    if (error) throw error;
+    // Histórico inicial do pedido
+    try {
+      await sb.from('pedido_historico').insert({
+        pedido_id: data.id, de_status: null, para_status: 'aguardando',
+        usuario_id: currentUser ? currentUser.id : null,
+        nota: `Pedido criado a partir do orçamento ${q.numero}.`
+      });
+    } catch(e){}
+    // Marca o orçamento como convertido
+    await sb.from('orcamentos').update({ status: 'convertido' }).eq('id', q.id);
+    showToast(`Orçamento ${q.numero} convertido no pedido ${numero}!`);
+    await loadQuotesDB();
+  } catch (e) {
+    showToast('Erro ao converter: ' + (e.message || e));
+  }
+}
+
+// Gera o próximo número PED-XXXX baseado no banco
+async function nextOrderNumber() {
+  try {
+    const { data } = await sb.from('pedidos').select('numero').order('created_at', { ascending: false }).limit(1);
+    if (data && data.length > 0 && data[0].numero) {
+      const n = parseInt((data[0].numero.match(/\d+/) || ['0'])[0]) + 1;
+      return 'PED-' + String(n).padStart(4, '0');
+    }
+  } catch(e){}
+  return 'PED-0001';
 }
 
 // Atualiza só o badge do menu (sem renderizar a tabela) — usado no login
