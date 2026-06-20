@@ -826,11 +826,14 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
         <div class="form-group"><label>Peso do modelo (g)</label><input type="number" id="q-weight" value="150" oninput="calcQuote()"></div>
         <div class="form-group"><label>Tempo de impressão (h)</label><input type="number" id="q-hours" value="8" step="0.1" oninput="calcQuote()"></div>
         <div class="form-group"><label>Tipo de filamento</label>
-          <select id="q-fil-type" onchange="calcQuote()">
-            <option value="0.05">PLA (R$ 0,05/g)</option><option value="0.095">PETG (R$ 0,095/g)</option>
-            <option value="0.08">ABS (R$ 0,08/g)</option><option value="0.12">TPU (R$ 0,12/g)</option><option value="0.13">ASA (R$ 0,13/g)</option>
-          </select>
+          <select id="q-fil-type" onchange="onQuoteFilTypeChange()"></select>
         </div>
+        <div class="form-group"><label>Marca <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
+          <select id="q-fil-brand" onchange="calcQuote()"><option value="">Média do tipo</option></select>
+        </div>
+      </div>
+      <div id="q-fil-info" style="font-size:12px;color:var(--text2);margin-top:2px"></div>
+      <div class="grid-4" style="margin-top:10px">
         <div class="form-group"><label>Pós-processamento</label>
           <select id="q-post" onchange="calcQuote()">
             <option value="0">Nenhum — R$ 0</option><option value="20">Lixamento — R$ 20</option>
@@ -4252,10 +4255,10 @@ const _origNav = nav;
 nav = function(page) {
   _origNav(page);
   if (page === 'clients')   { loadClientsDB(); }
-  if (page === 'quotations'){ refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); loadQuotesDB(); }
+  if (page === 'quotations'){ loadFilamentsForQuote().then(() => { refreshQuoteFilamentTypes(); calcQuote(); }); refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); loadQuotesDB(); }
   if (page === 'orders')     { renderKanban(); renderOrdersTable(); }
   if (page === 'production') { renderProductionTable(); }
-  if (page === 'filaments')  { renderFilaments(); }
+  if (page === 'filaments')  { loadFilamentsDB(); }
   if (page === 'models')     { renderModels(); }
   if (page === 'suppliers')  { renderSuppliers(); }
   if (page === 'supplies')   { renderSupplies(); }
@@ -4568,6 +4571,48 @@ let filamentsData = [
 let nextFilamentId = 9;
 let editingFilamentId = null;
 
+// ── Conexão com Supabase: carrega filamentos do banco ──
+// Mapeia colunas do banco (tipo,cor,cor_hex,marca,diametro,preco,peso_total_g,estoque_g)
+// para o formato usado pela interface (type,color,swatch,brand,diameter,price,total,current).
+async function loadFilamentsDB() {
+  if (!sb) { renderFilaments(); return; }
+  const grid = document.getElementById('fil-grid');
+  if (grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text3)"><i class="ti ti-loader"></i> Carregando filamentos...</div>';
+  const { data, error } = await sb.from('filamentos').select('*').is('deleted_at', null).order('tipo');
+  if (error) {
+    if (grid) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--red)">Erro ao carregar: ${error.message}</div>`;
+    return;
+  }
+  filamentsData = (data || []).map(r => ({
+    id: r.id,                          // UUID
+    type: r.tipo || '',
+    color: r.cor || '',
+    swatch: r.cor_hex || '#808080',
+    brand: r.marca || '',
+    supplier: r.fornecedor_nome || '', // fornecedor pode ser texto livre por enquanto
+    diameter: r.diametro ? (String(r.diametro).replace('.',',') + 'mm') : '1,75mm',
+    price: Number(r.preco) || 0,
+    total: r.peso_total_g || 1000,
+    current: r.estoque_g || 0,
+  }));
+  renderFilaments();
+}
+
+// Converte o formato da interface para as colunas do banco
+function filamentToDB(f) {
+  return {
+    tipo: f.type,
+    cor: f.color,
+    cor_hex: f.swatch,
+    marca: f.brand,
+    diametro: parseFloat(String(f.diameter).replace(',', '.')) || 1.75,
+    preco: f.price,
+    peso_total_g: f.total,
+    estoque_g: f.current,
+  };
+}
+
+
 // Brand + reference price table (brand → type → price)
 let brandPrices = [
   { brand:'Bambu Lab', type:'PLA',  price:99.90 },
@@ -4631,9 +4676,9 @@ function renderFilaments() {
       </div>
       ${footerText}
       <div style="display:flex;gap:6px;margin-top:10px">
-        <button class="btn btn-secondary btn-sm" onclick="restockFilament(${f.id})" title="Repor estoque" style="flex:1"><i class="ti ti-package-import"></i> Repor</button>
-        <button class="btn btn-secondary btn-sm" onclick="editFilament(${f.id})" title="Editar"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="restockFilament('${f.id}')" title="Repor estoque" style="flex:1"><i class="ti ti-package-import"></i> Repor</button>
+        <button class="btn btn-secondary btn-sm" onclick="editFilament('${f.id}')" title="Editar"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="deleteFilament('${f.id}')" title="Excluir"><i class="ti ti-trash"></i></button>
       </div>`;
     grid.appendChild(card);
   });
@@ -4745,7 +4790,7 @@ function updateFilamentPriceFromBrand() {
   }
 }
 
-function saveNewFilament() {
+async function saveNewFilament() {
   const type = document.getElementById('nf-type').value;
   const color = document.getElementById('nf-color').value.trim();
   const swatch = document.getElementById('nf-swatch').value;
@@ -4760,17 +4805,27 @@ function saveNewFilament() {
     showToast('Preencha todos os campos obrigatórios (*)');
     return;
   }
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  if (!navigator.onLine) { showToast('Você está offline. Conecte-se para salvar.'); return; }
 
-  if (editingFilamentId) {
-    const f = filamentsData.find(x => x.id === editingFilamentId);
-    if (f) Object.assign(f, { type, color, swatch, diameter, brand, supplier, price, total, current });
-    showToast(`${type} ${color} atualizado!`);
-  } else {
-    filamentsData.push({ id: nextFilamentId++, type, color, swatch, diameter, brand, supplier, price, total, current });
-    showToast(`${type} ${color} (${brand}) cadastrado!`);
+  const payload = filamentToDB({ type, color, swatch, diameter, brand, price, total, current });
+
+  try {
+    if (editingFilamentId) {
+      const { error } = await sb.from('filamentos').update(payload).eq('id', editingFilamentId);
+      if (error) throw error;
+      showToast(`${type} ${color} atualizado!`);
+    } else {
+      payload.created_by = currentUser ? currentUser.id : null;
+      const { error } = await sb.from('filamentos').insert(payload);
+      if (error) throw error;
+      showToast(`${type} ${color} (${brand}) cadastrado!`);
+    }
+    closeModal('modal-new-filament');
+    await loadFilamentsDB();
+  } catch (e) {
+    showToast('Erro ao salvar: ' + (e.message || e));
   }
-  closeModal('modal-new-filament');
-  renderFilaments();
 }
 
 function editFilament(id) {
@@ -4798,25 +4853,34 @@ function editFilament(id) {
   document.getElementById('modal-new-filament').style.display = 'flex';
 }
 
-function restockFilament(id) {
+async function restockFilament(id) {
   const f = filamentsData.find(x => x.id === id);
   if (!f) return;
   const add = prompt(`Repor estoque de ${f.type} ${f.color}\nQuantidade atual: ${f.current}g de ${f.total}g\n\nQuantos gramas adicionar?`, String(f.total - f.current));
   if (add === null) return;
   const amount = parseInt(add);
   if (isNaN(amount) || amount <= 0) { showToast('Quantidade inválida.'); return; }
-  f.current = Math.min(f.total, f.current + amount);
-  renderFilaments();
-  showToast(`${f.type} ${f.color} reposto (+${amount}g) → ${f.current}g`);
+  const novoEstoque = Math.min(f.total, f.current + amount);
+  if (!sb) { f.current = novoEstoque; renderFilaments(); return; }
+  try {
+    const { error } = await sb.from('filamentos').update({ estoque_g: novoEstoque }).eq('id', id);
+    if (error) throw error;
+    showToast(`${f.type} ${f.color} reposto (+${amount}g) → ${novoEstoque}g`);
+    await loadFilamentsDB();
+  } catch(e) { showToast('Erro ao repor: ' + (e.message||e)); }
 }
 
-function deleteFilament(id) {
+async function deleteFilament(id) {
   const f = filamentsData.find(x => x.id === id);
   if (!f) return;
   if (!confirm(`Excluir ${f.type} ${f.color} (${f.brand})?`)) return;
-  filamentsData = filamentsData.filter(x => x.id !== id);
-  renderFilaments();
-  showToast(`${f.type} ${f.color} excluído.`);
+  if (!sb) { filamentsData = filamentsData.filter(x => x.id !== id); renderFilaments(); return; }
+  try {
+    const { error } = await sb.from('filamentos').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    showToast(`${f.type} ${f.color} excluído.`);
+    await loadFilamentsDB();
+  } catch(e) { showToast('Erro ao excluir: ' + (e.message||e)); }
 }
 
 // ── Brand prices ──
@@ -6295,11 +6359,105 @@ function applyModelToQuote() {
   document.getElementById('q-weight').value = m.weight;
   document.getElementById('q-hours').value = m.hours;
   document.getElementById('q-desc').value = m.name;
-  // Match filament type to material
-  const filMap = { 'PLA':'0.05','PETG':'0.095','ABS':'0.08','TPU':'0.12','ASA':'0.13' };
-  if (filMap[m.material]) document.getElementById('q-fil-type').value = filMap[m.material];
+  // Seleciona o tipo de filamento do modelo (se existir no dropdown)
+  const typeSel = document.getElementById('q-fil-type');
+  if (m.material && typeSel) {
+    for (const opt of typeSel.options) {
+      if (opt.value === m.material) { typeSel.value = m.material; break; }
+    }
+    refreshQuoteFilamentBrands();
+  }
   opEnergyManual = false; opWearManual = false;
   calcQuote();
+}
+
+// Garante que filamentsData esteja carregado (para a calculadora), sem mexer na tela de Filamentos
+async function loadFilamentsForQuote() {
+  if (!sb) return;
+  if (filamentsData && filamentsData.length > 0) return; // já carregado
+  try {
+    const { data } = await sb.from('filamentos').select('*').is('deleted_at', null).order('tipo');
+    if (data) {
+      filamentsData = data.map(r => ({
+        id: r.id, type: r.tipo || '', color: r.cor || '', swatch: r.cor_hex || '#808080',
+        brand: r.marca || '', supplier: '', diameter: r.diametro ? (String(r.diametro).replace('.',',')+'mm') : '1,75mm',
+        price: Number(r.preco) || 0, total: r.peso_total_g || 1000, current: r.estoque_g || 0,
+      }));
+    }
+  } catch(e){}
+}
+
+// ── Precificação por filamento real (tipo + marca) ──
+// Preços-padrão de fallback (R$/g) caso não haja filamento cadastrado do tipo
+const FIL_FALLBACK_RATE = { PLA:0.05, PETG:0.095, ABS:0.08, TPU:0.12, ASA:0.13, PC:0.18, NYLON:0.16 };
+
+// Calcula R$/g de um filamento: preço da bobina ÷ peso total da bobina
+function filamentRatePerGram(f) {
+  if (!f || !f.total || f.total <= 0) return 0;
+  return f.price / f.total;
+}
+
+// Tipos de filamento disponíveis (dos cadastrados + os padrão)
+function availableFilamentTypes() {
+  const fromDB = (typeof filamentsData !== 'undefined' ? filamentsData.map(f => f.type) : []);
+  const base = ['PLA','PETG','ABS','TPU','ASA'];
+  return [...new Set([...fromDB, ...base])].filter(Boolean).sort();
+}
+
+// Popula o dropdown de TIPO na calculadora
+function refreshQuoteFilamentTypes() {
+  const sel = document.getElementById('q-fil-type');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = availableFilamentTypes().map(t => `<option value="${t}">${t}</option>`).join('');
+  if (cur) sel.value = cur;
+  refreshQuoteFilamentBrands();
+}
+
+// Popula o dropdown de MARCA conforme o tipo escolhido
+function refreshQuoteFilamentBrands() {
+  const typeSel = document.getElementById('q-fil-type');
+  const brandSel = document.getElementById('q-fil-brand');
+  if (!typeSel || !brandSel) return;
+  const tipo = typeSel.value;
+  const marcas = (typeof filamentsData !== 'undefined'
+    ? [...new Set(filamentsData.filter(f => f.type === tipo).map(f => f.brand))].filter(Boolean).sort()
+    : []);
+  const cur = brandSel.value;
+  brandSel.innerHTML = '<option value="">Média do tipo</option>'
+    + marcas.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (cur) brandSel.value = cur;
+}
+
+function onQuoteFilTypeChange() {
+  refreshQuoteFilamentBrands();
+  calcQuote();
+}
+
+// Retorna {rate, info}: rate R$/g e um texto explicativo
+function resolveQuoteFilamentRate() {
+  const tipo = document.getElementById('q-fil-type')?.value || '';
+  const marca = document.getElementById('q-fil-brand')?.value || '';
+  const fils = (typeof filamentsData !== 'undefined' ? filamentsData : []);
+
+  if (marca) {
+    // Marca específica: usa o preço dela (média se houver várias cores da mesma marca/tipo)
+    const matches = fils.filter(f => f.type === tipo && f.brand === marca);
+    if (matches.length > 0) {
+      const rate = matches.reduce((s,f) => s + filamentRatePerGram(f), 0) / matches.length;
+      return { rate, info: `${tipo} ${marca}: R$ ${rate.toFixed(3).replace('.',',')}/g (do estoque)` };
+    }
+  }
+  // Sem marca: média de todas as marcas do tipo
+  const ofType = fils.filter(f => f.type === tipo);
+  if (ofType.length > 0) {
+    const rate = ofType.reduce((s,f) => s + filamentRatePerGram(f), 0) / ofType.length;
+    const nMarcas = new Set(ofType.map(f => f.brand)).size;
+    return { rate, info: `${tipo}: média de ${nMarcas} marca(s) = R$ ${rate.toFixed(3).replace('.',',')}/g` };
+  }
+  // Nenhum cadastrado: usa fallback
+  const rate = FIL_FALLBACK_RATE[tipo] || 0.05;
+  return { rate, info: `${tipo}: sem filamento cadastrado — usando preço estimado R$ ${rate.toFixed(3).replace('.',',')}/g` };
 }
 
 function refreshQuoteModelOptions() {
@@ -6314,7 +6472,10 @@ function calcQuote() {
   const qty = Math.max(1, parseInt(document.getElementById('q-qty').value) || 1);
   const w = parseFloat(document.getElementById('q-weight').value) || 0;
   const h = parseFloat(document.getElementById('q-hours').value) || 0;
-  const filRate = parseFloat(document.getElementById('q-fil-type').value) || 0.05;
+  const filInfo = resolveQuoteFilamentRate();
+  const filRate = filInfo.rate;
+  const infoEl = document.getElementById('q-fil-info');
+  if (infoEl) infoEl.textContent = filInfo.info;
   const post = parseFloat(document.getElementById('q-post').value) || 0;
   const pkg = parseFloat(document.getElementById('q-pkg').value) || 0;
   const margin = parseFloat(document.getElementById('q-margin').value) || 0;
