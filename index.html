@@ -389,7 +389,6 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
         <span id="li-toggle-text">Primeiro acesso?</span>
         <a href="#" onclick="toggleAuthMode();return false;" style="color:#3b82f6;font-weight:600" id="li-toggle-link">Criar conta</a>
       </div>
-      <div style="margin-top:6px;font-size:11px;color:var(--text3)">Autenticação via Supabase Auth</div>
     </div>
   </div>
 </div>
@@ -2865,6 +2864,21 @@ function applyUserPrefs() {
   const themeIcon = document.getElementById('theme-icon');
   if (themeIcon) themeIcon.className = dark ? 'ti ti-sun' : 'ti ti-moon';
   if (typeof setInsightsView === 'function') setInsightsView(userPrefs.insightsView, true);
+  // Guarda o tema no navegador para a tela de login lembrar (neste dispositivo)
+  try { localStorage.setItem('anzos_theme', userPrefs.theme || 'light'); } catch(e){}
+}
+
+// Aplica o tema salvo no navegador o quanto antes (antes do login)
+function applyEarlyTheme() {
+  try {
+    const t = localStorage.getItem('anzos_theme');
+    if (t === 'dark') {
+      dark = true;
+      document.documentElement.setAttribute('data-theme', 'dark');
+      const themeIcon = document.getElementById('theme-icon');
+      if (themeIcon) themeIcon.className = 'ti ti-sun';
+    }
+  } catch(e){}
 }
 
 // Carrega preferências do perfil no banco (após login)
@@ -3294,7 +3308,9 @@ function toggleTheme() {
   dark = !dark;
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
   document.getElementById('theme-icon').className = dark ? 'ti ti-sun' : 'ti ti-moon';
-  setPref('theme', dark ? 'dark' : 'light');
+  const theme = dark ? 'dark' : 'light';
+  try { localStorage.setItem('anzos_theme', theme); } catch(e){}  // lembra na tela de login deste dispositivo
+  setPref('theme', theme);  // salva no perfil (segue o usuário em qualquer dispositivo)
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -8763,6 +8779,7 @@ function initCharts() {
 
 // ── Inicialização: verifica sessão Supabase ao carregar ──
 document.addEventListener('DOMContentLoaded', () => {
+  applyEarlyTheme();
   checkExistingSession();
   registerServiceWorker();
   setupOfflineIndicator();
