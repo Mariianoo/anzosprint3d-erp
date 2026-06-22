@@ -971,6 +971,23 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 </div>
 
 <!-- ═══════════════════════════════════════════
+     MODAL: Confirmação (genérico, profissional)
+═══════════════════════════════════════════ -->
+<div id="modal-confirm" class="modal-overlay" style="display:none;z-index:2000" onclick="if(event.target===this)resolveConfirm(false)">
+  <div class="modal" style="width:420px;max-width:92vw;text-align:center;padding:28px 24px">
+    <div id="confirm-icon" style="width:56px;height:56px;border-radius:50%;background:rgba(239,68,68,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+      <i class="ti ti-alert-triangle" style="font-size:28px;color:var(--red)"></i>
+    </div>
+    <h3 id="confirm-title" style="font-size:17px;font-weight:600;margin-bottom:8px">Confirmar ação</h3>
+    <p id="confirm-msg" style="font-size:13.5px;color:var(--text2);line-height:1.55;margin-bottom:22px">Tem certeza?</p>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn btn-secondary" style="min-width:110px" onclick="resolveConfirm(false)">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok-btn" style="min-width:110px" onclick="resolveConfirm(true)">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
      PAGE: ORDERS (Kanban)
 ═══════════════════════════════════════════ -->
 <div class="page" id="page-orders">
@@ -3112,7 +3129,7 @@ async function editClientDB(id) {
 async function deleteClientDB(id) {
   const c = clientesDB.find(x => x.id === id);
   if (!c) return;
-  if (!confirm(`Excluir o cliente "${c.nome}"?\n\nIsso faz uma exclusão lógica (soft delete) — o registro fica no histórico.`)) return;
+  if (!await confirmAction({ title:'Excluir cliente', message:`Excluir o cliente "${c.nome}"? Exclusão lógica (soft delete) — o registro fica no histórico.` })) return;
   // soft delete: marca deleted_at
   const { error } = await sb.from('clientes').update({ deleted_at: new Date().toISOString() }).eq('id', id);
   if (error) { showToast('Erro ao excluir: ' + error.message); return; }
@@ -3468,6 +3485,56 @@ function closeModal(id) {
   }
   el.style.display = 'none';
   if (id === 'modal-new-model' && typeof stopModelViewer === 'function') stopModelViewer();
+}
+
+// ── Modal de confirmação profissional (substitui o confirm() do navegador) ──
+let _confirmResolver = null;
+function confirmAction(opts = {}) {
+  const {
+    title = 'Confirmar ação',
+    message = 'Tem certeza?',
+    confirmLabel = 'Excluir',
+    danger = true,
+    sound = true,
+    icon = 'ti-alert-triangle',
+  } = opts;
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = message;
+  const okBtn = document.getElementById('confirm-ok-btn');
+  okBtn.textContent = confirmLabel;
+  okBtn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+  okBtn.style.minWidth = '110px';
+  const iconWrap = document.getElementById('confirm-icon');
+  const iconEl = iconWrap.querySelector('i');
+  iconEl.className = 'ti ' + icon;
+  iconEl.style.color = danger ? 'var(--red)' : 'var(--blue)';
+  iconWrap.style.background = danger ? 'rgba(239,68,68,0.12)' : 'rgba(59,130,246,0.12)';
+  document.getElementById('modal-confirm').style.display = 'flex';
+  if (sound) playAlertBeep();
+  return new Promise(resolve => { _confirmResolver = resolve; });
+}
+function resolveConfirm(result) {
+  document.getElementById('modal-confirm').style.display = 'none';
+  if (_confirmResolver) { _confirmResolver(result); _confirmResolver = null; }
+}
+
+// Beep curto gerado via Web Audio (não precisa de arquivo externo)
+function playAlertBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, ctx.currentTime);
+    osc.frequency.setValueAtTime(520, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.24);
+    osc.onended = () => ctx.close();
+  } catch(e) { /* navegador bloqueou áudio — silencioso */ }
 }
 
 // ── CEP lookup (ViaCEP) ──
@@ -4273,11 +4340,26 @@ function advanceOrderFromTable(id) {
   renderOrdersTable();
 }
 
-function deleteOrderById(id) {
-  if (!confirm(`Excluir o pedido ${id}? Esta ação não pode ser desfeita.`)) return;
+async function deleteOrderById(id) {
+  const ok = await confirmAction({
+    title: 'Excluir pedido',
+    message: `Tem certeza que deseja excluir o pedido ${id}? Esta ação não pode ser desfeita.`,
+    confirmLabel: 'Excluir',
+  });
+  if (!ok) return;
+  const o = ordersData.find(x => x.id === id);
+  // Exclui do banco (soft delete) se houver vínculo real
+  if (o && o._uuid && sb) {
+    const { error } = await sb.from('pedidos').update({ deleted_at: new Date().toISOString() }).eq('id', o._uuid);
+    if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+  }
   ordersData = ordersData.filter(x => x.id !== id);
+  // Fecha o detalhe se estiver aberto
+  const detail = document.getElementById('modal-order-detail');
+  if (detail && detail.style.display !== 'none') closeModal('modal-order-detail');
   renderKanban();
   renderOrdersTable();
+  refreshOrdersBadge();
   showToast(`Pedido ${id} excluído.`);
 }
 
@@ -4732,8 +4814,8 @@ function reimpressOP(id) {
   showToast(`${newOp.id} criada como reimpressão de ${op.id}`);
 }
 
-function deleteOPById(id) {
-  if (!confirm(`Excluir a ordem ${id}?`)) return;
+async function deleteOPById(id) {
+  if (!await confirmAction({ title:'Excluir ordem', message:`Excluir a ordem de produção ${id}?` })) return;
   productionData = productionData.filter(x => x.id !== id);
   renderProductionTable();
   showToast(`Ordem ${id} excluída.`);
@@ -5247,7 +5329,7 @@ async function restockFilament(id) {
 async function deleteFilament(id) {
   const f = filamentsData.find(x => x.id === id);
   if (!f) return;
-  if (!confirm(`Excluir ${f.type} ${f.color} (${f.brand})?`)) return;
+  if (!await confirmAction({ title:'Excluir filamento', message:`Excluir ${f.type} ${f.color} (${f.brand})?` })) return;
   if (!sb) { filamentsData = filamentsData.filter(x => x.id !== id); renderFilaments(); return; }
   try {
     const { error } = await sb.from('filamentos').update({ deleted_at: new Date().toISOString() }).eq('id', id);
@@ -5294,10 +5376,10 @@ function saveBrandPrice() {
   updateFilamentBrandOptions();
 }
 
-function deleteBrandPrice(idx) {
+async function deleteBrandPrice(idx) {
   const b = brandPrices[idx];
   if (!b) return;
-  if (!confirm(`Remover ${b.brand} ${b.type} da tabela de preços?`)) return;
+  if (!await confirmAction({ title:'Remover da tabela', message:`Remover ${b.brand} ${b.type} da tabela de preços?`, confirmLabel:'Remover' })) return;
   brandPrices.splice(idx, 1);
   renderBrandPrices();
   updateFilamentBrandOptions();
@@ -5499,11 +5581,11 @@ function editModelFromDetail() {
   if (currentModelId) editModel(currentModelId);
 }
 
-function deleteModelFromDetail() {
+async function deleteModelFromDetail() {
   if (!currentModelId) return;
   const m = modelsData.find(x => x.id === currentModelId);
   if (!m) return;
-  if (!confirm(`Excluir o modelo "${m.name}"?`)) return;
+  if (!await confirmAction({ title:'Excluir modelo', message:`Excluir o modelo "${m.name}"?` })) return;
   modelsData = modelsData.filter(x => x.id !== currentModelId);
   closeModal('modal-model-detail');
   renderModels();
@@ -6051,10 +6133,10 @@ function editSupply(id) {
   document.getElementById('modal-new-supply').style.display = 'flex';
 }
 
-function deleteSupply(id) {
+async function deleteSupply(id) {
   const s = suppliesData.find(x => x.id === id);
   if (!s) return;
-  if (!confirm(`Excluir o insumo "${s.name}"?`)) return;
+  if (!await confirmAction({ title:'Excluir insumo', message:`Excluir o insumo "${s.name}"?` })) return;
   suppliesData = suppliesData.filter(x => x.id !== id);
   renderSupplies();
   showToast(`${s.name} excluído.`);
@@ -6214,10 +6296,10 @@ function openSupplierDetail(id) {
   openModal('modal-supplier-detail');
 }
 
-function deleteSupplier(id) {
+async function deleteSupplier(id) {
   const s = suppliersData.find(x => x.id === id);
   if (!s) return;
-  if (!confirm(`Excluir o fornecedor ${s.name}?`)) return;
+  if (!await confirmAction({ title:'Excluir fornecedor', message:`Excluir o fornecedor ${s.name}?` })) return;
   suppliersData = suppliersData.filter(x => x.id !== id);
   renderSuppliers();
   showToast(`${s.name} excluído.`);
@@ -6500,10 +6582,10 @@ function markPaid(id) {
   showToast(`R$ ${p.value.toFixed(2).replace('.',',')} pago a ${p.supplier || p.desc} · lançado no Financeiro`);
 }
 
-function deletePayable(id) {
+async function deletePayable(id) {
   const p = payablesData.find(x => x.id === id);
   if (!p) return;
-  if (!confirm(`Excluir o lançamento "${p.desc}"?`)) return;
+  if (!await confirmAction({ title:'Excluir lançamento', message:`Excluir o lançamento "${p.desc}"?` })) return;
   payablesData = payablesData.filter(x => x.id !== id);
   renderPayables();
   showToast('Lançamento excluído.');
@@ -7342,7 +7424,7 @@ async function editQuoteDB(id) {
 async function deleteQuoteDB(id) {
   const q = quotesDB.find(x => x.id === id);
   if (!q) return;
-  if (!confirm(`Excluir o orçamento ${q.numero}?`)) return;
+  if (!await confirmAction({ title:'Excluir orçamento', message:`Excluir o orçamento ${q.numero}?` })) return;
   const { error } = await sb.from('orcamentos').update({ deleted_at: new Date().toISOString() }).eq('id', id);
   if (error) { showToast('Erro ao excluir: ' + error.message); return; }
   showToast(`${q.numero} excluído.`);
@@ -7354,7 +7436,7 @@ async function convertQuoteToOrder(id) {
   const q = quotesDB.find(x => x.id === id);
   if (!q) return;
   if (!sb) { showToast('Supabase não configurado.'); return; }
-  if (!confirm(`Converter o orçamento ${q.numero} em um pedido?\n\nO cliente e os valores serão transferidos automaticamente.`)) return;
+  if (!await confirmAction({ title:'Converter em pedido', message:`Converter o orçamento ${q.numero} em um pedido? O cliente e os valores serão transferidos automaticamente.`, confirmLabel:'Converter', danger:false, icon:'ti-shopping-cart' })) return;
   try {
     const numero = await nextOrderNumber();
     const pedido = {
@@ -8353,10 +8435,10 @@ function saveTransaction() {
   showToast(`${ntType === 'receita' ? 'Receita' : 'Despesa'} de ${brl(value)} lançada!`);
 }
 
-function deleteTransaction(id) {
+async function deleteTransaction(id) {
   const t = transactionsData.find(x => x.id === id);
   if (!t) return;
-  if (!confirm(`Excluir o lançamento "${t.desc}"?`)) return;
+  if (!await confirmAction({ title:'Excluir lançamento', message:`Excluir o lançamento "${t.desc}"?` })) return;
   transactionsData = transactionsData.filter(x => x.id !== id);
   renderFinancial();
   showToast('Lançamento excluído.');
