@@ -1067,10 +1067,10 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 
   <!-- KPIs -->
   <div class="card-grid" style="grid-template-columns:repeat(4,1fr)">
-    <div class="metric-card"><div class="metric-label">Ordens Ativas</div><div class="metric-value" id="prod-kpi-active">4</div></div>
-    <div class="metric-card"><div class="metric-label">Horas Hoje</div><div class="metric-value" id="prod-kpi-hours">28,5 h</div></div>
-    <div class="metric-card"><div class="metric-label">Taxa de Sucesso</div><div class="metric-value" style="color:var(--green)" id="prod-kpi-success">94%</div></div>
-    <div class="metric-card"><div class="metric-label">Filamento Hoje</div><div class="metric-value" id="prod-kpi-filament">340 g</div></div>
+    <div class="metric-card"><div class="metric-label">Ordens Ativas</div><div class="metric-value" id="prod-kpi-active">0</div></div>
+    <div class="metric-card"><div class="metric-label">Horas Hoje</div><div class="metric-value" id="prod-kpi-hours">0 h</div></div>
+    <div class="metric-card"><div class="metric-label">Taxa de Sucesso</div><div class="metric-value" style="color:var(--green)" id="prod-kpi-success">—</div></div>
+    <div class="metric-card"><div class="metric-label">Filamento Hoje</div><div class="metric-value" id="prod-kpi-filament">0 g</div></div>
   </div>
 
   <!-- Filter bar -->
@@ -4477,6 +4477,8 @@ async function loadProductionDB() {
     operator: p.operador || '',
     start: fmtDateTime(p.inicio),
     end: fmtDateTime(p.fim),
+    _inicio: p.inicio,
+    _fim: p.fim,
     consumedG: p.consumido_g || 0,
     totalG: p.total_g || 0,
     status: PROD_STATUS_FROM_DB[p.status] || 'Imprimindo',
@@ -4593,15 +4595,33 @@ function renderProductionTable() {
 }
 
 function updateProductionKPIs() {
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const isToday = (op) => {
+    if (!op._inicio) return false;
+    const d = new Date(op._inicio); d.setHours(0,0,0,0);
+    return d.getTime() === hoje.getTime();
+  };
   const active = productionData.filter(o => o.status === 'Imprimindo').length;
-  const totalG = productionData.filter(o => ['Imprimindo','Concluído'].includes(o.status)).reduce((s, o) => s + o.consumedG, 0);
-  const total = productionData.length;
-  const success = productionData.filter(o => o.status !== 'Falha').length;
-  const successPct = total > 0 ? Math.round((success / total) * 100) : 0;
+  // Horas hoje: soma da duração das ordens iniciadas hoje
+  let horasHoje = 0;
+  productionData.filter(isToday).forEach(op => {
+    const ini = op._inicio ? new Date(op._inicio) : null;
+    const fim = op._fim ? new Date(op._fim) : new Date();
+    if (ini) horasHoje += Math.max(0, (fim - ini) / 3600000);
+  });
+  // Filamento hoje: consumo das ordens concluídas hoje
+  const filHoje = productionData.filter(o => isToday(o) && o.status === 'Concluído').reduce((s,o) => s + (o.consumedG||0), 0);
+  // Taxa de sucesso: concluídas vs falhas (do total registrado)
+  const concluidas = productionData.filter(o => o.status === 'Concluído').length;
+  const falhas = productionData.filter(o => o.status === 'Falha').length;
+  const baseSucesso = concluidas + falhas;
+  const successPct = baseSucesso > 0 ? Math.round((concluidas / baseSucesso) * 100) : 0;
+
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   setEl('prod-kpi-active', active);
-  setEl('prod-kpi-filament', totalG + ' g');
-  setEl('prod-kpi-success', successPct + '%');
+  setEl('prod-kpi-hours', horasHoje.toFixed(1).replace('.',',') + ' h');
+  setEl('prod-kpi-filament', filHoje + ' g');
+  setEl('prod-kpi-success', baseSucesso > 0 ? successPct + '%' : '—');
 }
 
 function openOPDetail(id) {
