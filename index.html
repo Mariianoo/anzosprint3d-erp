@@ -4904,16 +4904,7 @@ function exportProductionPdf() {
 // ══════════════════════════════════════════════
 // FILAMENTS — Data Store & Logic
 // ══════════════════════════════════════════════
-let filamentsData = [
-  { id:1, type:'PLA',  color:'Cinza',    swatch:'#808080', brand:'Bambu Lab', supplier:'FilaFácil', diameter:'1,75mm', price:89.90,  total:1000, current:780 },
-  { id:2, type:'PETG', color:'Branco',   swatch:'#f0f0f0', brand:'Polymaker', supplier:'3D Brasil', diameter:'1,75mm', price:94.90,  total:1000, current:650 },
-  { id:3, type:'PETG', color:'Preto',    swatch:'#1a1a1a', brand:'Bambu Lab', supplier:'3D Brasil', diameter:'1,75mm', price:94.90,  total:1000, current:230 },
-  { id:4, type:'PLA',  color:'Azul',     swatch:'#2563eb', brand:'Hatchbox',  supplier:'Amazon',    diameter:'1,75mm', price:79.90,  total:1000, current:920 },
-  { id:5, type:'ABS',  color:'Branco',   swatch:'#f0f0f0', brand:'Polymaker', supplier:'Amazon',    diameter:'1,75mm', price:89.90,  total:1000, current:150 },
-  { id:6, type:'TPU',  color:'Vermelho', swatch:'#ef4444', brand:'Bambu Lab', supplier:'FilaFácil', diameter:'1,75mm', price:119.90, total:1000, current:550 },
-  { id:7, type:'PLA',  color:'Amarelo',  swatch:'#f59e0b', brand:'Hatchbox',  supplier:'Amazon',    diameter:'1,75mm', price:79.90,  total:1000, current:870 },
-  { id:8, type:'ASA',  color:'Verde',    swatch:'#22c55e', brand:'Polymaker', supplier:'3D Brasil', diameter:'1,75mm', price:109.90, total:1000, current:400 },
-];
+let filamentsData = [];  // preenchido a partir do banco (loadFilamentsDB / loadFilamentsForQuote)
 let nextFilamentId = 9;
 let editingFilamentId = null;
 
@@ -7169,6 +7160,11 @@ function updateQuoteKPIs() {
 
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 
+// Valida se um valor é um UUID (evita enviar ids numéricos do mock a colunas UUID)
+function isUUID(v) {
+  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
 async function nextQuoteNumber() {
   try {
     const { data } = await sb.from('orcamentos').select('numero').order('created_at', { ascending: false }).limit(1);
@@ -7207,7 +7203,7 @@ async function saveCalculatorQuote() {
     margem_pct: r.margin,
     desconto: round2(r.discount),
     preco_final: round2(r.price),
-    filamento_id: selectedFilamentId,
+    filamento_id: isUUID(selectedFilamentId) ? selectedFilamentId : null,
     filamento_tipo: document.getElementById('q-fil-type')?.value || null,
     filamento_marca: document.getElementById('q-fil-brand')?.value || null,
     filamento_cor: document.getElementById('q-fil-color')?.value || null,
