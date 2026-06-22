@@ -829,11 +829,13 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
           <select id="q-fil-type" onchange="onQuoteFilTypeChange()"></select>
         </div>
         <div class="form-group"><label>Marca <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
-          <select id="q-fil-brand" onchange="calcQuote()"><option value="">Média do tipo</option></select>
+          <select id="q-fil-brand" onchange="onQuoteFilBrandChange()"><option value="">Média do tipo</option></select>
         </div>
       </div>
-      <div id="q-fil-info" style="font-size:12px;color:var(--text2);margin-top:2px"></div>
       <div class="grid-4" style="margin-top:10px">
+        <div class="form-group"><label>Cor <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
+          <select id="q-fil-color" onchange="calcQuote()"><option value="">Todas as cores</option></select>
+        </div>
         <div class="form-group"><label>Pós-processamento</label>
           <select id="q-post" onchange="calcQuote()">
             <option value="0">Nenhum — R$ 0</option><option value="20">Lixamento — R$ 20</option>
@@ -841,6 +843,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
           </select>
         </div>
       </div>
+      <div id="q-fil-info" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
     </div>
 
     <!-- ══ SECTION: Materiais Extras ══ -->
@@ -2352,29 +2355,21 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     </div>
     <div class="form-row">
       <div class="form-group"><label>Pedido *</label>
-        <select id="nop-order">
+        <select id="nop-order" onchange="onNopOrderChange()">
           <option value="">Carregando pedidos...</option>
         </select>
       </div>
       <div class="form-group"><label>Impressora *</label>
-        <select id="nop-printer">
-          <option>Bambu X1C</option><option>Ender 5 Pro</option><option>CR-10S</option>
-          <option>Ender 3 V2</option><option>Bambu P1S</option>
-        </select>
+        <select id="nop-printer"></select>
       </div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Filamento *</label>
-        <select id="nop-filament">
-          <option>PLA Cinza</option><option>PLA Azul</option><option>PLA Amarelo</option>
-          <option>PETG Branco</option><option>PETG Preto</option><option>ABS Preto</option>
-          <option>TPU Vermelho</option><option>ASA Verde</option>
-        </select>
+        <select id="nop-filament"><option value="">— selecionar —</option></select>
+        <div id="nop-fil-hint" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
       </div>
       <div class="form-group"><label>Operador *</label>
-        <select id="nop-operator">
-          <option>Carlos M.</option><option>Amanda F.</option>
-        </select>
+        <input type="text" id="nop-operator" placeholder="Nome do operador">
       </div>
     </div>
     <div class="form-row">
@@ -3334,15 +3329,7 @@ function openModal(id) {
     updateDocMask();
   }
   if (id === 'modal-new-op') {
-    // Populate pedidos dropdown from live ordersData
-    const sel = document.getElementById('nop-order');
-    if (sel && typeof ordersData !== 'undefined') {
-      const activeStatuses = ['Aguardando','Produção','Atrasado','Pós-proc.'];
-      const eligible = ordersData.filter(o => activeStatuses.includes(o.status));
-      sel.innerHTML = eligible.length
-        ? eligible.map(o => `<option value="${o.id}">${o.id} — ${o.client} (${o.status})</option>`).join('')
-        : '<option value="">Nenhum pedido ativo disponível</option>';
-    }
+    populateNewOpModal();
   }
   if (id === 'modal-new-filament') {
     // Reset to "create" mode
@@ -4383,7 +4370,7 @@ nav = function(page) {
   if (page === 'clients')   { loadClientsDB(); }
   if (page === 'quotations'){ loadFilamentsForQuote().then(() => { refreshQuoteFilamentTypes(); calcQuote(); }); refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); loadQuotesDB(); }
   if (page === 'orders')     { loadOrdersDB(); }
-  if (page === 'production') { renderProductionTable(); }
+  if (page === 'production') { loadProductionDB(); }
   if (page === 'filaments')  { loadFilamentsDB(); }
   if (page === 'models')     { renderModels(); }
   if (page === 'suppliers')  { renderSuppliers(); }
@@ -4420,6 +4407,124 @@ let productionData = [
 ];
 let nextOPId = 90;
 let currentOPId = null;
+
+// ── Mapeamento status interface ↔ banco ──
+const PROD_STATUS_TO_DB = {
+  'Imprimindo':'imprimindo', 'Aguardando inspeção':'aguardando_inspecao',
+  'Concluído':'concluido', 'Falha':'falha', 'Pausada':'pausada',
+};
+const PROD_STATUS_FROM_DB = {
+  imprimindo:'Imprimindo', aguardando_inspecao:'Aguardando inspeção',
+  concluido:'Concluído', falha:'Falha', pausada:'Pausada',
+};
+
+// Formata timestamp ISO → "DD/MM HH:MM"
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── Carrega ordens de produção do banco ──
+async function loadProductionDB() {
+  if (!sb) { renderProductionTable(); return; }
+  const tbody = document.getElementById('prod-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px"><i class="ti ti-loader"></i> Carregando...</td></tr>';
+
+  // Carrega pedidos e filamentos para resolver nomes (se necessário)
+  if (!ordersData || ordersData.length === 0) {
+    try { const { data } = await sb.from('pedidos').select('id,numero').is('deleted_at',null); if (data) window._pedidosLookup = data; } catch(e){}
+  }
+  if (!filamentsData || filamentsData.length === 0) await loadFilamentsForQuote();
+
+  const { data, error } = await sb.from('producao').select('*').is('deleted_at', null).order('created_at', { ascending: false });
+  if (error) { if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--red);padding:24px">Erro: ${error.message}</td></tr>`; return; }
+
+  const pedidoNum = (id) => {
+    const p = (ordersData||[]).find(o => o._uuid === id) || (window._pedidosLookup||[]).find(o => o.id === id);
+    return p ? (p.numero || p.id) : '—';
+  };
+  const filNome = (id) => {
+    const f = (filamentsData||[]).find(x => x.id === id);
+    return f ? `${f.type} ${f.color}`.trim() : '—';
+  };
+
+  productionData = (data || []).map(p => ({
+    _uuid: p.id,
+    id: p.numero || p.id,
+    pedido_id: p.pedido_id,
+    order: pedidoNum(p.pedido_id),
+    printer: p.impressora_id ? printerNomeById(p.impressora_id) : '—',
+    impressora_id: p.impressora_id,
+    filament: filNome(p.filamento_id),
+    filamento_id: p.filamento_id,
+    operator: p.operador || '',
+    start: fmtDateTime(p.inicio),
+    end: fmtDateTime(p.fim),
+    consumedG: p.consumido_g || 0,
+    totalG: p.total_g || 0,
+    status: PROD_STATUS_FROM_DB[p.status] || 'Imprimindo',
+    obs: p.observacoes || '',
+  }));
+  renderProductionTable();
+}
+
+// Helper: nome da impressora pelo id (impressoras ainda podem ser mock)
+function printerNomeById(id) {
+  if (typeof printersData !== 'undefined') {
+    const p = printersData.find(x => x.id === id || x._uuid === id);
+    if (p) return p.name || p.nome || '—';
+  }
+  return '—';
+}
+
+// ── Concluir produção: baixa o estoque do filamento (com confirmação de peso) ──
+async function completeProduction(opUuidOrId) {
+  const op = productionData.find(x => x._uuid === opUuidOrId || x.id === opUuidOrId);
+  if (!op) return;
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+
+  // Sugere o peso estimado (total), permite ajustar para o real
+  const sugestao = op.totalG || op.consumedG || 0;
+  const entrada = prompt(
+    `Concluir ${op.id}\nFilamento: ${op.filament}\n\nQuantos gramas foram realmente consumidos?\n(sugestão: ${sugestao}g — ajuste se necessário)`,
+    String(sugestao)
+  );
+  if (entrada === null) return;
+  const gramas = parseInt(entrada);
+  if (isNaN(gramas) || gramas < 0) { showToast('Valor inválido.'); return; }
+
+  // Verifica estoque, se houver filamento vinculado
+  if (op.filamento_id) {
+    const f = (filamentsData || []).find(x => x.id === op.filamento_id);
+    if (f && gramas > f.current) {
+      const ok = confirm(
+        `⚠ Estoque insuficiente!\n\n${op.filament}: ${f.current}g disponível, mas a produção consumiu ${gramas}g.\n\nDeseja concluir mesmo assim? O estoque ficará negativo (${f.current - gramas}g), sinalizando reposição urgente.`
+      );
+      if (!ok) return;
+    }
+  }
+
+  try {
+    // Atualiza a produção
+    await sb.from('producao').update({
+      status: 'concluido', consumido_g: gramas, fim: new Date().toISOString()
+    }).eq('id', op._uuid);
+
+    // Baixa o estoque do filamento (atômico via função do banco)
+    if (op.filamento_id && gramas > 0) {
+      const { data: novoEstoque, error: stkErr } = await sb.rpc('baixar_estoque_filamento', { p_filamento_id: op.filamento_id, p_gramas: gramas });
+      if (stkErr) throw stkErr;
+      showToast(`${op.id} concluída. Estoque de ${op.filament}: ${novoEstoque}g restantes.`);
+    } else {
+      showToast(`${op.id} concluída.`);
+    }
+    await loadProductionDB();
+    filamentsData = []; await loadFilamentsForQuote(); // recarrega cache de estoque atualizado
+  } catch (e) {
+    showToast('Erro ao concluir: ' + (e.message || e));
+  }
+}
 
 function renderProductionTable() {
   const tbody = document.getElementById('prod-tbody');
@@ -4459,8 +4564,8 @@ function renderProductionTable() {
       <td><span class="badge ${badgeCls}">${op.status}</span></td>
       <td><div style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="openOPDetail('${op.id}')" title="Ver / editar ordem"><i class="ti ti-eye"></i> Ver</button>
+        ${(op.status === 'Imprimindo' || op.status === 'Aguardando inspeção') ? `<button class="btn btn-success btn-sm" onclick="completeProduction('${op._uuid || op.id}')" title="Concluir e baixar estoque"><i class="ti ti-check"></i> Concluir</button>` : ''}
         ${op.status === 'Falha' ? `<button class="btn btn-primary btn-sm" onclick="reimpressOP('${op.id}')" title="Criar reimpressão"><i class="ti ti-refresh"></i> Reimprimir</button>` : ''}
-        ${op.status === 'Aguardando inspeção' ? `<button class="btn btn-success btn-sm" onclick="approveInspectionOP('${op.id}')" title="Aprovar inspeção"><i class="ti ti-check"></i> Aprovar</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="deleteOPById('${op.id}')" title="Excluir ordem"><i class="ti ti-trash"></i></button>
       </div></td>`;
     tbody.appendChild(tr);
@@ -4600,39 +4705,118 @@ function syncOrderFromOP(op) {
   }
 }
 
-function saveNewProductionOrder() {
-  const order    = document.getElementById('nop-order').value;
-  const printer  = document.getElementById('nop-printer').value;
-  const filament = document.getElementById('nop-filament').value;
-  const operator = document.getElementById('nop-operator').value;
+// Popula os dropdowns do modal Nova Ordem com dados reais do banco
+async function populateNewOpModal() {
+  // Garante pedidos e filamentos carregados
+  if (!ordersData || ordersData.length === 0) { try { await loadOrdersDB(); } catch(e){} }
+  await loadFilamentsForQuote();
+
+  // Dropdown de pedidos elegíveis (em aberto)
+  const sel = document.getElementById('nop-order');
+  if (sel) {
+    const ativos = ['Aguardando','Produção','Atrasado','Pós-proc.'];
+    const eligible = (ordersData||[]).filter(o => ativos.includes(o.status));
+    sel.innerHTML = '<option value="">— selecionar pedido —</option>' + (eligible.length
+      ? eligible.map(o => `<option value="${o._uuid || o.id}">${o.id} — ${o.client} (${o.status})</option>`).join('')
+      : '');
+    if (!eligible.length) sel.innerHTML = '<option value="">Nenhum pedido ativo</option>';
+  }
+  // Impressora: campo de texto livre (Impressoras ainda não conectada) — convertemos o select num texto
+  const printerSel = document.getElementById('nop-printer');
+  if (printerSel && printerSel.tagName === 'SELECT') {
+    const input = document.createElement('input');
+    input.type = 'text'; input.id = 'nop-printer'; input.placeholder = 'Nome da impressora';
+    printerSel.replaceWith(input);
+  }
+  // Filamento: lista os filamentos reais cadastrados
+  const filSel = document.getElementById('nop-filament');
+  if (filSel) {
+    const opts = (filamentsData||[]).map(f =>
+      `<option value="${f.id}">${f.type} ${f.color} (${f.brand}) — ${f.current}g</option>`).join('');
+    filSel.innerHTML = '<option value="">— selecionar filamento —</option>' + opts;
+  }
+}
+
+// Ao escolher o pedido, pré-preenche filamento e peso a partir do orçamento ligado
+async function onNopOrderChange() {
+  const sel = document.getElementById('nop-order');
+  if (!sel || !sel.value || !sb) return;
+  const pedidoUuid = sel.value;
+  try {
+    // Busca o pedido → orçamento ligado → filamento/peso estimado
+    const { data: ped } = await sb.from('pedidos').select('orcamento_id').eq('id', pedidoUuid).single();
+    if (ped && ped.orcamento_id) {
+      const { data: orc } = await sb.from('orcamentos').select('filamento_id, peso_g').eq('id', ped.orcamento_id).single();
+      if (orc) {
+        if (orc.filamento_id) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = orc.filamento_id; }
+        if (orc.peso_g) { const w = document.getElementById('nop-total-weight'); if (w) w.value = orc.peso_g; }
+        const hint = document.getElementById('nop-fil-hint');
+        if (hint) hint.textContent = 'Filamento e peso sugeridos a partir do orçamento.';
+      }
+    }
+  } catch(e){}
+}
+
+// Próximo número OP-XXXX do banco
+async function nextOPNumber() {
+  try {
+    const { data } = await sb.from('producao').select('numero').order('created_at',{ascending:false}).limit(1);
+    if (data && data.length && data[0].numero) {
+      const n = parseInt((data[0].numero.match(/\d+/)||['0'])[0]) + 1;
+      return 'OP-' + String(n).padStart(4,'0');
+    }
+  } catch(e){}
+  return 'OP-0001';
+}
+
+// Inicia uma ordem de produção (grava no banco) e move o pedido para "Produção"
+async function saveNewProductionOrder() {
+  const pedidoUuid = document.getElementById('nop-order').value;
+  const printer  = (document.getElementById('nop-printer')?.value || '').trim();
+  const filamentoId = document.getElementById('nop-filament').value || null;
+  const operator = document.getElementById('nop-operator').value.trim();
   const totalG   = parseInt(document.getElementById('nop-total-weight').value) || 0;
   const startRaw = document.getElementById('nop-start-time').value;
   const obs      = document.getElementById('nop-obs').value.trim();
+
+  if (!pedidoUuid) { showToast('Selecione o pedido.'); return; }
   if (!totalG) { showToast('Informe o peso total a imprimir.'); return; }
-  const now = new Date();
-  const startStr = startRaw || now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-  const newOp = {
-    id: 'OP-' + String(nextOPId++).padStart(4,'0'),
-    order, printer, filament, operator,
-    start: startStr, end: '—',
-    consumedG: 0, totalG, status: 'Imprimindo', obs
-  };
-  productionData.unshift(newOp);
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  if (!navigator.onLine) { showToast('Você está offline. Conecte-se para salvar.'); return; }
 
-  // ── Sync: move linked order to Produção ──
-  syncOrderFromOP(newOp);
-  const linkedOrder = ordersData.find(x => x.id === order);
-  if (linkedOrder) {
-    showToast(`${newOp.id} iniciada — ${order} agora em Produção`);
-  } else {
-    showToast(`${newOp.id} iniciada — ${printer} · ${filament}`);
+  // Monta o horário de início
+  let inicio = new Date();
+  if (startRaw) { const [hh,mm] = startRaw.split(':'); inicio.setHours(+hh, +mm, 0, 0); }
+
+  try {
+    const numero = await nextOPNumber();
+    const payload = {
+      numero, pedido_id: pedidoUuid, filamento_id: filamentoId,
+      operador: operator || null, inicio: inicio.toISOString(),
+      consumido_g: 0, total_g: totalG, status: 'imprimindo',
+      observacoes: (printer ? `Impressora: ${printer}. ` : '') + obs,
+      created_by: currentUser ? currentUser.id : null,
+    };
+    const { error } = await sb.from('producao').insert(payload);
+    if (error) throw error;
+
+    // Move o pedido vinculado para "Produção" no banco
+    const ped = (ordersData||[]).find(o => o._uuid === pedidoUuid);
+    if (ped && ped.status !== 'Produção') {
+      await persistOrderStatus(pedidoUuid, 'producao', STATUS_LABEL_TO_DB[ped.status]);
+      ped.status = 'Produção';
+    }
+
+    showToast(`${numero} iniciada!`);
+    closeModal('modal-new-op');
+    document.getElementById('nop-obs').value = '';
+    document.getElementById('nop-total-weight').value = '200';
+    document.getElementById('nop-start-time').value = '';
+    document.getElementById('nop-operator').value = '';
+    await loadProductionDB();
+  } catch (e) {
+    showToast('Erro ao iniciar ordem: ' + (e.message || e));
   }
-
-  closeModal('modal-new-op');
-  document.getElementById('nop-obs').value = '';
-  document.getElementById('nop-total-weight').value = '200';
-  document.getElementById('nop-start-time').value = '';
-  renderProductionTable();
 }
 
 function exportProductionPdf() {
@@ -6537,7 +6721,7 @@ function refreshQuoteFilamentTypes() {
   const cur = sel.value;
   sel.innerHTML = availableFilamentTypes().map(t => `<option value="${t}">${t}</option>`).join('');
   if (cur) sel.value = cur;
-  refreshQuoteFilamentBrands();
+  refreshQuoteFilamentBrands();   // cascateia para marca → cor
 }
 
 // Popula o dropdown de MARCA conforme o tipo escolhido
@@ -6552,38 +6736,84 @@ function refreshQuoteFilamentBrands() {
   const cur = brandSel.value;
   brandSel.innerHTML = '<option value="">Média do tipo</option>'
     + marcas.map(m => `<option value="${m}">${m}</option>`).join('');
-  if (cur) brandSel.value = cur;
+  if (cur && marcas.includes(cur)) brandSel.value = cur;
+  refreshQuoteFilamentColors();
+}
+
+// Popula o dropdown de COR conforme tipo + marca escolhidos
+function refreshQuoteFilamentColors() {
+  const tipo = document.getElementById('q-fil-type')?.value || '';
+  const marca = document.getElementById('q-fil-brand')?.value || '';
+  const colorSel = document.getElementById('q-fil-color');
+  if (!colorSel) return;
+  let pool = (typeof filamentsData !== 'undefined' ? filamentsData.filter(f => f.type === tipo) : []);
+  if (marca) pool = pool.filter(f => f.brand === marca);
+  const cores = [...new Set(pool.map(f => f.color))].filter(Boolean).sort();
+  const cur = colorSel.value;
+  colorSel.innerHTML = '<option value="">Todas as cores</option>'
+    + cores.map(c => `<option value="${c}">${c}</option>`).join('');
+  if (cur && cores.includes(cur)) colorSel.value = cur;
 }
 
 function onQuoteFilTypeChange() {
-  refreshQuoteFilamentBrands();
+  refreshQuoteFilamentBrands();   // já chama refreshQuoteFilamentColors
   calcQuote();
 }
 
-// Retorna {rate, info}: rate R$/g e um texto explicativo
+function onQuoteFilBrandChange() {
+  refreshQuoteFilamentColors();
+  calcQuote();
+}
+
+// Retorna {rate, info, filamentId}: rate R$/g, texto explicativo e a bobina exata (se houver)
 function resolveQuoteFilamentRate() {
   const tipo = document.getElementById('q-fil-type')?.value || '';
   const marca = document.getElementById('q-fil-brand')?.value || '';
+  const cor = document.getElementById('q-fil-color')?.value || '';
   const fils = (typeof filamentsData !== 'undefined' ? filamentsData : []);
 
+  // Cor específica (com ou sem marca) → bobina exata
+  if (cor) {
+    let matches = fils.filter(f => f.type === tipo && f.color === cor);
+    if (marca) matches = matches.filter(f => f.brand === marca);
+    if (matches.length === 1) {
+      const f = matches[0];
+      const rate = filamentRatePerGram(f);
+      return { rate, filamentId: f.id,
+        info: `${tipo} ${marca||f.brand} ${cor}: R$ ${rate.toFixed(3).replace('.',',')}/g · estoque ${f.current}g` };
+    }
+    if (matches.length > 1) {
+      // várias bobinas da mesma cor/tipo (marcas diferentes) → média
+      const rate = matches.reduce((s,f) => s + filamentRatePerGram(f), 0) / matches.length;
+      return { rate, filamentId: null,
+        info: `${tipo} ${cor}: média de ${matches.length} bobina(s) = R$ ${rate.toFixed(3).replace('.',',')}/g` };
+    }
+  }
+
+  // Marca específica, sem cor → média das cores daquela marca
   if (marca) {
-    // Marca específica: usa o preço dela (média se houver várias cores da mesma marca/tipo)
     const matches = fils.filter(f => f.type === tipo && f.brand === marca);
     if (matches.length > 0) {
       const rate = matches.reduce((s,f) => s + filamentRatePerGram(f), 0) / matches.length;
-      return { rate, info: `${tipo} ${marca}: R$ ${rate.toFixed(3).replace('.',',')}/g (do estoque)` };
+      const filamentId = matches.length === 1 ? matches[0].id : null;
+      return { rate, filamentId,
+        info: `${tipo} ${marca}: média de ${matches.length} cor(es) = R$ ${rate.toFixed(3).replace('.',',')}/g` };
     }
   }
-  // Sem marca: média de todas as marcas do tipo
+
+  // Só tipo → média de tudo do tipo
   const ofType = fils.filter(f => f.type === tipo);
   if (ofType.length > 0) {
     const rate = ofType.reduce((s,f) => s + filamentRatePerGram(f), 0) / ofType.length;
     const nMarcas = new Set(ofType.map(f => f.brand)).size;
-    return { rate, info: `${tipo}: média de ${nMarcas} marca(s) = R$ ${rate.toFixed(3).replace('.',',')}/g` };
+    return { rate, filamentId: null,
+      info: `${tipo}: média de ${nMarcas} marca(s) = R$ ${rate.toFixed(3).replace('.',',')}/g` };
   }
-  // Nenhum cadastrado: usa fallback
+
+  // Nenhum cadastrado: fallback
   const rate = FIL_FALLBACK_RATE[tipo] || 0.05;
-  return { rate, info: `${tipo}: sem filamento cadastrado — usando preço estimado R$ ${rate.toFixed(3).replace('.',',')}/g` };
+  return { rate, filamentId: null,
+    info: `${tipo}: sem filamento cadastrado — preço estimado R$ ${rate.toFixed(3).replace('.',',')}/g` };
 }
 
 function refreshQuoteModelOptions() {
@@ -6600,6 +6830,7 @@ function calcQuote() {
   const h = parseFloat(document.getElementById('q-hours').value) || 0;
   const filInfo = resolveQuoteFilamentRate();
   const filRate = filInfo.rate;
+  selectedFilamentId = filInfo.filamentId || null;  // bobina exata (se cor específica) p/ baixa de estoque na Produção
   const infoEl = document.getElementById('q-fil-info');
   if (infoEl) infoEl.textContent = filInfo.info;
   const post = parseFloat(document.getElementById('q-post').value) || 0;
@@ -6705,6 +6936,7 @@ function resetCalculator() {
 // ══════════════════════════════════════════════
 let quotesDB = [];
 let editingQuoteId = null;
+let selectedFilamentId = null;  // bobina escolhida na calculadora (para baixar estoque na Produção)
 
 const QUOTE_STATUS_BADGE = {
   rascunho:   { label:'Rascunho',   cls:'badge-gray' },
@@ -6858,6 +7090,10 @@ async function saveCalculatorQuote() {
     margem_pct: r.margin,
     desconto: round2(r.discount),
     preco_final: round2(r.price),
+    filamento_id: selectedFilamentId,
+    filamento_tipo: document.getElementById('q-fil-type')?.value || null,
+    filamento_marca: document.getElementById('q-fil-brand')?.value || null,
+    filamento_cor: document.getElementById('q-fil-color')?.value || null,
   };
 
   const btn = document.querySelector('#page-quotations [onclick="saveCalculatorQuote()"]');
@@ -6923,6 +7159,12 @@ async function editQuoteDB(id) {
   document.getElementById('q-hours').value = q.horas || 0;
   document.getElementById('q-margin').value = q.margem_pct || 0;
   document.getElementById('q-discount').value = q.desconto || 0;
+  // Restaura a seleção de filamento (tipo → marca → cor)
+  await loadFilamentsForQuote();
+  refreshQuoteFilamentTypes();
+  if (q.filamento_tipo) { const t = document.getElementById('q-fil-type'); if (t) { t.value = q.filamento_tipo; refreshQuoteFilamentBrands(); } }
+  if (q.filamento_marca) { const b = document.getElementById('q-fil-brand'); if (b) { b.value = q.filamento_marca; refreshQuoteFilamentColors(); } }
+  if (q.filamento_cor) { const c = document.getElementById('q-fil-color'); if (c) c.value = q.filamento_cor; }
   quoteMaterials = [];
   try {
     const { data: itens } = await sb.from('orcamento_itens').select('*').eq('orcamento_id', id);
