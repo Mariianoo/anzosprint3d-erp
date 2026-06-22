@@ -307,6 +307,18 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;border-top:1px solid var(--border);padding-top:16px}
 
+/* ── Modal largo (calculadora de orçamento) ── */
+.modal-wide{width:88vw;max-width:1100px;max-height:90vh;display:flex;flex-direction:column;padding:0}
+.modal-wide .modal-header{padding:20px 24px;margin-bottom:0;border-bottom:1px solid var(--border)}
+.modal-wide .modal-body{padding:20px 24px;overflow-y:auto;flex:1}
+.modal-wide .modal-footer{margin-top:0;padding:16px 24px;background:var(--surface)}
+#modal-quote.modal-overlay{animation:overlayFade 0.2s ease}
+#modal-quote .modal-wide{animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1)}
+#modal-quote.modal-closing{animation:overlayFade 0.18s ease reverse}
+#modal-quote.modal-closing .modal-wide{animation:modalPop 0.18s ease reverse}
+@keyframes overlayFade{from{opacity:0}to{opacity:1}}
+@keyframes modalPop{from{opacity:0;transform:translateY(12px) scale(0.98)}to{opacity:1;transform:none}}
+
 /* ── Printer card ── */
 .printer-card{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:10px}
 .printer-dot{width:10px;height:10px;border-radius:50%}
@@ -801,10 +813,18 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     </table>
   </div>
   <div style="margin-bottom:16px;font-size:13px;color:var(--text2)" id="quotes-count"></div>
+</div>
 
-  <!-- Calculator -->
-  <div class="card">
-    <h3 style="font-size:14px;font-weight:600;margin-bottom:16px"><i class="ti ti-calculator" style="margin-right:6px"></i>Calculadora Profissional de Custos</h3>
+<!-- ═══════════════════════════════════════════
+     MODAL: Calculadora de Orçamento
+═══════════════════════════════════════════ -->
+<div id="modal-quote" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal('modal-quote')">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h3><i class="ti ti-calculator" style="margin-right:6px"></i><span id="quote-modal-title">Novo Orçamento</span></h3>
+      <button class="modal-close" onclick="closeModal('modal-quote')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
 
     <!-- Base info -->
     <div class="grid-3">
@@ -910,9 +930,10 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     <!-- ══ SECTION: Embalagem & Margem ══ -->
     <div class="calc-section">
       <div class="calc-section-title"><i class="ti ti-box"></i> Embalagem &amp; Margem</div>
-      <div class="grid-3">
+      <div class="grid-4">
         <div class="form-group"><label>Embalagem (R$)</label><input type="number" id="q-pkg" value="5" step="0.01" min="0" oninput="calcQuote()"></div>
         <div class="form-group"><label>Margem de lucro (%)</label><input type="number" id="q-margin" value="40" min="0" oninput="calcQuote()"></div>
+        <div class="form-group"><label>Desconto (%)</label><input type="number" id="q-discount-pct" value="0" step="0.1" min="0" max="100" oninput="calcQuote()"></div>
         <div class="form-group"><label>Desconto (R$)</label><input type="number" id="q-discount" value="0" step="0.01" min="0" oninput="calcQuote()"></div>
       </div>
     </div>
@@ -929,12 +950,15 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <div class="calc-sum-card calc-sum-cost"><div class="calc-sum-label"><i class="ti ti-receipt"></i> Custo Total</div><div class="calc-sum-value" id="qs-cost">R$ 0,00</div></div>
       <div class="calc-sum-card calc-sum-margin"><div class="calc-sum-label"><i class="ti ti-percentage"></i> Margem</div><div class="calc-sum-value" id="qs-margin">40%</div><div style="font-size:11px;color:var(--text3);margin-top:2px" id="qs-profit">Lucro: R$ 0,00</div></div>
       <div class="calc-sum-card calc-sum-final"><div class="calc-sum-label"><i class="ti ti-tag"></i> Preço Final</div><div class="calc-sum-value" id="qs-price">R$ 0,00</div><div style="font-size:11px;opacity:0.85;margin-top:2px" id="qs-unit"></div></div>
+      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-discount"></i> Valor do Desconto</div><div class="calc-sum-value" id="qs-desconto-valor" style="color:var(--red)">R$ 0,00</div></div>
+      <div class="calc-sum-card calc-sum-final"><div class="calc-sum-label"><i class="ti ti-cash"></i> Valor Final com Desconto</div><div class="calc-sum-value" id="qs-final-desconto">R$ 0,00</div></div>
     </div>
 
-    <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn btn-primary" onclick="saveCalculatorQuote()"><i class="ti ti-device-floppy"></i> Salvar Orçamento</button>
-      <button class="btn btn-secondary" onclick="generateQuotePdf()"><i class="ti ti-file-type-pdf"></i> Gerar PDF</button>
+    </div>
+    <div class="modal-footer">
       <button class="btn btn-secondary" onclick="resetCalculator()"><i class="ti ti-refresh"></i> Limpar</button>
+      <button class="btn btn-secondary" onclick="generateQuotePdf()"><i class="ti ti-file-type-pdf"></i> Gerar PDF</button>
+      <button class="btn btn-primary" id="quote-save-btn" onclick="saveCalculatorQuote()"><i class="ti ti-device-floppy"></i> Salvar Orçamento</button>
     </div>
   </div>
 </div>
@@ -3429,7 +3453,13 @@ function openModal(id) {
   }
 }
 function closeModal(id) {
-  document.getElementById(id).style.display = 'none';
+  const el = document.getElementById(id);
+  if (id === 'modal-quote' && el) {
+    el.classList.add('modal-closing');
+    setTimeout(() => { el.style.display = 'none'; el.classList.remove('modal-closing'); }, 170);
+    return;
+  }
+  el.style.display = 'none';
   if (id === 'modal-new-model' && typeof stopModelViewer === 'function') stopModelViewer();
 }
 
@@ -4384,7 +4414,7 @@ const _origNav = nav;
 nav = function(page) {
   _origNav(page);
   if (page === 'clients')   { loadClientsDB(); }
-  if (page === 'quotations'){ loadFilamentsForQuote().then(() => { refreshQuoteFilamentTypes(); calcQuote(); }); refreshQuoteModelOptions(); renderExtraMaterials(); calcQuote(); loadQuotesDB(); }
+  if (page === 'quotations'){ loadQuotesDB(); }
   if (page === 'orders')     { loadOrdersDB(); }
   if (page === 'production') { loadProductionDB(); }
   if (page === 'filaments')  { loadFilamentsDB(); }
@@ -6914,6 +6944,11 @@ function calcQuote() {
   const finalPrice = priceBeforeShip + (shipPass ? ship : 0);
   const profit = finalPrice - baseCost - (shipPass ? ship : 0);
 
+  // ── Desconto (%) aplicado após o preço final ──
+  const descontoPct = parseFloat(document.getElementById('q-discount-pct')?.value) || 0;
+  const descontoValor = finalPrice * (descontoPct / 100);
+  const finalComDesconto = finalPrice - descontoValor;
+
   // ── Update summary cards ──
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   set('qs-fil', brlFmt(filCost));
@@ -6927,11 +6962,14 @@ function calcQuote() {
   set('qs-margin', margin + '%');
   set('qs-profit', 'Lucro: ' + brlFmt(profit));
   set('qs-price', brlFmt(finalPrice));
-  set('qs-unit', qty > 1 ? brlFmt(finalPrice/qty) + ' / un · ' + qty + ' un' : '');
+  set('qs-unit', qty > 1 ? brlFmt(finalComDesconto/qty) + ' / un · ' + qty + ' un' : '');
+  set('qs-desconto-valor', descontoPct > 0 ? '- ' + brlFmt(descontoValor) + ' (' + descontoPct + '%)' : brlFmt(0));
+  set('qs-final-desconto', brlFmt(finalComDesconto));
 
   return { qty, weight:w, hours:h, filRate, filCost, matTotal, laborTotal, opTotal,
     energy, wear, marketplace, otherOp, post:postTotal, pkg:pkgTotal, ship, shipPass,
-    margin, discount, total:baseCost, price:finalPrice, profit };
+    margin, discount, descontoPct, descontoValor, total:baseCost,
+    price:finalComDesconto, priceBeforeDiscount:finalPrice, profit };
 }
 
 function resetCalculator() {
@@ -6943,6 +6981,7 @@ function resetCalculator() {
   document.getElementById('q-pkg').value = 5;
   document.getElementById('q-margin').value = 40;
   document.getElementById('q-discount').value = 0;
+  const dpct = document.getElementById('q-discount-pct'); if (dpct) dpct.value = 0;
   ['q-lab-model-h','q-lab-finish-h','q-lab-paint-h','q-op-marketplace','q-op-other'].forEach(id => document.getElementById(id).value = 0);
   document.getElementById('q-lab-model-r').value = 50;
   document.getElementById('q-lab-finish-r').value = 35;
@@ -7202,6 +7241,7 @@ async function saveCalculatorQuote() {
     custo_total: round2(r.total),
     margem_pct: r.margin,
     desconto: round2(r.discount),
+    desconto_pct: r.descontoPct || 0,
     preco_final: round2(r.price),
     filamento_id: isUUID(selectedFilamentId) ? selectedFilamentId : null,
     filamento_tipo: document.getElementById('q-fil-type')?.value || null,
@@ -7209,7 +7249,7 @@ async function saveCalculatorQuote() {
     filamento_cor: document.getElementById('q-fil-color')?.value || null,
   };
 
-  const btn = document.querySelector('#page-quotations [onclick="saveCalculatorQuote()"]');
+  const btn = document.getElementById('quote-save-btn');
   if (btn) btn.disabled = true;
 
   try {
@@ -7242,6 +7282,7 @@ async function saveCalculatorQuote() {
     showToast(editingQuoteId ? 'Orçamento atualizado!' : 'Orçamento salvo com sucesso!');
     editingQuoteId = null;
     resetCalculator();
+    closeModal('modal-quote');
     await loadQuotesDB();
   } catch (e) {
     showToast('Erro ao salvar: ' + (e.message || e));
@@ -7272,6 +7313,7 @@ async function editQuoteDB(id) {
   document.getElementById('q-hours').value = q.horas || 0;
   document.getElementById('q-margin').value = q.margem_pct || 0;
   document.getElementById('q-discount').value = q.desconto || 0;
+  const dpct = document.getElementById('q-discount-pct'); if (dpct) dpct.value = q.desconto_pct || 0;
   // Restaura a seleção de filamento (tipo → marca → cor)
   await loadFilamentsForQuote();
   refreshQuoteFilamentTypes();
@@ -7285,8 +7327,9 @@ async function editQuoteDB(id) {
   } catch(e){}
   renderExtraMaterials();
   calcQuote();
-  document.querySelector('#page-quotations .card').scrollIntoView({ behavior:'smooth', block:'start' });
-  showToast(`Editando ${q.numero}. Altere e clique em Salvar.`);
+  const title = document.getElementById('quote-modal-title');
+  if (title) title.textContent = 'Editar Orçamento ' + q.numero;
+  openModal('modal-quote');
 }
 
 async function deleteQuoteDB(id) {
@@ -7364,13 +7407,18 @@ async function refreshQuoteBadge() {
 }
 
 // Botão "Novo Orçamento": limpa a calculadora e rola até ela
-function newQuoteFromCalc() {
+async function newQuoteFromCalc() {
   editingQuoteId = null;
   resetCalculator();
+  await loadFilamentsForQuote();
+  refreshQuoteFilamentTypes();
   refreshQuoteClientOptions();
-  const card = document.querySelector('#page-quotations .card');
-  if (card) card.scrollIntoView({ behavior:'smooth', block:'start' });
-  showToast('Preencha a calculadora e clique em Salvar Orçamento.');
+  refreshQuoteModelOptions();
+  renderExtraMaterials();
+  calcQuote();
+  const title = document.getElementById('quote-modal-title');
+  if (title) title.textContent = 'Novo Orçamento';
+  openModal('modal-quote');
 }
 
 // ── Calculator: save quote to table (LEGADO, não usado) ──
