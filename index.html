@@ -3754,7 +3754,7 @@ async function loadOrdersDB() {
   if (!sb) { renderKanban(); renderOrdersTable(); return; }
   // Carrega clientes para resolver nomes
   if (!clientesDB || clientesDB.length === 0) {
-    try { const { data: cli } = await sb.from('clientes').select('id,nome').is('deleted_at', null); if (cli) clientesDB = cli; } catch(e){}
+    try { const { data: cli } = await sb.from('clientes').select('id,nome,email,telefone,whatsapp').is('deleted_at', null); if (cli) clientesDB = cli; } catch(e){}
   }
   const { data, error } = await sb.from('pedidos').select('*').is('deleted_at', null)
     .order('status').order('ordem', { ascending: true }).order('created_at', { ascending: false });
@@ -6995,7 +6995,7 @@ async function loadQuotesDB() {
   if (!sb) return;
   if (!clientesDB || clientesDB.length === 0) {
     try {
-      const { data: cli } = await sb.from('clientes').select('id,nome').is('deleted_at', null).order('nome');
+      const { data: cli } = await sb.from('clientes').select('id,nome,email,telefone,whatsapp').is('deleted_at', null).order('nome');
       if (cli) clientesDB = cli;
     } catch(e){}
   }
@@ -7054,6 +7054,9 @@ function renderQuotesDB() {
 
 function quoteRowActions(q) {
   let btns = '';
+  // Enviar ao cliente (WhatsApp / e-mail)
+  btns += `<button class="btn btn-sm" style="background:#25D366;color:#fff;border:none" onclick="sendQuoteWhatsApp('${q.id}')" title="Enviar por WhatsApp"><i class="ti ti-brand-whatsapp"></i></button>`;
+  btns += `<button class="btn btn-sm" style="background:#3b82f6;color:#fff;border:none" onclick="sendQuoteEmail('${q.id}')" title="Enviar por e-mail"><i class="ti ti-mail"></i></button>`;
   if (q.status === 'aguardando' || q.status === 'rascunho') {
     btns += `<button class="btn btn-success btn-sm" onclick="setQuoteStatus('${q.id}','aprovado')" title="Aprovar"><i class="ti ti-check"></i></button>`;
     btns += `<button class="btn btn-danger btn-sm" onclick="setQuoteStatus('${q.id}','recusado')" title="Recusar"><i class="ti ti-x"></i></button>`;
@@ -7067,6 +7070,84 @@ function quoteRowActions(q) {
   btns += `<button class="btn btn-secondary btn-sm" onclick="editQuoteDB('${q.id}')" title="Editar"><i class="ti ti-edit"></i></button>`;
   btns += `<button class="btn btn-danger btn-sm" onclick="deleteQuoteDB('${q.id}')" title="Excluir"><i class="ti ti-trash"></i></button>`;
   return `<div style="display:flex;gap:4px;flex-wrap:wrap">${btns}</div>`;
+}
+
+// Monta a mensagem padrão do orçamento (número, valor e resumo). linkPdf opcional.
+function buildQuoteMessage(q, linkPdf) {
+  const cli = (clientesDB || []).find(c => c.id === q.cliente_id);
+  const nome = cli ? (cli.nome || '').split(' ')[0] : '';
+  const valor = brlFmt(q.preco_final || 0);
+  const saud = nome ? `Olá, ${nome}! ` : 'Olá! ';
+  let msg = `${saud}Segue seu orçamento da ANZO'S Print 3D:\n\n`;
+  msg += `*Orçamento ${q.numero}*\n`;
+  if (q.descricao) msg += `Item: ${q.descricao}\n`;
+  if (q.peso_g) msg += `Peso: ${q.peso_g} g\n`;
+  if (q.horas) msg += `Tempo de impressão: ${q.horas} h\n`;
+  msg += `\n*Valor total: ${valor}*\n`;
+  if (linkPdf) msg += `\n📄 PDF do orçamento: ${linkPdf}\n`;
+  msg += `\nQualquer dúvida, estou à disposição!`;
+  return msg;
+}
+
+// Gera o PDF de um orçamento salvo (retorna o documento jsPDF)
+function generateSavedQuotePdfDoc(q) {
+  const client = clienteNomeById(q.cliente_id);
+  const postType = (q.custo_pos_proc && q.custo_pos_proc > 0) ? 'Pós-processamento incluído' : 'Nenhum';
+  return buildQuotePdf({
+    quoteNum: q.numero, client, desc: q.descricao || 'Item', weight: q.peso_g || 0, hours: q.horas || 0,
+    filType: q.filamento_tipo || 'PLA', postType, margin: q.margem_pct || 0,
+    filCost: q.custo_filamento || 0, energy: 0, wear: 0, post: q.custo_pos_proc || 0,
+    pkg: q.custo_embalagem || 0, total: q.custo_total || 0, price: q.preco_final || 0
+  });
+}
+
+// Gera o PDF, sobe ao storage e devolve um link temporário (30 dias)
+async function uploadQuotePdfAndGetLink(q) {
+  if (!sb) return null;
+  try {
+    const doc = generateSavedQuotePdfDoc(q);
+    const blob = doc.output('blob');
+    const path = `orc-${q.id}/${q.numero}.pdf`;
+    const { error: upErr } = await sb.storage.from('orcamentos').upload(path, blob, { contentType: 'application/pdf', upsert: true });
+    if (upErr) throw upErr;
+    const { data, error: urlErr } = await sb.storage.from('orcamentos').createSignedUrl(path, 60 * 60 * 24 * 7); // 7 dias
+    if (urlErr) throw urlErr;
+    return data.signedUrl;
+  } catch (e) {
+    console.warn('Falha ao gerar/subir PDF:', e);
+    return null;
+  }
+}
+
+// Envia o orçamento por WhatsApp (com link do PDF)
+async function sendQuoteWhatsApp(id) {
+  const q = quotesDB.find(x => x.id === id);
+  if (!q) return;
+  const cli = (clientesDB || []).find(c => c.id === q.cliente_id);
+  let numero = cli ? (cli.whatsapp || cli.telefone || '') : '';
+  numero = (numero || '').replace(/\D/g, '');
+  if (!numero) { showToast('Cliente sem WhatsApp/telefone cadastrado.'); return; }
+  if (numero.length <= 11) numero = '55' + numero;
+  showToast('Gerando PDF e link...');
+  const link = await uploadQuotePdfAndGetLink(q);
+  if (!link) showToast('Não consegui gerar o link do PDF — enviando só o texto.');
+  const msg = encodeURIComponent(buildQuoteMessage(q, link));
+  window.open(`https://wa.me/${numero}?text=${msg}`, '_blank');
+}
+
+// Envia o orçamento por e-mail (com link do PDF)
+async function sendQuoteEmail(id) {
+  const q = quotesDB.find(x => x.id === id);
+  if (!q) return;
+  const cli = (clientesDB || []).find(c => c.id === q.cliente_id);
+  const email = cli ? cli.email : '';
+  if (!email) { showToast('Cliente sem e-mail cadastrado.'); return; }
+  showToast('Gerando PDF e link...');
+  const link = await uploadQuotePdfAndGetLink(q);
+  if (!link) showToast('Não consegui gerar o link do PDF — enviando só o texto.');
+  const assunto = encodeURIComponent(`Orçamento ${q.numero} — ANZO'S Print 3D`);
+  const corpo = encodeURIComponent(buildQuoteMessage(q, link).replace(/\*/g, ''));
+  window.location.href = `mailto:${email}?subject=${assunto}&body=${corpo}`;
 }
 
 function updateQuoteKPIs() {
