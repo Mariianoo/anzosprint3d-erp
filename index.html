@@ -6641,9 +6641,9 @@ function updateExtraMaterial(id, field, value) {
   if (!m) return;
   if (field === 'name') m.name = value;
   else m[field] = parseFloat(value) || 0;
-  // Update the row total live
+  // Update the row total live (é um <input>, então usa .value)
   const totalEl = document.getElementById(`q-mat-total-${id}`);
-  if (totalEl && m) totalEl.textContent = brlFmt(m.qty * m.unit);
+  if (totalEl && m) totalEl.value = brlFmt(m.qty * m.unit);
   calcQuote();
 }
 
