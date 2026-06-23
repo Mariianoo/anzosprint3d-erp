@@ -2392,6 +2392,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     <div class="modal-footer" style="justify-content:space-between">
       <div style="display:flex;gap:8px">
         <button class="btn btn-danger btn-sm" onclick="deleteCurrentOrder()"><i class="ti ti-trash"></i> Excluir</button>
+        <button class="btn btn-secondary btn-sm" id="od-label-btn" onclick="printShippingLabel()" style="display:none;border-color:#3b82f6;color:#3b82f6"><i class="ti ti-tag"></i> Imprimir Etiqueta</button>
         <button class="btn btn-secondary btn-sm" id="od-devolution-btn" onclick="openDevolutionModal()" style="display:none;border-color:#f59e0b;color:#d97706"><i class="ti ti-arrow-back-up"></i> Registrar Devolução</button>
       </div>
       <div style="display:flex;gap:8px">
@@ -4332,6 +4333,10 @@ async function openOrderDetail(id) {
   const devBtn = document.getElementById('od-devolution-btn');
   if (devBtn) devBtn.style.display = o.status === 'Entregue' ? 'inline-flex' : 'none';
 
+  // Show "Imprimir Etiqueta" only when the order is ready to ship (Finalizado) or already shipped (Entregue, for reprint)
+  const labelBtn = document.getElementById('od-label-btn');
+  if (labelBtn) labelBtn.style.display = (o.status === 'Finalizado' || o.status === 'Entregue') ? 'inline-flex' : 'none';
+
   openModal('modal-order-detail');
 }
 
@@ -4407,6 +4412,162 @@ async function deleteOrderById(id) {
   renderOrdersTable();
   refreshOrdersBadge();
   showToast(`Pedido ${id} excluído.`);
+}
+
+// ── Etiqueta de envio (100×150mm) ──
+
+// Dados do remetente (empresa). Configuráveis via localStorage; padrão da ANZO'S.
+function getSenderInfo() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem('anzos_remetente') || '{}'); } catch(e){ s = {}; }
+  return {
+    nome: s.nome || "ANZO'S Print 3D",
+    endereco: s.endereco || '',
+    numero: s.numero || '',
+    bairro: s.bairro || '',
+    complemento: s.complemento || '',
+    cidade: s.cidade || 'Mairinque',
+    estado: s.estado || 'SP',
+    cep: s.cep || '',
+    telefone: s.telefone || '',
+  };
+}
+
+// Gera um código de barras Code39 como SVG (puro JS, sem biblioteca externa).
+// Code39 aceita A-Z, 0-9, espaço e - . $ / + %
+function code39SVG(text, opts = {}) {
+  const patterns = {
+    '0':'nnnwwnwnn','1':'wnnwnnnnw','2':'nnwwnnnnw','3':'wnwwnnnnn','4':'nnnwwnnnw',
+    '5':'wnnwwnnnn','6':'nnwwwnnnn','7':'nnnwnnwnw','8':'wnnwnnwnn','9':'nnwwnnwnn',
+    'A':'wnnnnwnnw','B':'nnwnnwnnw','C':'wnwnnwnnn','D':'nnnnwwnnw','E':'wnnnwwnnn',
+    'F':'nnwnwwnnn','G':'nnnnnwwnw','H':'wnnnnwwnn','I':'nnwnnwwnn','J':'nnnnwwwnn',
+    'K':'wnnnnnnww','L':'nnwnnnnww','M':'wnwnnnnwn','N':'nnnnwnnww','O':'wnnnwnnwn',
+    'P':'nnwnwnnwn','Q':'nnnnnnwww','R':'wnnnnnwwn','S':'nnwnnnwwn','T':'nnnnwnwwn',
+    'U':'wwnnnnnnw','V':'nwwnnnnnw','W':'wwwnnnnnn','X':'nwnnwnnnw','Y':'wwnnwnnnn',
+    'Z':'nwwnwnnnn','-':'nwnnnnwnw','.':'wwnnnnwnn',' ':'nwwnnnwnn','*':'nwnnwnwnn',
+    '$':'nwnwnwnnn','/':'nwnwnnnwn','+':'nwnnnwnwn','%':'nnnwnwnwn'
+  };
+  const data = '*' + String(text).toUpperCase().replace(/[^0-9A-Z\-. $\/+%]/g,'') + '*';
+  const narrow = opts.narrow || 2;
+  const wide = opts.wide || narrow * 3;
+  const height = opts.height || 60;
+  let x = 0; let rects = '';
+  for (const ch of data) {
+    const pat = patterns[ch]; if (!pat) continue;
+    for (let i = 0; i < pat.length; i++) {
+      const w = pat[i] === 'w' ? wide : narrow;
+      const isBar = i % 2 === 0; // posições pares = barra, ímpares = espaço
+      if (isBar) rects += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#000"/>`;
+      x += w;
+    }
+    x += narrow; // espaço entre caracteres
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${height}" viewBox="0 0 ${x} ${height}" preserveAspectRatio="none">${rects}</svg>`;
+}
+
+async function printShippingLabel() {
+  const o = ordersData.find(x => x.id === currentOrderId);
+  if (!o) { showToast('Pedido não encontrado.'); return; }
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+
+  // Busca o endereço completo do cliente
+  let cli = null;
+  if (o.cliente_id) {
+    const { data } = await sb.from('clientes')
+      .select('nome,endereco,numero,bairro,complemento,cidade,estado,cep,telefone')
+      .eq('id', o.cliente_id).single();
+    cli = data;
+  }
+  if (!cli) { cli = { nome: o.client || '—' }; }
+
+  const rem = getSenderInfo();
+  const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const logo = localStorage.getItem('anzos_logo') || DEFAULT_LOGO;
+
+  // Monta linhas de endereço do destinatário
+  const destLinha1 = [cli.endereco, cli.numero].filter(Boolean).join(', ');
+  const destLinha2 = [cli.complemento, cli.bairro].filter(Boolean).join(' - ');
+  const destLinha3 = [cli.cep, [cli.cidade, cli.estado].filter(Boolean).join(' - ')].filter(Boolean).join('  ');
+  const remLinha1 = [rem.endereco, rem.numero].filter(Boolean).join(', ');
+  const remLinha2 = [rem.complemento, rem.bairro].filter(Boolean).join(' - ');
+  const remLinha3 = [rem.cep, [rem.cidade, rem.estado].filter(Boolean).join(' - ')].filter(Boolean).join('  ');
+
+  const barcode = code39SVG(o.id, { narrow: 2, wide: 6, height: 60 });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiqueta ${esc(o.id)}</title>
+<style>
+  @page { size: 100mm 150mm; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100mm; height:150mm; font-family: Arial, Helvetica, sans-serif; color:#000; }
+  .label { width:100mm; height:150mm; padding:4mm; display:flex; flex-direction:column; }
+  .box { border:1.5px solid #000; }
+  .head { display:flex; align-items:center; gap:3mm; padding:2.5mm; border-bottom:1.5px solid #000; }
+  .head img { height:14mm; width:auto; object-fit:contain; }
+  .head .co { font-size:12pt; font-weight:bold; line-height:1.15; }
+  .head .co small { display:block; font-size:7.5pt; font-weight:normal; }
+  .order-no { margin-left:auto; text-align:right; font-size:8pt; }
+  .order-no b { font-size:12pt; display:block; }
+  .sect-title { background:#000; color:#fff; font-size:8.5pt; font-weight:bold; padding:1mm 2.5mm; letter-spacing:.5px; }
+  .sect-body { padding:2.5mm; font-size:9.5pt; line-height:1.45; }
+  .sect-body .nm { font-weight:bold; font-size:11pt; }
+  .barcode { padding:2.5mm; text-align:center; }
+  .barcode svg { width:90%; height:16mm; }
+  .barcode .code { font-size:9pt; letter-spacing:2px; margin-top:1mm; }
+  .item { padding:2mm 2.5mm; font-size:9pt; border-top:1.5px dashed #000; }
+  .recv { padding:2.5mm; font-size:8pt; border-top:1.5px solid #000; }
+  .recv .line { margin-top:4mm; border-bottom:1px solid #000; }
+  .foot { margin-top:auto; font-size:6.5pt; text-align:center; color:#333; padding-top:1.5mm; }
+  .grow { flex:1; }
+</style></head>
+<body>
+  <div class="label">
+    <div class="box grow" style="display:flex;flex-direction:column">
+      <div class="head">
+        <img src="${logo}" alt="logo">
+        <div class="co">${esc(rem.nome)}<small>Etiqueta de envio</small></div>
+        <div class="order-no">Pedido<b>${esc(o.id)}</b></div>
+      </div>
+
+      <div class="sect-title">DESTINATÁRIO</div>
+      <div class="sect-body">
+        <div class="nm">${esc(cli.nome)}</div>
+        ${destLinha1 ? `<div>${esc(destLinha1)}</div>` : ''}
+        ${destLinha2 ? `<div>${esc(destLinha2)}</div>` : ''}
+        ${destLinha3 ? `<div><b>${esc(destLinha3)}</b></div>` : ''}
+        ${cli.telefone ? `<div>Tel: ${esc(cli.telefone)}</div>` : ''}
+      </div>
+
+      <div class="barcode">
+        ${barcode}
+        <div class="code">${esc(o.id)}</div>
+      </div>
+
+      <div class="item"><b>Conteúdo:</b> ${esc(o.desc || '—')}</div>
+
+      <div class="sect-title">REMETENTE</div>
+      <div class="sect-body">
+        <div class="nm">${esc(rem.nome)}</div>
+        ${remLinha1 ? `<div>${esc(remLinha1)}</div>` : ''}
+        ${remLinha2 ? `<div>${esc(remLinha2)}</div>` : ''}
+        ${remLinha3 ? `<div>${esc(remLinha3)}</div>` : ''}
+        ${rem.telefone ? `<div>Tel: ${esc(rem.telefone)}</div>` : ''}
+      </div>
+
+      <div class="recv">
+        Recebedor: <span class="line" style="display:inline-block;width:55%"></span><br>
+        Assinatura: <span class="line" style="display:inline-block;width:53%"></span>
+      </div>
+
+      <div class="foot">Etiqueta interna ANZO'S Print 3D — não substitui etiqueta dos Correios/transportadora.</div>
+    </div>
+  </div>
+  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 250); };<\/script>
+</body></html>`;
+
+  const w = window.open('', '_blank', 'width=420,height=620');
+  if (!w) { showToast('Permita pop-ups para imprimir a etiqueta.'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── Devolução ──
