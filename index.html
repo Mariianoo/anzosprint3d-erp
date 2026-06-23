@@ -272,6 +272,9 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
 .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+@media(max-width:1100px){.grid-5{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:680px){.grid-5{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:900px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
 
 /* ── Chart ── */
@@ -794,10 +797,11 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <button class="btn btn-primary" onclick="newQuoteFromCalc()"><i class="ti ti-plus"></i> Novo Orçamento</button>
     </div>
   </div>
-  <div class="grid-4" style="margin-bottom:20px">
+  <div class="grid-5" style="margin-bottom:20px">
     <div class="metric-card"><div class="metric-label">Rascunhos</div><div class="metric-value" style="color:var(--text2)" id="qm-draft">0</div></div>
     <div class="metric-card"><div class="metric-label">Aguardando</div><div class="metric-value" style="color:var(--amber)" id="qm-pending">0</div></div>
     <div class="metric-card"><div class="metric-label">Aprovados</div><div class="metric-value" style="color:var(--green)" id="qm-approved">0</div></div>
+    <div class="metric-card"><div class="metric-label">Convertidos</div><div class="metric-value" style="color:var(--blue)" id="qm-converted">0</div></div>
     <div class="metric-card"><div class="metric-label">Valor Aprovado</div><div class="metric-value" style="font-size:20px" id="qm-total">R$ 0</div></div>
   </div>
   <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
@@ -7317,6 +7321,7 @@ function updateQuoteKPIs() {
   set('qm-draft', count('rascunho'));
   set('qm-pending', count('aguardando'));
   set('qm-approved', count('aprovado'));
+  set('qm-converted', count('convertido'));
   const totalAprovado = quotesDB.filter(q => q.status === 'aprovado').reduce((s,q) => s + (q.preco_final||0), 0);
   set('qm-total', 'R$ ' + Math.round(totalAprovado).toLocaleString('pt-BR'));
   // Atualiza o badge do menu lateral (mostra orçamentos aguardando)
