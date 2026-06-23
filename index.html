@@ -4702,6 +4702,19 @@ async function completeProduction(opUuidOrId) {
     } else {
       showToast(`${op.id} concluída.`);
     }
+
+    // Move o pedido vinculado para "Pós-proc." no kanban
+    if (op.pedido_id && sb) {
+      try {
+        await sb.from('pedidos').update({ status: 'pos_processamento' }).eq('id', op.pedido_id);
+        await sb.from('pedido_historico').insert({
+          pedido_id: op.pedido_id, de_status: 'producao', para_status: 'pos_processamento',
+          usuario_id: currentUser ? currentUser.id : null,
+          nota: `Produção ${op.id} concluída — movido para pós-processamento.`
+        });
+      } catch(e){}
+    }
+
     await loadProductionDB();
     filamentsData = []; await loadFilamentsForQuote(); // recarrega cache de estoque atualizado
   } catch (e) {
@@ -4861,7 +4874,12 @@ function reimpressOP(id) {
 }
 
 async function deleteOPById(id) {
+  const op = productionData.find(x => x.id === id);
   if (!await confirmAction({ title:'Excluir ordem', message:`Excluir a ordem de produção ${id}?` })) return;
+  if (op && op._uuid && sb) {
+    const { error } = await sb.from('producao').update({ deleted_at: new Date().toISOString() }).eq('id', op._uuid);
+    if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+  }
   productionData = productionData.filter(x => x.id !== id);
   renderProductionTable();
   showToast(`Ordem ${id} excluída.`);
@@ -7229,8 +7247,11 @@ function quoteRowActions(q) {
   if (q.status === 'aprovado') {
     btns += `<button class="btn btn-primary btn-sm" onclick="convertQuoteToOrder('${q.id}')" title="Converter em pedido"><i class="ti ti-shopping-cart"></i></button>`;
   }
-  if (q.status === 'aprovado' || q.status === 'recusado' || q.status === 'convertido') {
+  if (q.status === 'aprovado' || q.status === 'recusado') {
     btns += `<button class="btn btn-secondary btn-sm" onclick="setQuoteStatus('${q.id}','aguardando')" title="Reverter para Aguardando"><i class="ti ti-arrow-back-up"></i></button>`;
+  }
+  if (q.status === 'convertido') {
+    btns += `<button class="btn btn-secondary btn-sm" onclick="cancelQuoteConversion('${q.id}')" title="Cancelar conversão (desfazer pedido)"><i class="ti ti-arrow-back-up"></i></button>`;
   }
   btns += `<button class="btn btn-secondary btn-sm" onclick="editQuoteDB('${q.id}')" title="Editar"><i class="ti ti-edit"></i></button>`;
   btns += `<button class="btn btn-danger btn-sm" onclick="deleteQuoteDB('${q.id}')" title="Excluir"><i class="ti ti-trash"></i></button>`;
@@ -7518,6 +7539,67 @@ async function convertQuoteToOrder(id) {
     await confirmAction({
       title: 'Não foi possível converter',
       message: `Ocorreu um erro ao converter o orçamento ${q.numero}: ${e.message || e}. Nenhum pedido foi criado. Tente novamente.`,
+      confirmLabel: 'Entendi', danger: false, icon: 'ti-alert-circle', sound: false
+    });
+  }
+}
+
+// Cancela a conversão de um orçamento: desfaz o pedido (se ainda não entrou em produção)
+// e volta o orçamento para "Aguardando".
+async function cancelQuoteConversion(id) {
+  const q = quotesDB.find(x => x.id === id);
+  if (!q || !sb) return;
+  try {
+    // Procura o pedido ativo ligado a este orçamento
+    const { data: peds, error: pErr } = await sb.from('pedidos').select('*').eq('orcamento_id', q.id).is('deleted_at', null);
+    if (pErr) throw pErr;
+    const pedido = (peds || [])[0];
+
+    // Se há pedido e ele já avançou além de "Aguardando", bloqueia
+    if (pedido && pedido.status !== 'aguardando') {
+      await confirmAction({
+        title: 'Não é possível cancelar',
+        message: `O pedido ${pedido.numero} já está em "${STATUS_DB_TO_LABEL[pedido.status] || pedido.status}". Como a produção já avançou, a conversão não pode ser desfeita por aqui. Cancele o pedido na tela de Pedidos, se necessário.`,
+        confirmLabel: 'Entendi', danger: false, icon: 'ti-alert-circle', sound: false
+      });
+      return;
+    }
+
+    // Confirmação
+    const pedInfo = pedido ? ` O pedido ${pedido.numero} será excluído.` : '';
+    if (!await confirmAction({
+      title: 'Cancelar conversão',
+      message: `Deseja cancelar a conversão do orçamento ${q.numero}?${pedInfo} O orçamento voltará para "Aguardando".`,
+      confirmLabel: 'Cancelar conversão', danger: true, icon: 'ti-arrow-back-up'
+    })) return;
+
+    // Exclui o pedido (soft delete) se existir
+    if (pedido) {
+      try {
+        await sb.from('pedido_historico').insert({
+          pedido_id: pedido.id, de_status: 'aguardando', para_status: 'cancelado',
+          usuario_id: currentUser ? currentUser.id : null,
+          nota: `Pedido excluído: conversão do orçamento ${q.numero} foi cancelada.`
+        });
+      } catch(e){}
+      const { error: delErr } = await sb.from('pedidos').update({ deleted_at: new Date().toISOString() }).eq('id', pedido.id);
+      if (delErr) throw delErr;
+    }
+
+    // Volta o orçamento para "Aguardando"
+    const { error: updErr } = await sb.from('orcamentos').update({ status: 'aguardando' }).eq('id', q.id);
+    if (updErr) throw updErr;
+
+    showToast(pedido ? `Conversão cancelada — pedido ${pedido.numero} desfeito.` : 'Conversão cancelada.');
+    await loadQuotesDB();
+    if (typeof refreshOrdersBadge === 'function') {
+      // Recarrega pedidos se a tela estiver carregada
+      try { await loadOrdersDB(); } catch(e){}
+    }
+  } catch (e) {
+    await confirmAction({
+      title: 'Erro ao cancelar conversão',
+      message: `Não foi possível cancelar: ${e.message || e}`,
       confirmLabel: 'Entendi', danger: false, icon: 'ti-alert-circle', sound: false
     });
   }
