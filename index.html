@@ -4744,8 +4744,8 @@ nav = function(page) {
   if (page === 'printers')   { loadPrintersDB(); }
   if (page === 'filaments')  { loadFilamentsDB(); }
   if (page === 'models')     { loadModelsDB(); }
-  if (page === 'suppliers')  { renderSuppliers(); }
-  if (page === 'supplies')   { renderSupplies(); }
+  if (page === 'suppliers')  { loadSuppliersDB(); }
+  if (page === 'supplies')   { loadSuppliesDB(); }
   if (page === 'financial')  { loadTransactionsDB(); }
   if (page === 'receivables') { loadReceivablesDB(); }
   if (page === 'payables')   { loadPayablesDB(); }
@@ -6315,18 +6315,40 @@ function stopModelViewer() {
 // ══════════════════════════════════════════════
 // SUPPLIES (Insumos) — Data Store & Logic
 // ══════════════════════════════════════════════
-let suppliesData = [
-  { id:1, name:'Ímã neodímio 8mm',      category:'Magnético',  unit:'un', price:0.85, stock:240, stockMin:50, supplier:'Amazon',   obs:'Para peças com fechamento magnético' },
-  { id:2, name:'Parafuso M3 × 10mm',    category:'Fixação',    unit:'un', price:0.12, stock:500, stockMin:100,supplier:'Parafusos SP', obs:'' },
-  { id:3, name:'Verniz fosco spray',    category:'Acabamento', unit:'un', price:28.90,stock:6,   stockMin:3,  supplier:'Tintas Cores', obs:'Proteção UV' },
-  { id:4, name:'Tinta acrílica preta',  category:'Pintura',    unit:'mL', price:0.08, stock:1200,stockMin:200,supplier:'Tintas Cores', obs:'' },
-  { id:5, name:'Cola epóxi 2 componentes',category:'Adesivos', unit:'un', price:15.50,stock:8,   stockMin:5,  supplier:'Amazon',   obs:'Secagem rápida' },
-  { id:6, name:'Argola chaveiro 25mm',  category:'Fixação',    unit:'un', price:0.35, stock:18,  stockMin:30, supplier:'Amazon',   obs:'Estoque baixo' },
-];
-let nextSupplyId = 7;
+let suppliesData = [];
 let editingSupplyId = null;
 
 const SUPPLY_CAT_BADGE = { 'Fixação':'badge-blue','Magnético':'badge-purple','Acabamento':'badge-amber','Pintura':'badge-green','Adesivos':'badge-red','Eletrônica':'badge-blue','Outros':'badge-gray' };
+
+// Carrega insumos (materiais) do Supabase
+async function loadSuppliesDB() {
+  if (!sb) return;
+  // Garante fornecedores carregados para resolver os nomes
+  if (typeof suppliersData === 'undefined' || !suppliersData.length) {
+    if (typeof loadSuppliersDB === 'function') { try { await loadSuppliersDB(); } catch(e){} }
+  }
+  const { data, error } = await sb.from('materiais').select('*').is('deleted_at', null).order('nome', { ascending: true });
+  if (error) { showToast('Erro ao carregar insumos: ' + error.message); return; }
+  const nomeForn = (fid) => {
+    if (!fid) return '';
+    if (typeof suppliersData !== 'undefined') { const f = suppliersData.find(x => x._uuid === fid); if (f) return f.name; }
+    return '';
+  };
+  suppliesData = (data || []).map(m => ({
+    _uuid: m.id,
+    id: m.id,
+    name: m.nome,
+    category: m.categoria || 'Outros',
+    unit: m.unidade || 'un',
+    price: Number(m.preco) || 0,
+    fornecedor_id: m.fornecedor_id || null,
+    supplier: nomeForn(m.fornecedor_id),
+    stock: m.estoque != null ? m.estoque : 0,
+    stockMin: m.estoque_min != null ? m.estoque_min : 0,
+    obs: m.observacoes || '',
+  }));
+  renderSupplies();
+}
 
 function supplyStockStatus(s) {
   if (s.stock <= 0) return { label:'Esgotado', color:'var(--red)' };
@@ -6357,12 +6379,12 @@ function renderSupplies() {
       <td><span style="color:${st.color};font-weight:600">${s.stock} ${s.unit}</span> <span style="font-size:11px;color:var(--text3)">(${st.label})</span></td>
       <td>${s.supplier || '—'}</td>
       <td><div style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick="editSupply(${s.id})" title="Editar"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSupply(${s.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="editSupply('${s.id}')" title="Editar"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSupply('${s.id}')" title="Excluir"><i class="ti ti-trash"></i></button>
       </div></td>`;
     tbody.appendChild(tr);
   });
-  if (shown === 0) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Nenhum insumo encontrado.</td></tr>';
+  if (shown === 0) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Nenhum insumo cadastrado.</td></tr>';
   const countEl = document.getElementById('sply-count');
   if (countEl) countEl.textContent = `Exibindo ${shown} de ${suppliesData.length} insumos`;
   updateSupplyKPIs();
@@ -6377,7 +6399,6 @@ function updateSupplyKPIs() {
 }
 
 function filterSuppliesLow() {
-  // Show only low-stock by setting search to flag — simplest: temporary filter
   const tbody = document.getElementById('supplies-tbody');
   if (!tbody) return;
   document.getElementById('sply-search').value = '';
@@ -6397,8 +6418,8 @@ function filterSuppliesLow() {
       <td><span style="color:${st.color};font-weight:600">${s.stock} ${s.unit}</span> <span style="font-size:11px;color:var(--text3)">(mín: ${s.stockMin})</span></td>
       <td>${s.supplier || '—'}</td>
       <td><div style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick="editSupply(${s.id})"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSupply(${s.id})"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="editSupply('${s.id}')"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSupply('${s.id}')"><i class="ti ti-trash"></i></button>
       </div></td>`;
     tbody.appendChild(tr);
   });
@@ -6409,35 +6430,43 @@ function refreshSupplySupplierOptions() {
   const sel = document.getElementById('su-supplier');
   if (!sel) return;
   const cur = sel.value;
-  const names = (typeof suppliersData !== 'undefined' ? suppliersData.map(s => s.name) : []);
-  const all = [...new Set([...names, 'Amazon','Mercado Livre','Parafusos SP','Tintas Cores','Outro'])];
-  sel.innerHTML = all.map(n => `<option>${n}</option>`).join('');
-  if (cur && all.includes(cur)) sel.value = cur;
+  // Opções com data-uuid para vincular ao fornecedor real
+  const opts = ['<option value="" data-uuid="">— sem fornecedor —</option>'];
+  if (typeof suppliersData !== 'undefined') {
+    suppliersData.forEach(s => opts.push(`<option data-uuid="${s._uuid}">${s.name}</option>`));
+  }
+  sel.innerHTML = opts.join('');
+  if (cur) sel.value = cur;
 }
 
-function saveSupply() {
+async function saveSupply() {
   const get = id => document.getElementById(id).value.trim();
   const name = get('su-name');
   const price = parseFloat(document.getElementById('su-price').value);
   if (!name || isNaN(price)) { showToast('Informe nome e preço unitário.'); return; }
-  const data = {
-    name, category: document.getElementById('su-category').value,
-    unit: document.getElementById('su-unit').value, price,
-    supplier: document.getElementById('su-supplier').value,
-    stock: parseInt(document.getElementById('su-stock').value) || 0,
-    stockMin: parseInt(document.getElementById('su-stock-min').value) || 0,
-    obs: get('su-obs')
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  const supSel = document.getElementById('su-supplier');
+  const fornecedor_id = supSel && supSel.options[supSel.selectedIndex] ? (supSel.options[supSel.selectedIndex].dataset.uuid || null) : null;
+  const payload = {
+    nome: name, categoria: document.getElementById('su-category').value,
+    unidade: document.getElementById('su-unit').value, preco: price,
+    fornecedor_id: fornecedor_id || null,
+    estoque: parseInt(document.getElementById('su-stock').value) || 0,
+    estoque_min: parseInt(document.getElementById('su-stock-min').value) || 0,
+    observacoes: get('su-obs') || null,
   };
+  let error;
   if (editingSupplyId) {
-    const s = suppliesData.find(x => x.id === editingSupplyId);
-    if (s) Object.assign(s, data);
-    showToast(`${name} atualizado!`);
+    ({ error } = await sb.from('materiais').update(payload).eq('id', editingSupplyId));
   } else {
-    suppliesData.push({ id: nextSupplyId++, ...data });
-    showToast(`${name} cadastrado!`);
+    payload.created_by = currentUser ? currentUser.id : null;
+    ({ error } = await sb.from('materiais').insert(payload));
   }
+  if (error) { showToast('Erro ao salvar: ' + error.message); return; }
   closeModal('modal-new-supply');
-  renderSupplies();
+  showToast(editingSupplyId ? `${name} atualizado!` : `${name} cadastrado!`);
+  editingSupplyId = null;
+  await loadSuppliesDB();
 }
 
 function editSupply(id) {
@@ -6451,7 +6480,12 @@ function editSupply(id) {
   document.getElementById('su-category').value = s.category;
   document.getElementById('su-unit').value = s.unit;
   document.getElementById('su-price').value = s.price;
-  document.getElementById('su-supplier').value = s.supplier || '';
+  // Seleciona o fornecedor pelo uuid
+  const supSel = document.getElementById('su-supplier');
+  if (supSel && s.fornecedor_id) {
+    const opt = Array.from(supSel.options).find(o => o.dataset.uuid === s.fornecedor_id);
+    if (opt) supSel.value = opt.value;
+  }
   document.getElementById('su-stock').value = s.stock;
   document.getElementById('su-stock-min').value = s.stockMin;
   document.getElementById('su-obs').value = s.obs || '';
@@ -6462,23 +6496,18 @@ async function deleteSupply(id) {
   const s = suppliesData.find(x => x.id === id);
   if (!s) return;
   if (!await confirmAction({ title:'Excluir insumo', message:`Excluir o insumo "${s.name}"?` })) return;
-  suppliesData = suppliesData.filter(x => x.id !== id);
-  renderSupplies();
+  if (sb && s._uuid) {
+    const { error } = await sb.from('materiais').update({ deleted_at: new Date().toISOString() }).eq('id', s._uuid);
+    if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+  }
   showToast(`${s.name} excluído.`);
+  await loadSuppliesDB();
 }
 
 // ══════════════════════════════════════════════
 // SUPPLIERS — Data Store & Logic
 // ══════════════════════════════════════════════
-let suppliersData = [
-  { id:1, name:'FilaFácil Comércio Ltda', category:'Filamento', contact:'João Silva', cnpj:'12.345.678/0001-90', phone:'(11) 3456-7890', email:'vendas@filafacil.com.br', website:'www.filafacil.com.br', address:'Rua das Impressoras, 100 - São Paulo/SP', leadtime:'3 a 5 dias úteis', payment:'30 dias', status:'Ativo', obs:'Melhor preço em PLA. Entrega rápida.' },
-  { id:2, name:'3D Brasil Suprimentos', category:'Filamento', contact:'Marina Souza', cnpj:'98.765.432/0001-11', phone:'(11) 2345-6789', email:'contato@3dbrasil.com.br', website:'www.3dbrasil.com.br', address:'Av. Paulista, 2000 - São Paulo/SP', leadtime:'5 a 7 dias úteis', payment:'30/60 dias', status:'Ativo', obs:'Variedade de PETG e ASA.' },
-  { id:3, name:'Amazon Brasil', category:'Filamento', contact:'—', cnpj:'15.436.940/0001-03', phone:'(11) 4000-0000', email:'—', website:'www.amazon.com.br', address:'—', leadtime:'2 a 4 dias úteis', payment:'À vista', status:'Ativo', obs:'Compra avulsa, preço variável.' },
-  { id:4, name:'TecParts Manutenção', category:'Manutenção', contact:'Carlos Mendes', cnpj:'45.678.901/0001-23', phone:'(11) 9876-5432', email:'suporte@tecparts.com.br', website:'www.tecparts.com.br', address:'Rua dos Técnicos, 45 - Sorocaba/SP', leadtime:'Sob agendamento', payment:'À vista', status:'Ativo', obs:'Manutenção de hotends e correias.' },
-  { id:5, name:'EmbalaTudo', category:'Insumos', contact:'Ana Paula', cnpj:'34.567.890/0001-45', phone:'(15) 3232-1010', email:'vendas@embalatudo.com.br', website:'www.embalatudo.com.br', address:'Rua do Comércio, 78 - Mairinque/SP', leadtime:'2 a 3 dias úteis', payment:'Boleto', status:'Ativo', obs:'Caixas, plástico bolha e fitas.' },
-  { id:6, name:'PrintMax Equipamentos', category:'Equipamentos', contact:'Roberto Lima', cnpj:'56.789.012/0001-67', phone:'(11) 5555-4444', email:'comercial@printmax.com.br', website:'www.printmax.com.br', address:'Av. Industrial, 500 - Campinas/SP', leadtime:'10 a 15 dias úteis', payment:'30/60/90 dias', status:'Em avaliação', obs:'Cotação de nova impressora Bambu.' },
-];
-let nextSupplierId = 7;
+let suppliersData = [];
 let editingSupplierId = null;
 let currentSupplierId = null;
 
@@ -6488,6 +6517,30 @@ const SUP_CAT_BADGE = {
 };
 const SUP_STATUS_BADGE = { 'Ativo':'badge-green', 'Inativo':'badge-red', 'Em avaliação':'badge-amber' };
 
+// Carrega fornecedores do Supabase
+async function loadSuppliersDB() {
+  if (!sb) return;
+  const { data, error } = await sb.from('fornecedores').select('*').is('deleted_at', null).order('nome', { ascending: true });
+  if (error) { showToast('Erro ao carregar fornecedores: ' + error.message); return; }
+  suppliersData = (data || []).map(s => ({
+    _uuid: s.id,
+    id: s.id,
+    name: s.nome,
+    category: s.categoria || 'Insumos',
+    contact: s.contato || '',
+    cnpj: s.documento || '',
+    phone: s.telefone || '',
+    email: s.email || '',
+    website: s.website || '',
+    address: s.endereco || '',
+    leadtime: s.prazo_entrega || '',
+    payment: s.pagamento || 'À vista',
+    status: s.status || 'Ativo',
+    obs: s.observacoes || '',
+  }));
+  renderSuppliers();
+}
+
 function formatCnpjInput(input) {
   let v = input.value.replace(/\D/g, '').slice(0, 14);
   if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2}).*/, '$1.$2.$3/$4-$5');
@@ -6495,6 +6548,28 @@ function formatCnpjInput(input) {
   else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d{0,3}).*/, '$1.$2.$3');
   else if (v.length > 2) v = v.replace(/^(\d{2})(\d{0,3}).*/, '$1.$2');
   input.value = v;
+}
+
+// Ações rápidas de contato do fornecedor
+function supplierWhatsApp(id) {
+  const s = suppliersData.find(x => x.id === id);
+  if (!s) return;
+  const num = (s.phone || '').replace(/\D/g, '');
+  if (!num) { showToast('Este fornecedor não tem telefone cadastrado.'); return; }
+  const full = num.length <= 11 ? '55' + num : num;
+  window.open(`https://wa.me/${full}`, '_blank');
+}
+function supplierEmail(id) {
+  const s = suppliersData.find(x => x.id === id);
+  if (!s) return;
+  if (!s.email) { showToast('Este fornecedor não tem e-mail cadastrado.'); return; }
+  window.location.href = `mailto:${s.email}`;
+}
+function supplierLocation(id) {
+  const s = suppliersData.find(x => x.id === id);
+  if (!s) return;
+  if (!s.address) { showToast('Este fornecedor não tem endereço cadastrado.'); return; }
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address)}`, '_blank');
 }
 
 function renderSuppliers() {
@@ -6506,12 +6581,22 @@ function renderSuppliers() {
   tbody.innerHTML = '';
   let shown = 0;
   suppliersData.forEach(s => {
-    const matchSearch = !search || s.name.toLowerCase().includes(search) || s.cnpj.toLowerCase().includes(search) || (s.contact||'').toLowerCase().includes(search) || (s.email||'').toLowerCase().includes(search);
+    const matchSearch = !search || s.name.toLowerCase().includes(search) || (s.cnpj||'').toLowerCase().includes(search) || (s.contact||'').toLowerCase().includes(search) || (s.email||'').toLowerCase().includes(search);
     const matchCat = catF === 'all' || s.category === catF;
     if (!matchSearch || !matchCat) return;
     shown++;
     const catBadge = SUP_CAT_BADGE[s.category] || 'badge-gray';
     const statusBadge = SUP_STATUS_BADGE[s.status] || 'badge-gray';
+    // Ações de contato (ficam desabilitadas/cinza quando não há dado)
+    const waBtn = s.phone
+      ? `<button class="btn btn-sm" style="background:#25d366;color:#fff;border:none" onclick="supplierWhatsApp('${s.id}')" title="WhatsApp"><i class="ti ti-brand-whatsapp"></i></button>`
+      : `<button class="btn btn-secondary btn-sm" disabled style="opacity:.4" title="Sem telefone"><i class="ti ti-brand-whatsapp"></i></button>`;
+    const mailBtn = s.email
+      ? `<button class="btn btn-sm" style="background:#3b82f6;color:#fff;border:none" onclick="supplierEmail('${s.id}')" title="E-mail"><i class="ti ti-mail"></i></button>`
+      : `<button class="btn btn-secondary btn-sm" disabled style="opacity:.4" title="Sem e-mail"><i class="ti ti-mail"></i></button>`;
+    const locBtn = s.address
+      ? `<button class="btn btn-sm" style="background:#ef4444;color:#fff;border:none" onclick="supplierLocation('${s.id}')" title="Localização"><i class="ti ti-map-pin"></i></button>`
+      : `<button class="btn btn-secondary btn-sm" disabled style="opacity:.4" title="Sem endereço"><i class="ti ti-map-pin"></i></button>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-name">${s.name}</td>
@@ -6520,14 +6605,15 @@ function renderSuppliers() {
       <td><div style="font-size:12px">${s.phone || '—'}</div><div style="font-size:12px;color:var(--text2)">${s.email || '—'}</div></td>
       <td style="font-size:12px">${s.cnpj || '—'}</td>
       <td><span class="badge ${statusBadge}">${s.status}</span></td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick="openSupplierDetail(${s.id})" title="Ver detalhes"><i class="ti ti-eye"></i></button>
-        <button class="btn btn-secondary btn-sm" onclick="editSupplier(${s.id})" title="Editar"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSupplier(${s.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+        ${waBtn}${mailBtn}${locBtn}
+        <button class="btn btn-secondary btn-sm" onclick="openSupplierDetail('${s.id}')" title="Ver detalhes"><i class="ti ti-eye"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="editSupplier('${s.id}')" title="Editar"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSupplier('${s.id}')" title="Excluir"><i class="ti ti-trash"></i></button>
       </div></td>`;
     tbody.appendChild(tr);
   });
-  if (shown === 0) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Nenhum fornecedor encontrado.</td></tr>';
+  if (shown === 0) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Nenhum fornecedor cadastrado.</td></tr>';
   const countEl = document.getElementById('sup-count');
   if (countEl) countEl.textContent = `Exibindo ${shown} de ${suppliersData.length} fornecedores`;
   updateSupplierKPIs();
@@ -6548,30 +6634,32 @@ function filterSuppliersBy(cat) {
   renderSuppliers();
 }
 
-function saveSupplier() {
+async function saveSupplier() {
   const get = id => document.getElementById(id).value.trim();
   const name = get('ns-name');
   const category = document.getElementById('ns-category').value;
   if (!name) { showToast('Informe o nome do fornecedor.'); return; }
-  const data = {
-    name, category,
-    contact: get('ns-contact'), cnpj: get('ns-cnpj'), phone: get('ns-phone'),
-    email: get('ns-email'), website: get('ns-website'), leadtime: get('ns-leadtime'),
-    address: get('ns-address'), payment: document.getElementById('ns-payment').value,
-    status: document.getElementById('ns-status').value, obs: get('ns-obs')
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  const payload = {
+    nome: name, categoria: category,
+    contato: get('ns-contact') || null, documento: get('ns-cnpj') || null, telefone: get('ns-phone') || null,
+    email: get('ns-email') || null, website: get('ns-website') || null, prazo_entrega: get('ns-leadtime') || null,
+    endereco: get('ns-address') || null, pagamento: document.getElementById('ns-payment').value,
+    status: document.getElementById('ns-status').value, observacoes: get('ns-obs') || null,
   };
+  let error;
   if (editingSupplierId) {
-    const s = suppliersData.find(x => x.id === editingSupplierId);
-    if (s) Object.assign(s, data);
-    showToast(`${name} atualizado!`);
+    ({ error } = await sb.from('fornecedores').update(payload).eq('id', editingSupplierId));
   } else {
-    suppliersData.push({ id: nextSupplierId++, ...data });
-    showToast(`${name} cadastrado em ${category}!`);
+    payload.created_by = currentUser ? currentUser.id : null;
+    ({ error } = await sb.from('fornecedores').insert(payload));
   }
+  if (error) { showToast('Erro ao salvar: ' + error.message); return; }
   closeModal('modal-new-supplier');
-  renderSuppliers();
-  // Refresh filament supplier dropdown if it exists
-  refreshFilamentSupplierOptions();
+  showToast(editingSupplierId ? `${name} atualizado!` : `${name} cadastrado em ${category}!`);
+  editingSupplierId = null;
+  await loadSuppliersDB();
+  if (typeof refreshFilamentSupplierOptions === 'function') refreshFilamentSupplierOptions();
 }
 
 function editSupplier(id) {
@@ -6625,9 +6713,12 @@ async function deleteSupplier(id) {
   const s = suppliersData.find(x => x.id === id);
   if (!s) return;
   if (!await confirmAction({ title:'Excluir fornecedor', message:`Excluir o fornecedor ${s.name}?` })) return;
-  suppliersData = suppliersData.filter(x => x.id !== id);
-  renderSuppliers();
+  if (sb && s._uuid) {
+    const { error } = await sb.from('fornecedores').update({ deleted_at: new Date().toISOString() }).eq('id', s._uuid);
+    if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+  }
   showToast(`${s.name} excluído.`);
+  await loadSuppliersDB();
 }
 
 // Sync supplier names into the filament "Fornecedor" dropdown
@@ -6636,7 +6727,7 @@ function refreshFilamentSupplierOptions() {
   if (!sel) return;
   const cur = sel.value;
   const filamentSuppliers = suppliersData.filter(s => s.category === 'Filamento').map(s => s.name);
-  const allNames = [...new Set([...filamentSuppliers, 'FilaFácil', '3D Brasil', 'Amazon', 'Mercado Livre', 'Loja Oficial'])];
+  const allNames = [...new Set([...filamentSuppliers, 'Outro'])];
   sel.innerHTML = allNames.map(n => `<option>${n}</option>`).join('');
   if (cur && allNames.includes(cur)) sel.value = cur;
 }
