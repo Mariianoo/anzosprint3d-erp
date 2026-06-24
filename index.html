@@ -1819,37 +1819,36 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 <div class="page" id="page-gallery">
   <div class="page-header">
     <div class="page-header-row">
-      <div><h2>Galeria de Impressões</h2><p>Registro fotográfico das produções — Supabase Storage</p></div>
-      <button class="btn btn-primary" onclick="showToast('Enviando foto para Supabase Storage...')"><i class="ti ti-upload"></i> Enviar Foto</button>
+      <div><h2>Galeria de Impressões</h2><p>Registro fotográfico das produções</p></div>
+      <button class="btn btn-primary" onclick="openGalleryUpload()"><i class="ti ti-upload"></i> Enviar Foto</button>
     </div>
   </div>
   <div class="toolbar">
-    <div class="search-input"><i class="ti ti-search"></i><input placeholder="Buscar por pedido, cliente..."></div>
-    <select class="filter"><option>Todos os tipos</option><option>Foto da impressão</option><option>Foto final</option><option>Enviado ao cliente</option></select>
+    <div class="search-input"><i class="ti ti-search"></i><input id="gal-search" placeholder="Buscar por pedido, cliente..." oninput="renderGallery()"></div>
+    <select class="filter" id="gal-type-filter" onchange="renderGallery()"><option value="all">Todos os tipos</option><option>Durante impressão</option><option>Foto final</option><option>Enviado ao cliente</option></select>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
-    <div class="model-card" onclick="showToast('Foto: PED-0039 — Marina Costa')">
-      <div class="model-thumb" style="background:linear-gradient(135deg,#1e3a5f,#0ea5e9)"><i class="ti ti-camera" style="font-size:40px"></i></div>
-      <div class="model-body"><div style="font-size:12px;font-weight:600">PED-0039</div><div style="font-size:11px;color:var(--text2)">Foto final · Marina Costa</div><span class="badge badge-green" style="font-size:10px;margin-top:4px;display:inline-flex">Enviado</span></div>
+  <div id="gallery-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px"></div>
+</div>
+
+<!-- ═══ MODAL: NOVA FOTO GALERIA ═══ -->
+<div id="modal-gallery" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-gallery')">
+  <div class="modal" style="width:440px;max-width:92vw">
+    <div class="modal-header"><h3>Enviar Foto</h3><button class="modal-close" onclick="closeModal('modal-gallery')"><i class="ti ti-x"></i></button></div>
+    <div class="modal-body">
+      <div id="gal-img-dropzone" style="border:2px dashed var(--border2);border-radius:var(--radius);padding:18px;text-align:center;cursor:pointer;margin-bottom:14px" onclick="document.getElementById('gal-img-input').click()">
+        <i class="ti ti-camera-plus" style="font-size:28px;color:var(--text3);display:block;margin-bottom:6px"></i>
+        <div style="font-size:12px;color:var(--text2)">Clique para escolher a foto (será comprimida)</div>
+        <input type="file" id="gal-img-input" accept="image/*" style="display:none" onchange="handleGalleryImage(this)">
+      </div>
+      <div id="gal-preview" style="display:none;text-align:center;margin-bottom:14px"><img id="gal-preview-img" style="max-width:100%;max-height:180px;border-radius:var(--radius)"></div>
+      <div class="form-group"><label>Pedido (referência)</label><input type="text" id="gal-pedido" placeholder="Ex: PED-0042"></div>
+      <div class="form-group"><label>Cliente</label><input type="text" id="gal-cliente" placeholder="Nome do cliente"></div>
+      <div class="form-group"><label>Tipo</label><select id="gal-tipo"><option>Foto final</option><option>Durante impressão</option><option>Enviado ao cliente</option></select></div>
+      <div class="form-group"><label>Observações</label><textarea id="gal-obs" rows="2" placeholder="Notas opcionais..."></textarea></div>
     </div>
-    <div class="model-card" onclick="showToast('Foto: PED-0040 — João Pedro')">
-      <div class="model-thumb" style="background:linear-gradient(135deg,#052e16,#22c55e)"><i class="ti ti-camera" style="font-size:40px"></i></div>
-      <div class="model-body"><div style="font-size:12px;font-weight:600">PED-0040</div><div style="font-size:11px;color:var(--text2)">Durante impressão</div><span class="badge badge-blue" style="font-size:10px;margin-top:4px;display:inline-flex">Produção</span></div>
-    </div>
-    <div class="model-card" onclick="showToast('Foto: PED-0037 — Loja JR')">
-      <div class="model-thumb" style="background:linear-gradient(135deg,#2d1a02,#f59e0b)"><i class="ti ti-camera" style="font-size:40px"></i></div>
-      <div class="model-body"><div style="font-size:12px;font-weight:600">PED-0037</div><div style="font-size:11px;color:var(--text2)">Foto final · Loja JR</div><span class="badge badge-green" style="font-size:10px;margin-top:4px;display:inline-flex">Enviado</span></div>
-    </div>
-    <div class="model-card" onclick="showToast('Foto: PED-0036 — Rafael Almeida')">
-      <div class="model-thumb" style="background:linear-gradient(135deg,#1a1a2e,#8b5cf6)"><i class="ti ti-camera" style="font-size:40px"></i></div>
-      <div class="model-body"><div style="font-size:12px;font-weight:600">PED-0036</div><div style="font-size:11px;color:var(--text2)">Foto final · Rafael A.</div><span class="badge badge-purple" style="font-size:10px;margin-top:4px;display:inline-flex">Galeria</span></div>
-    </div>
-    <div class="model-card" onclick="showToast('Foto: PED-0035 — Artes & Design')">
-      <div class="model-thumb" style="background:linear-gradient(135deg,#2d0a0a,#ef4444)"><i class="ti ti-camera" style="font-size:40px"></i></div>
-      <div class="model-body"><div style="font-size:12px;font-weight:600">PED-0035</div><div style="font-size:11px;color:var(--text2)">Estátua · Artes &amp; Design</div><span class="badge badge-green" style="font-size:10px;margin-top:4px;display:inline-flex">Enviado</span></div>
-    </div>
-    <div class="model-card" style="border:2px dashed var(--border2);background:var(--surface2);min-height:180px;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="showToast('Enviando nova foto...')">
-      <div style="text-align:center;color:var(--text3)"><i class="ti ti-upload" style="font-size:32px;display:block;margin-bottom:8px"></i><div style="font-size:12px">Nova foto</div></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-gallery')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveGalleryPhoto()"><i class="ti ti-check"></i> Salvar Foto</button>
     </div>
   </div>
 </div>
@@ -1865,33 +1864,33 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
     <div class="card" style="display:flex;flex-direction:column;gap:12px">
       <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--blue-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--blue);font-size:20px"><i class="ti ti-chart-bar"></i></div><div><div style="font-weight:600">Produção</div><div style="font-size:12px;color:var(--text2)">Ordens, horas, consumo de filamento</div></div></div>
-      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" value="2025-06-01"></div><div class="form-group" style="margin:0"><input type="date" value="2025-06-30"></div></div>
-      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="showToast('Gerando PDF de Produção...')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="showToast('Gerando Excel...')"><i class="ti ti-file-spreadsheet"></i> Excel</button><button class="btn btn-secondary btn-sm" onclick="showToast('Gerando CSV...')"><i class="ti ti-file-text"></i> CSV</button></div>
+      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" id="rep-prod-ini"></div><div class="form-group" style="margin:0"><input type="date" id="rep-prod-fim"></div></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="generateReport('producao','pdf')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="generateReport('producao','csv')"><i class="ti ti-file-text"></i> CSV</button></div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;gap:12px">
       <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--green-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--green);font-size:20px"><i class="ti ti-currency-real"></i></div><div><div style="font-weight:600">Financeiro</div><div style="font-size:12px;color:var(--text2)">Receitas, despesas, fluxo de caixa</div></div></div>
-      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" value="2025-06-01"></div><div class="form-group" style="margin:0"><input type="date" value="2025-06-30"></div></div>
-      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="showToast('Gerando PDF Financeiro...')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="showToast('Gerando Excel...')"><i class="ti ti-file-spreadsheet"></i> Excel</button><button class="btn btn-secondary btn-sm" onclick="showToast('Gerando CSV...')"><i class="ti ti-file-text"></i> CSV</button></div>
+      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" id="rep-fin-ini"></div><div class="form-group" style="margin:0"><input type="date" id="rep-fin-fim"></div></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="generateReport('financeiro','pdf')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="generateReport('financeiro','csv')"><i class="ti ti-file-text"></i> CSV</button></div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;gap:12px">
-      <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--amber-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--amber);font-size:20px"><i class="ti ti-users"></i></div><div><div style="font-weight:600">Clientes</div><div style="font-size:12px;color:var(--text2)">Cadastros, pedidos, histórico</div></div></div>
-      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" value="2025-01-01"></div><div class="form-group" style="margin:0"><input type="date" value="2025-06-30"></div></div>
-      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="showToast('Gerando PDF Clientes...')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="showToast('Excel...')"><i class="ti ti-file-spreadsheet"></i> Excel</button><button class="btn btn-secondary btn-sm" onclick="showToast('CSV...')"><i class="ti ti-file-text"></i> CSV</button></div>
+      <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--amber-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--amber);font-size:20px"><i class="ti ti-users"></i></div><div><div style="font-weight:600">Clientes</div><div style="font-size:12px;color:var(--text2)">Cadastros e contatos</div></div></div>
+      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" id="rep-cli-ini"></div><div class="form-group" style="margin:0"><input type="date" id="rep-cli-fim"></div></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="generateReport('clientes','pdf')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="generateReport('clientes','csv')"><i class="ti ti-file-text"></i> CSV</button></div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;gap:12px">
       <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--purple-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:20px"><i class="ti ti-cylinder"></i></div><div><div style="font-weight:600">Filamentos</div><div style="font-size:12px;color:var(--text2)">Consumo, estoque, movimentações</div></div></div>
-      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" value="2025-06-01"></div><div class="form-group" style="margin:0"><input type="date" value="2025-06-30"></div></div>
-      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="showToast('PDF Filamentos...')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="showToast('Excel...')"><i class="ti ti-file-spreadsheet"></i> Excel</button><button class="btn btn-secondary btn-sm" onclick="showToast('CSV...')"><i class="ti ti-file-text"></i> CSV</button></div>
+      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" id="rep-fil-ini"></div><div class="form-group" style="margin:0"><input type="date" id="rep-fil-fim"></div></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="generateReport('filamentos','pdf')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="generateReport('filamentos','csv')"><i class="ti ti-file-text"></i> CSV</button></div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;gap:12px">
-      <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--red-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--red);font-size:20px"><i class="ti ti-printer"></i></div><div><div style="font-weight:600">Impressoras</div><div style="font-size:12px;color:var(--text2)">Horas, manutenções, eficiência</div></div></div>
-      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" value="2025-01-01"></div><div class="form-group" style="margin:0"><input type="date" value="2025-06-30"></div></div>
-      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="showToast('PDF Impressoras...')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="showToast('Excel...')"><i class="ti ti-file-spreadsheet"></i> Excel</button><button class="btn btn-secondary btn-sm" onclick="showToast('CSV...')"><i class="ti ti-file-text"></i> CSV</button></div>
+      <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--red-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--red);font-size:20px"><i class="ti ti-printer"></i></div><div><div style="font-weight:600">Impressoras</div><div style="font-size:12px;color:var(--text2)">Horas, status, equipamentos</div></div></div>
+      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" id="rep-prn-ini"></div><div class="form-group" style="margin:0"><input type="date" id="rep-prn-fim"></div></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="generateReport('impressoras','pdf')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="generateReport('impressoras','csv')"><i class="ti ti-file-text"></i> CSV</button></div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;gap:12px">
-      <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--green-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--green);font-size:20px"><i class="ti ti-trending-up"></i></div><div><div style="font-weight:600">Lucratividade</div><div style="font-size:12px;color:var(--text2)">Margens por produto e cliente</div></div></div>
-      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" value="2025-01-01"></div><div class="form-group" style="margin:0"><input type="date" value="2025-06-30"></div></div>
-      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="showToast('PDF Lucratividade...')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="showToast('Excel...')"><i class="ti ti-file-spreadsheet"></i> Excel</button><button class="btn btn-secondary btn-sm" onclick="showToast('CSV...')"><i class="ti ti-file-text"></i> CSV</button></div>
+      <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;background:var(--green-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--green);font-size:20px"><i class="ti ti-file-dollar"></i></div><div><div style="font-weight:600">Orçamentos</div><div style="font-size:12px;color:var(--text2)">Propostas, conversões, valores</div></div></div>
+      <div class="form-row"><div class="form-group" style="margin:0"><input type="date" id="rep-orc-ini"></div><div class="form-group" style="margin:0"><input type="date" id="rep-orc-fim"></div></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="generateReport('orcamentos','pdf')"><i class="ti ti-file-type-pdf"></i> PDF</button><button class="btn btn-secondary btn-sm" onclick="generateReport('orcamentos','csv')"><i class="ti ti-file-text"></i> CSV</button></div>
     </div>
   </div>
 </div>
@@ -1925,18 +1924,18 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     </div>
     <div class="card">
       <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Dados da Empresa</h3>
-      <div class="form-group"><label>Nome da Empresa</label><input type="text" value="ANZO'S Print 3D"></div>
+      <div class="form-group"><label>Nome da Empresa</label><input type="text" id="set-emp-nome" value="ANZO'S Print 3D"></div>
       <div class="form-row">
-        <div class="form-group"><label>CNPJ</label><input type="text" value="12.345.678/0001-90"></div>
-        <div class="form-group"><label>Telefone</label><input type="text" value="(15) 99876-5432"></div>
+        <div class="form-group"><label>CNPJ</label><input type="text" id="set-emp-cnpj"></div>
+        <div class="form-group"><label>Telefone</label><input type="text" id="set-emp-telefone"></div>
       </div>
-      <div class="form-group"><label>E-mail</label><input type="email" value="contato@anzos3d.com.br"></div>
-      <div class="form-group"><label>Endereço</label><input type="text" value="Rua das Impressoras, 42 — Mairinque, SP"></div>
+      <div class="form-group"><label>E-mail</label><input type="email" id="set-emp-email"></div>
+      <div class="form-group"><label>Endereço</label><input type="text" id="set-emp-endereco"></div>
       <div class="form-row">
-        <div class="form-group"><label>Cidade</label><input type="text" value="Mairinque"></div>
-        <div class="form-group"><label>CEP</label><input type="text" value="18120-000"></div>
+        <div class="form-group"><label>Cidade</label><input type="text" id="set-emp-cidade"></div>
+        <div class="form-group"><label>CEP</label><input type="text" id="set-emp-cep"></div>
       </div>
-      <button class="btn btn-primary" onclick="showToast('Dados da empresa salvos!')"><i class="ti ti-device-floppy"></i> Salvar Dados</button>
+      <button class="btn btn-primary" onclick="saveCompanyData()"><i class="ti ti-device-floppy"></i> Salvar Dados</button>
     </div>
     <div class="card">
       <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Etiqueta de Envio</h3>
@@ -1968,30 +1967,22 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     </div>
     <div class="card">
       <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Parâmetros de Custo</h3>
-      <div class="form-group"><label>Custo kWh (R$)</label><input type="number" value="0.80" step="0.01"></div>
-      <div class="form-group"><label>Custo filamento PLA (R$/g)</label><input type="number" value="0.05" step="0.001"></div>
-      <div class="form-group"><label>Custo filamento PETG (R$/g)</label><input type="number" value="0.095" step="0.001"></div>
-      <div class="form-group"><label>Custo filamento ABS (R$/g)</label><input type="number" value="0.08" step="0.001"></div>
-      <div class="form-group"><label>Margem padrão de lucro (%)</label><input type="number" value="40"></div>
-      <div class="form-group"><label>Consumo médio impressora (W)</label><input type="number" value="200"></div>
-      <div class="form-group"><label>Desgaste impressora (R$/h)</label><input type="number" value="0.50" step="0.01"></div>
-      <button class="btn btn-primary" onclick="showToast('Parâmetros de custo atualizados!')"><i class="ti ti-device-floppy"></i> Salvar Custos</button>
+      <div class="form-group"><label>Custo kWh (R$)</label><input type="number" id="set-cost-kwh" value="0.80" step="0.01"></div>
+      <div class="form-group"><label>Custo filamento PLA (R$/g)</label><input type="number" id="set-cost-pla" value="0.05" step="0.001"></div>
+      <div class="form-group"><label>Custo filamento PETG (R$/g)</label><input type="number" id="set-cost-petg" value="0.095" step="0.001"></div>
+      <div class="form-group"><label>Custo filamento ABS (R$/g)</label><input type="number" id="set-cost-abs" value="0.08" step="0.001"></div>
+      <div class="form-group"><label>Margem padrão de lucro (%)</label><input type="number" id="set-cost-margem" value="40"></div>
+      <div class="form-group"><label>Consumo médio impressora (W)</label><input type="number" id="set-cost-watts" value="200"></div>
+      <div class="form-group"><label>Desgaste impressora (R$/h)</label><input type="number" id="set-cost-wear" value="0.50" step="0.01"></div>
+      <button class="btn btn-primary" onclick="saveCostParams()"><i class="ti ti-device-floppy"></i> Salvar Custos</button>
     </div>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <h3 style="font-size:14px;font-weight:600">Usuários e Permissões</h3>
-        <button class="btn btn-primary btn-sm" onclick="showToast('Convidando usuário...')"><i class="ti ti-user-plus"></i> Convidar</button>
       </div>
-      <div class="table-wrap" style="box-shadow:none;border:none">
-        <table>
-          <thead><tr><th>Usuário</th><th>Perfil</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            <tr><td><div style="font-weight:500">André Anzo</div><div style="font-size:11px;color:var(--text2)">admin@anzos3d.com.br</div></td><td><span class="badge badge-red">Administrador</span></td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-secondary btn-sm" onclick="showToast('Editando usuário: André Anzo')"><i class="ti ti-edit"></i></button></td></tr>
-            <tr><td><div style="font-weight:500">Carlos Mendes</div><div style="font-size:11px;color:var(--text2)">carlos@anzos3d.com.br</div></td><td><span class="badge badge-blue">Produção</span></td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-secondary btn-sm" onclick="showToast('Editando usuário: Carlos Mendes')"><i class="ti ti-edit"></i></button></td></tr>
-            <tr><td><div style="font-weight:500">Amanda Ferreira</div><div style="font-size:11px;color:var(--text2)">amanda@anzos3d.com.br</div></td><td><span class="badge badge-purple">Financeiro</span></td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-secondary btn-sm" onclick="showToast('Editando usuário: Amanda Ferreira')"><i class="ti ti-edit"></i></button></td></tr>
-            <tr><td><div style="font-weight:500">Ricardo Sales</div><div style="font-size:11px;color:var(--text2)">ricardo@anzos3d.com.br</div></td><td><span class="badge badge-amber">Vendas</span></td><td><span class="badge badge-gray">Inativo</span></td><td><button class="btn btn-secondary btn-sm" onclick="showToast('Editando usuário: Ricardo Sales')"><i class="ti ti-edit"></i></button></td></tr>
-          </tbody>
-        </table>
+      <div id="settings-users-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text2);line-height:1.5">
+        <i class="ti ti-info-circle"></i>&nbsp;Por segurança, criar e remover usuários (com senha) é feito no painel do Supabase, em <b>Authentication → Users</b>. As permissões por perfil são controladas na tabela <code style="font-size:11px">profiles</code>.
       </div>
     </div>
     <div class="card">
@@ -2004,7 +1995,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--green-light);border-radius:var(--radius)"><div style="display:flex;align-items:center;gap:8px;color:#166534"><i class="ti ti-shield-lock"></i><span style="font-size:13px;font-weight:500">Row Level Security</span></div><span class="badge badge-green">Habilitado</span></div>
       </div>
       <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text2)">
-        <i class="ti ti-info-circle"></i>&nbsp;Supabase URL: <code style="font-size:11px">https://xxxxx.supabase.co</code>
+        <i class="ti ti-info-circle"></i>&nbsp;Supabase URL: <code style="font-size:11px" id="settings-sb-url">—</code>
       </div>
     </div>
   </div>
@@ -3733,34 +3724,7 @@ function nowStr() {
   return new Date().toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
 
-let ordersData = [
-  { id:'PED-0047', client:'Rafael Oliveira',    desc:'Suporte celular × 3',     value:89.00,  deadline:'15/06/25', resp:'Amanda F.', status:'Aguardando', obs:'Urgente — cliente confirmou por WhatsApp.',
-    history:[{ at:'12/06/25 09:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }] },
-  { id:'PED-0046', client:'Carla Lima',          desc:'Vaso decorativo × 2',     value:140.00, deadline:'18/06/25', resp:'Amanda F.', status:'Aguardando', obs:'',
-    history:[{ at:'12/06/25 10:15', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }] },
-  { id:'PED-0045', client:'Marcos Bianchi',      desc:'Peça mecânica × 1',       value:220.00, deadline:'20/06/25', resp:'Carlos M.', status:'Aguardando', obs:'Material: ABS preto.',
-    history:[{ at:'11/06/25 14:30', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }] },
-  { id:'PED-0044', client:'Loja Brinquedos JR',  desc:'Miniaturas × 20',         value:680.00, deadline:'14/06/25', resp:'Carlos M.', status:'Produção',   obs:'Impressora: Ender 5 Pro',
-    history:[{ at:'10/06/25 08:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'11/06/25 09:00', by:'Carlos M.',  from:'Aguardando', to:'Produção',   note:'Impressão iniciada.' }] },
-  { id:'PED-0043', client:'Ana Souza',           desc:'Busto × 1',               value:320.00, deadline:'16/06/25', resp:'Amanda F.', status:'Produção',   obs:'Impressora: Bambu X1C',
-    history:[{ at:'10/06/25 13:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'11/06/25 06:30', by:'Amanda F.',  from:'Aguardando', to:'Produção',   note:'Iniciado na Bambu X1C.' }] },
-  { id:'PED-0042', client:'TechGroup Ltda',      desc:'Case servidor × 4',       value:960.00, deadline:'08/06/25', resp:'Carlos M.', status:'Atrasado',   obs:'Impressora: CR-10S · Aguardando inspeção.',
-    history:[{ at:'05/06/25 10:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'06/06/25 14:00', by:'Carlos M.',  from:'Aguardando', to:'Produção',   note:'Iniciado no CR-10S.' }, { at:'09/06/25 08:00', by:'Carlos M.',  from:'Produção',   to:'Atrasado',   note:'Prazo vencido sem conclusão.' }] },
-  { id:'PED-0041', client:'Artes & Design',      desc:'Estatueta × 3',           value:520.00, deadline:'19/06/25', resp:'Carlos M.', status:'Produção',   obs:'Impressora: Ender 3 V2',
-    history:[{ at:'10/06/25 11:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'11/06/25 08:00', by:'Carlos M.',  from:'Aguardando', to:'Produção',   note:'Iniciado na Ender 3 V2.' }] },
-  { id:'PED-0040', client:'Artes & Design',      desc:'Estátua × 3',             value:890.00, deadline:'12/06/25', resp:'Amanda F.', status:'Pós-proc.',  obs:'Pintura externa — aguardando tinta.',
-    history:[{ at:'08/06/25 09:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'09/06/25 07:00', by:'Amanda F.',  from:'Aguardando', to:'Produção',   note:'Impressão iniciada.' }, { at:'11/06/25 16:00', by:'Amanda F.',  from:'Produção',   to:'Pós-proc.',  note:'Impressão concluída. Iniciando pintura.' }] },
-  { id:'PED-0039', client:'João P. Souza',       desc:'Engrenagem × 2',          value:195.00, deadline:'13/06/25', resp:'Carlos M.', status:'Pós-proc.',  obs:'Lixamento e polimento.',
-    history:[{ at:'09/06/25 08:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'10/06/25 09:00', by:'Carlos M.',  from:'Aguardando', to:'Produção',   note:'Iniciado.' }, { at:'11/06/25 18:00', by:'Carlos M.',  from:'Produção',   to:'Pós-proc.',  note:'Lixamento iniciado.' }] },
-  { id:'PED-0038', client:'Marina Costa',        desc:'Busto personalizado × 1', value:320.00, deadline:'10/06/25', resp:'Amanda F.', status:'Finalizado', obs:'Pronto para retirada.',
-    history:[{ at:'07/06/25 10:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'08/06/25 08:00', by:'Amanda F.',  from:'Aguardando', to:'Produção',   note:'Impressão iniciada.' }, { at:'09/06/25 22:00', by:'Amanda F.',  from:'Produção',   to:'Pós-proc.',  note:'Polimento.' }, { at:'10/06/25 14:00', by:'André Anzo', from:'Pós-proc.',  to:'Finalizado', note:'Qualidade aprovada.' }] },
-  { id:'PED-0037', client:'Fabio Rocha',         desc:'Vaso flores × 2',         value:95.00,  deadline:'09/06/25', resp:'Carlos M.', status:'Finalizado', obs:'',
-    history:[{ at:'06/06/25 09:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'08/06/25 15:00', by:'Carlos M.',  from:'Aguardando', to:'Produção',   note:'Imprimindo.' }, { at:'09/06/25 12:00', by:'Carlos M.',  from:'Produção',   to:'Finalizado', note:'Concluído.' }] },
-  { id:'PED-0036', client:'Rafael Almeida',      desc:'Suporte tablet × 1',      value:180.00, deadline:'08/06/25', resp:'Amanda F.', status:'Finalizado', obs:'',
-    history:[{ at:'05/06/25 10:00', by:'André Anzo', from:null,         to:'Aguardando', note:'Pedido criado.' }, { at:'07/06/25 09:00', by:'Amanda F.',  from:'Aguardando', to:'Produção',   note:'Imprimindo.' }, { at:'08/06/25 10:00', by:'Amanda F.',  from:'Produção',   to:'Finalizado', note:'Pronto.' }] },
-  { id:'PED-0035', client:'Loja Brinquedos JR',  desc:'Peças tabuleiro × 30',    value:410.00, deadline:'05/06/25', resp:'Carlos M.', status:'Entregue',   obs:'', history:[] },
-  { id:'PED-0034', client:'Marina Costa',        desc:'Vaso decorativo × 1',     value:75.00,  deadline:'04/06/25', resp:'Amanda F.', status:'Entregue',   obs:'', history:[] },
-];
+let ordersData = [];
 let nextOrderId = 48;
 let currentOrderId = null;
 
@@ -4382,6 +4346,70 @@ function loadSenderInfoForm() {
   set('set-rem-estado', s.estado); set('set-rem-cep', s.cep); set('set-rem-telefone', s.telefone);
   set('set-rem-site', s.site); set('set-rem-instagram', s.instagram);
   set('set-rem-transportadora', s.transportadora); set('set-rem-servico', s.servico);
+  // Carrega também os demais cards das Configurações
+  loadCompanyDataForm();
+  loadCostParamsForm();
+  renderSettingsUsers();
+  const urlEl = document.getElementById('settings-sb-url');
+  if (urlEl) { try { urlEl.textContent = (sb && sb.supabaseUrl) ? sb.supabaseUrl : 'https://rjvhwffqmirpnjgmambw.supabase.co'; } catch(e){ urlEl.textContent = 'https://rjvhwffqmirpnjgmambw.supabase.co'; } }
+}
+
+// ── Dados da Empresa (localStorage) ──
+function getCompanyData() {
+  try { return JSON.parse(localStorage.getItem('anzos_empresa') || '{}'); } catch(e){ return {}; }
+}
+function saveCompanyData() {
+  const g = id => (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
+  const data = {
+    nome: g('set-emp-nome'), cnpj: g('set-emp-cnpj'), telefone: g('set-emp-telefone'),
+    email: g('set-emp-email'), endereco: g('set-emp-endereco'), cidade: g('set-emp-cidade'), cep: g('set-emp-cep'),
+  };
+  localStorage.setItem('anzos_empresa', JSON.stringify(data));
+  showToast('Dados da empresa salvos!');
+}
+function loadCompanyDataForm() {
+  const d = getCompanyData();
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
+  if (d.nome) set('set-emp-nome', d.nome);
+  set('set-emp-cnpj', d.cnpj); set('set-emp-telefone', d.telefone); set('set-emp-email', d.email);
+  set('set-emp-endereco', d.endereco); set('set-emp-cidade', d.cidade); set('set-emp-cep', d.cep);
+}
+
+// ── Parâmetros de Custo (localStorage) ──
+function getCostParams() {
+  try { return JSON.parse(localStorage.getItem('anzos_custos') || '{}'); } catch(e){ return {}; }
+}
+function saveCostParams() {
+  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const data = {
+    kwh: g('set-cost-kwh'), pla: g('set-cost-pla'), petg: g('set-cost-petg'), abs: g('set-cost-abs'),
+    margem: g('set-cost-margem'), watts: g('set-cost-watts'), wear: g('set-cost-wear'),
+  };
+  localStorage.setItem('anzos_custos', JSON.stringify(data));
+  showToast('Parâmetros de custo atualizados!');
+}
+function loadCostParamsForm() {
+  const d = getCostParams();
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
+  set('set-cost-kwh', d.kwh); set('set-cost-pla', d.pla); set('set-cost-petg', d.petg); set('set-cost-abs', d.abs);
+  set('set-cost-margem', d.margem); set('set-cost-watts', d.watts); set('set-cost-wear', d.wear);
+}
+
+// ── Lista de usuários reais (do perfil logado) ──
+async function renderSettingsUsers() {
+  const container = document.getElementById('settings-users-list');
+  if (!container) return;
+  let rows = '';
+  if (currentProfile) {
+    const perfBadge = { administrador:'badge-red', producao:'badge-blue', financeiro:'badge-purple', vendas:'badge-amber' }[currentProfile.perfil] || 'badge-gray';
+    rows = `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--surface2);border-radius:var(--radius)">
+      <div><div style="font-weight:500">${currentProfile.nome || 'Usuário'}</div><div style="font-size:11px;color:var(--text2)">${currentUser ? currentUser.email : ''}</div></div>
+      <span class="badge ${perfBadge}">${(currentProfile.perfil||'—')}</span>
+    </div>`;
+  } else {
+    rows = '<div style="font-size:12px;color:var(--text3)">Faça login para ver o usuário atual.</div>';
+  }
+  container.innerHTML = rows;
 }
 
 // Gera um código de barras Code39 como SVG (puro JS, sem biblioteca externa).
@@ -4598,6 +4626,224 @@ async function printShippingLabel() {
   w.document.close();
 }
 
+// ══════════════════════════════════════════════
+// GALERIA — fotos das produções (base64 comprimido)
+// ══════════════════════════════════════════════
+let galleryData = [];
+let galleryImgBase64 = '';
+const GAL_TIPO_BADGE = { 'Foto final':'badge-green', 'Durante impressão':'badge-blue', 'Enviado ao cliente':'badge-purple' };
+
+async function loadGalleryDB() {
+  if (!sb) return;
+  const { data, error } = await sb.from('galeria').select('*').is('deleted_at', null).order('created_at', { ascending: false });
+  if (error) { showToast('Erro ao carregar galeria: ' + error.message); return; }
+  galleryData = (data || []).map(g => ({
+    _uuid: g.id, id: g.id,
+    pedido: g.pedido_ref || '', cliente: g.cliente_nome || '',
+    tipo: g.tipo || 'Foto final', img: g.imagem_base64 || '', obs: g.observacoes || '',
+  }));
+  renderGallery();
+}
+
+function renderGallery() {
+  const grid = document.getElementById('gallery-grid');
+  if (!grid) return;
+  const search = (document.getElementById('gal-search')?.value || '').toLowerCase();
+  const typeF = document.getElementById('gal-type-filter')?.value || 'all';
+  const filtered = galleryData.filter(g => {
+    const mS = !search || (g.pedido||'').toLowerCase().includes(search) || (g.cliente||'').toLowerCase().includes(search);
+    const mT = typeF === 'all' || g.tipo === typeF;
+    return mS && mT;
+  });
+  let html = filtered.map(g => {
+    const badge = GAL_TIPO_BADGE[g.tipo] || 'badge-gray';
+    const thumb = g.img
+      ? `<div class="model-thumb" style="background-image:url('${g.img}');background-size:cover;background-position:center"></div>`
+      : `<div class="model-thumb" style="background:linear-gradient(135deg,#1e3a5f,#0ea5e9)"><i class="ti ti-camera" style="font-size:40px"></i></div>`;
+    return `<div class="model-card" style="cursor:pointer" onclick="viewGalleryPhoto('${g.id}')">
+      ${thumb}
+      <div class="model-body">
+        <div style="font-size:12px;font-weight:600">${g.pedido || 'Sem pedido'}</div>
+        <div style="font-size:11px;color:var(--text2)">${g.cliente || '—'}</div>
+        <span class="badge ${badge}" style="font-size:10px;margin-top:4px;display:inline-flex">${g.tipo}</span>
+      </div>
+    </div>`;
+  }).join('');
+  // Card de adicionar
+  html += `<div class="model-card" style="border:2px dashed var(--border2);background:var(--surface2);min-height:180px;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="openGalleryUpload()">
+    <div style="text-align:center;color:var(--text3)"><i class="ti ti-upload" style="font-size:32px;display:block;margin-bottom:8px"></i><div style="font-size:12px">Nova foto</div></div>
+  </div>`;
+  grid.innerHTML = html;
+}
+
+function openGalleryUpload() {
+  galleryImgBase64 = '';
+  ['gal-pedido','gal-cliente','gal-obs'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const t = document.getElementById('gal-tipo'); if (t) t.selectedIndex = 0;
+  const prev = document.getElementById('gal-preview'); if (prev) prev.style.display = 'none';
+  openModal('modal-gallery');
+}
+
+async function handleGalleryImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  if (!file.type.startsWith('image/')) { showToast('Selecione uma imagem.'); return; }
+  try {
+    galleryImgBase64 = await compressImageToBase64(file, 1200, 0.7);
+    const prev = document.getElementById('gal-preview');
+    const img = document.getElementById('gal-preview-img');
+    if (img) img.src = galleryImgBase64;
+    if (prev) prev.style.display = 'block';
+    const kb = Math.round((galleryImgBase64.length * 0.75) / 1024);
+    showToast(`Foto pronta (~${kb} KB).`);
+  } catch(e) { showToast('Não foi possível processar a imagem.'); }
+}
+
+async function saveGalleryPhoto() {
+  if (!galleryImgBase64) { showToast('Escolha uma foto primeiro.'); return; }
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  const g = id => (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
+  const { error } = await sb.from('galeria').insert({
+    pedido_ref: g('gal-pedido') || null, cliente_nome: g('gal-cliente') || null,
+    tipo: document.getElementById('gal-tipo').value, imagem_base64: galleryImgBase64,
+    observacoes: g('gal-obs') || null, created_by: currentUser ? currentUser.id : null,
+  });
+  if (error) { showToast('Erro ao salvar: ' + error.message); return; }
+  closeModal('modal-gallery');
+  galleryImgBase64 = '';
+  showToast('Foto adicionada à galeria!');
+  await loadGalleryDB();
+}
+
+async function viewGalleryPhoto(id) {
+  const g = galleryData.find(x => x.id === id);
+  if (!g) return;
+  const ok = await confirmAction({
+    title: g.pedido || 'Foto',
+    message: `${g.cliente ? g.cliente + ' · ' : ''}${g.tipo}${g.obs ? ' · ' + g.obs : ''}`,
+    confirmLabel: 'Excluir foto', danger: true, icon: 'ti-photo', sound: false,
+  });
+  if (ok) {
+    if (sb && g._uuid) {
+      const { error } = await sb.from('galeria').update({ deleted_at: new Date().toISOString() }).eq('id', g._uuid);
+      if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+    }
+    showToast('Foto excluída.');
+    await loadGalleryDB();
+  }
+}
+
+// ══════════════════════════════════════════════
+// RELATÓRIOS — gera CSV e PDF de dados reais
+// ══════════════════════════════════════════════
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(cell => {
+    const s = String(cell == null ? '' : cell).replace(/"/g, '""');
+    return /[",;\n]/.test(s) ? `"${s}"` : s;
+  }).join(';')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function getReportRange(tipo) {
+  const map = { producao:['rep-prod-ini','rep-prod-fim'], financeiro:['rep-fin-ini','rep-fin-fim'],
+    clientes:['rep-cli-ini','rep-cli-fim'], filamentos:['rep-fil-ini','rep-fil-fim'],
+    impressoras:['rep-prn-ini','rep-prn-fim'], orcamentos:['rep-orc-ini','rep-orc-fim'] };
+  const [iniId, fimId] = map[tipo] || [];
+  const ini = iniId && document.getElementById(iniId)?.value;
+  const fim = fimId && document.getElementById(fimId)?.value;
+  return { ini: ini || null, fim: fim || null };
+}
+
+async function generateReport(tipo, formato) {
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  const { ini, fim } = getReportRange(tipo);
+  showToast('Gerando relatório...');
+
+  let titulo = '', header = [], rows = [];
+  try {
+    if (tipo === 'financeiro') {
+      let q = sb.from('transacoes').select('*').is('deleted_at', null);
+      if (ini) q = q.gte('data', ini); if (fim) q = q.lte('data', fim);
+      const { data } = await q.order('data', { ascending: false });
+      titulo = 'Relatório Financeiro';
+      header = ['Data','Tipo','Descrição','Categoria','Valor (R$)'];
+      rows = (data||[]).map(t => [t.data, t.tipo, t.descricao, t.categoria||'', Number(t.valor).toFixed(2)]);
+    } else if (tipo === 'producao') {
+      let q = sb.from('producao').select('*').is('deleted_at', null);
+      if (ini) q = q.gte('created_at', ini); if (fim) q = q.lte('created_at', fim + 'T23:59:59');
+      const { data } = await q.order('created_at', { ascending: false });
+      titulo = 'Relatório de Produção';
+      header = ['Número','Status','Filamento','Peso (g)','Início','Fim'];
+      rows = (data||[]).map(p => [p.numero, p.status, p.filamento_nome||'', p.peso_g||'', p.inicio||'', p.fim||'']);
+    } else if (tipo === 'clientes') {
+      const { data } = await sb.from('clientes').select('*').is('deleted_at', null).order('nome');
+      titulo = 'Relatório de Clientes';
+      header = ['Nome','Telefone','E-mail','Cidade','Estado'];
+      rows = (data||[]).map(c => [c.nome, c.telefone||'', c.email||'', c.cidade||'', c.estado||'']);
+    } else if (tipo === 'filamentos') {
+      const { data } = await sb.from('filamentos').select('*').is('deleted_at', null).order('tipo');
+      titulo = 'Relatório de Filamentos';
+      header = ['Tipo','Cor','Marca','Preço (R$)','Estoque (g)'];
+      rows = (data||[]).map(f => [f.tipo, f.cor||'', f.marca||'', Number(f.preco||0).toFixed(2), f.estoque_g||0]);
+    } else if (tipo === 'impressoras') {
+      const { data } = await sb.from('impressoras').select('*').is('deleted_at', null).order('nome');
+      titulo = 'Relatório de Impressoras';
+      header = ['Nome','Modelo','Status','Horas de uso','Aquisição'];
+      rows = (data||[]).map(p => [p.nome, p.modelo||'', p.status||'', p.horas_uso||0, p.data_aquisicao||'']);
+    } else if (tipo === 'orcamentos') {
+      let q = sb.from('orcamentos').select('*').is('deleted_at', null);
+      if (ini) q = q.gte('created_at', ini); if (fim) q = q.lte('created_at', fim + 'T23:59:59');
+      const { data } = await q.order('numero', { ascending: false });
+      titulo = 'Relatório de Orçamentos';
+      header = ['Número','Descrição','Status','Valor Final (R$)'];
+      rows = (data||[]).map(o => [o.numero, o.descricao||'', o.status, Number(o.preco_final||0).toFixed(2)]);
+    }
+  } catch(e) { showToast('Erro ao buscar dados: ' + (e.message||e)); return; }
+
+  if (!rows.length) { showToast('Sem dados no período para este relatório.'); return; }
+
+  const periodoTxt = (ini || fim) ? `Período: ${ini||'início'} a ${fim||'hoje'}` : 'Período: todos';
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const fileBase = `relatorio_${tipo}_${new Date().toISOString().slice(0,10)}`;
+
+  if (formato === 'csv') {
+    downloadCSV(fileBase + '.csv', [header, ...rows]);
+    showToast('CSV gerado!');
+    return;
+  }
+
+  // PDF via jsPDF
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(16); doc.text("ANZO'S Print 3D", 14, 18);
+    doc.setFontSize(13); doc.text(titulo, 14, 27);
+    doc.setFontSize(9); doc.setTextColor(120);
+    doc.text(`${periodoTxt}  ·  Emitido em ${hoje}  ·  ${rows.length} registro(s)`, 14, 34);
+    doc.setTextColor(0);
+    // Cabeçalho da tabela
+    let y = 44;
+    const colW = (180) / header.length;
+    doc.setFillColor(30, 41, 59); doc.setTextColor(255); doc.setFontSize(8);
+    doc.rect(14, y - 5, 180, 7, 'F');
+    header.forEach((h, i) => doc.text(String(h).slice(0,18), 16 + i*colW, y));
+    doc.setTextColor(0); y += 7;
+    rows.forEach((r, idx) => {
+      if (y > 280) { doc.addPage(); y = 20; }
+      if (idx % 2 === 0) { doc.setFillColor(245, 247, 250); doc.rect(14, y - 5, 180, 6, 'F'); }
+      r.forEach((cell, i) => doc.text(String(cell == null ? '' : cell).slice(0,20), 16 + i*colW, y));
+      y += 6;
+    });
+    doc.save(fileBase + '.pdf');
+    showToast('PDF gerado!');
+  } catch(e) { showToast('Erro ao gerar PDF: ' + (e.message||e)); }
+}
+
 // ── Devolução ──
 function openDevolutionModal() {
   const o = ordersData.find(x => x.id === currentOrderId);
@@ -4749,6 +4995,7 @@ nav = function(page) {
   if (page === 'financial')  { loadTransactionsDB(); }
   if (page === 'receivables') { loadReceivablesDB(); }
   if (page === 'payables')   { loadPayablesDB(); }
+  if (page === 'gallery')    { loadGalleryDB(); }
   if (page === 'settings')   { if (typeof loadSenderInfoForm === 'function') loadSenderInfoForm(); }
 };
 
