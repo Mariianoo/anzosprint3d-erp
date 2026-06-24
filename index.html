@@ -1398,10 +1398,38 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
         </select>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group"><label>Peso (g) * <span style="font-size:10px;color:var(--text3);font-weight:400">— do Bambu Studio</span></label><input type="number" id="nm-weight" placeholder="0" min="0" step="0.1"></div>
-      <div class="form-group"><label>Tempo de impressão (h) * <span style="font-size:10px;color:var(--text3);font-weight:400">— do Bambu Studio</span></label><input type="number" id="nm-hours" placeholder="0" step="0.5" min="0"></div>
+    <!-- ── Toggle Simples / Multipartes ── -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:10px;background:var(--surface2);border-radius:var(--radius)">
+      <span style="font-size:13px;font-weight:600;color:var(--text2)"><i class="ti ti-printer" style="margin-right:4px"></i>Modo de impressão:</span>
+      <div style="display:flex;background:var(--surface3,#0f172a);border-radius:8px;padding:3px;gap:3px">
+        <button id="nm-mode-simples" onclick="setModelMode('simples')" class="btn btn-primary btn-sm" style="padding:4px 14px;font-size:12px;border-radius:6px;transition:all .2s">Simples</button>
+        <button id="nm-mode-multi"   onclick="setModelMode('multipartes')" class="btn btn-secondary btn-sm" style="padding:4px 14px;font-size:12px;border-radius:6px;transition:all .2s"><i class="ti ti-palette" style="margin-right:4px"></i>Multipartes</button>
+      </div>
     </div>
+
+    <!-- ── MODO SIMPLES: peso + horas únicos ── -->
+    <div id="nm-section-simples">
+      <div class="form-row">
+        <div class="form-group"><label>Peso total (g) * <span style="font-size:10px;color:var(--text3);font-weight:400">— do Bambu Studio</span></label><input type="number" id="nm-weight" placeholder="0" min="0" step="0.1"></div>
+        <div class="form-group"><label>Tempo total (h) * <span style="font-size:10px;color:var(--text3);font-weight:400">— do Bambu Studio</span></label><input type="number" id="nm-hours" placeholder="0" step="0.5" min="0"></div>
+      </div>
+    </div>
+
+    <!-- ── MODO MULTIPARTES: tabela de partes ── -->
+    <div id="nm-section-multi" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:12px;color:var(--text2)">Informe cada cor/parte separadamente (dados do Bambu Studio).</span>
+        <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="addModelPart()"><i class="ti ti-plus"></i> Adicionar Parte</button>
+      </div>
+      <div id="nm-parts-list"></div>
+      <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:6px">
+        Totais calculados: Peso = <strong id="nm-parts-total-peso">0 g</strong> · Tempo = <strong id="nm-parts-total-horas">0 h</strong>
+      </div>
+      <!-- Campos ocultos para manter compatibilidade com saveModel -->
+      <input type="hidden" id="nm-weight" value="0">
+      <input type="hidden" id="nm-hours" value="0">
+    </div>
+
     <div class="form-group"><label>Localização / referência do arquivo <span style="font-size:10px;color:var(--text3);font-weight:400">— onde está o STL/3MF</span></label><input type="text" id="nm-location" placeholder="Ex: Drive/Modelos/Bulbasaur.3mf · Pendrive azul · Pasta Clientes/ANZO"></div>
 
     <!-- Image gallery -->
@@ -1442,6 +1470,11 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <div style="background:var(--surface2);border-radius:var(--radius);padding:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase">Formato</div><div id="md-format" style="font-size:13px;font-weight:600">—</div></div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase">Impressões</div><div id="md-prints" style="font-size:13px;font-weight:600">—</div></div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase">Custo est.</div><div id="md-cost" style="font-size:13px;font-weight:600;color:var(--blue)">—</div></div>
+    </div>
+    <!-- Partes multipartes (mostrado quando modo=multipartes) -->
+    <div id="md-parts-section" style="display:none;background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:10px">
+      <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:8px"><i class="ti ti-palette" style="font-size:12px"></i> Partes de Impressão</div>
+      <div id="md-parts-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
     <div style="background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px">Descrição</div><div id="md-notes" style="font-size:13px">—</div></div>
     <div style="background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:14px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px"><i class="ti ti-folder" style="font-size:12px"></i> Localização do arquivo</div><div id="md-location" style="font-size:13px">—</div></div>
@@ -5974,6 +6007,118 @@ let nextModelId = 1;
 let editingModelId = null;
 let currentModelId = null;
 
+// ── Multipartes do modelo ──
+let modelMode = 'simples';        // 'simples' | 'multipartes'
+let modelParts = [];              // [{_id, tipo, marca, cor, gramas, horas}]
+let nextModelPartId = 1;
+
+function setModelMode(mode) {
+  modelMode = mode;
+  const simBtn = document.getElementById('nm-mode-simples');
+  const mulBtn = document.getElementById('nm-mode-multi');
+  const simSec = document.getElementById('nm-section-simples');
+  const mulSec = document.getElementById('nm-section-multi');
+  if (simBtn) simBtn.className = 'btn btn-sm ' + (mode === 'simples' ? 'btn-primary' : 'btn-secondary');
+  if (mulBtn) mulBtn.className = 'btn btn-sm ' + (mode === 'multipartes' ? 'btn-primary' : 'btn-secondary');
+  if (simSec) simSec.style.display = mode === 'simples' ? '' : 'none';
+  if (mulSec) mulSec.style.display = mode === 'multipartes' ? '' : 'none';
+  if (mode === 'multipartes' && !modelParts.length) addModelPart();
+  syncModelPartTotals();
+}
+
+function addModelPart(data) {
+  const id = nextModelPartId++;
+  const part = { _id: id, tipo: '', marca: '', cor: '', gramas: 0, horas: 0 };
+  if (data) Object.assign(part, data);
+  modelParts.push(part);
+  renderModelParts();
+}
+
+function removeModelPart(id) {
+  modelParts = modelParts.filter(p => p._id !== id);
+  if (!modelParts.length) addModelPart();
+  syncModelPartTotals();
+}
+
+function onModelPartChange(id, field, value) {
+  const part = modelParts.find(p => p._id === id);
+  if (!part) return;
+  if (field === 'gramas') part.gramas = parseFloat(value) || 0;
+  else if (field === 'horas') part.horas = parseFloat(value) || 0;
+  else if (field === 'tipo')  { part.tipo = value; part.marca = ''; part.cor = ''; renderModelParts(); }
+  else if (field === 'marca') { part.marca = value; part.cor = ''; renderModelParts(); }
+  else if (field === 'cor')   { part.cor = value; }
+  syncModelPartTotals();
+}
+
+function syncModelPartTotals() {
+  const totalG = modelParts.reduce((s, p) => s + (p.gramas || 0), 0);
+  const totalH = modelParts.reduce((s, p) => s + (p.horas || 0), 0);
+  // Atualiza campos ocultos de compatibilidade
+  const wEl = document.getElementById('nm-weight');
+  const hEl = document.getElementById('nm-hours');
+  if (modelMode === 'multipartes') {
+    if (wEl) wEl.value = totalG;
+    if (hEl) hEl.value = totalH;
+  }
+  const pe = document.getElementById('nm-parts-total-peso');
+  const he = document.getElementById('nm-parts-total-horas');
+  if (pe) pe.textContent = totalG + ' g';
+  if (he) he.textContent = (totalH % 1 === 0 ? totalH : totalH.toFixed(1).replace('.',',')) + ' h';
+}
+
+function renderModelParts() {
+  const container = document.getElementById('nm-parts-list');
+  if (!container) return;
+  const fils = filamentsData || [];
+  const tipos = [...new Set(fils.map(f => f.type))].sort();
+  // Tipos padrão se não houver filamentos carregados
+  const tiposOpts = tipos.length ? tipos : ['PLA','PETG','ABS','TPU','ASA'];
+
+  container.innerHTML = modelParts.map(part => {
+    const marcas = [...new Set(fils.filter(f => f.type === part.tipo).map(f => f.brand))].sort();
+    const cores  = [...new Set(fils.filter(f => f.type === part.tipo && (!part.marca || f.brand === part.marca)).map(f => f.color))].sort();
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 70px 70px auto;gap:8px;align-items:end;padding:10px;background:var(--surface3,#0f172a);border-radius:8px;border:1px solid var(--border)">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Tipo *</label>
+        <select onchange="onModelPartChange(${part._id},'tipo',this.value)" style="width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+          <option value="">— tipo —</option>
+          ${tiposOpts.map(t => `<option value="${t}" ${t===part.tipo?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Marca</label>
+        <select onchange="onModelPartChange(${part._id},'marca',this.value)" style="width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+          <option value="">Qualquer</option>
+          ${marcas.map(m => `<option value="${m}" ${m===part.marca?'selected':''}>${escapeHtml(m)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Cor</label>
+        <select onchange="onModelPartChange(${part._id},'cor',this.value)" style="width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+          <option value="">Qualquer</option>
+          ${cores.map(c => `<option value="${c}" ${c===part.cor?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Peso (g)</label>
+        <input type="number" value="${part.gramas||0}" min="0" step="1"
+          oninput="onModelPartChange(${part._id},'gramas',this.value)"
+          style="width:100%;padding:7px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Tempo (h)</label>
+        <input type="number" value="${part.horas||0}" min="0" step="0.5"
+          oninput="onModelPartChange(${part._id},'horas',this.value)"
+          style="width:100%;padding:7px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:2px">
+        <button onclick="removeModelPart(${part._id})" title="Remover parte" class="btn btn-danger btn-sm" style="padding:6px 10px"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 const MAT_BADGE = { 'PLA':'badge-blue','PETG':'badge-green','ABS':'badge-amber','TPU':'badge-red','ASA':'badge-purple','Resin':'badge-purple' };
 
 // Carrega modelos do Supabase
@@ -5995,6 +6140,8 @@ async function loadModelsDB() {
     notes: m.observacoes || '',
     location: m.localizacao || '',
     images: m.capa_base64 ? [m.capa_base64] : [],
+    modoImpressao: m.modo_impressao || 'simples',
+    partesImpressao: Array.isArray(m.partes_impressao) ? m.partes_impressao : [],
   }));
   renderModels();
 }
@@ -6121,6 +6268,27 @@ function openModelDetail(id) {
   set('md-cost', 'R$ ' + estimateModelCost(m).toFixed(2).replace('.',','));
   set('md-notes', m.notes || '— sem descrição');
   set('md-location', m.location || '— não informado');
+
+  // Partes multipartes
+  const mdPartsSection = document.getElementById('md-parts-section');
+  const mdPartsList = document.getElementById('md-parts-list');
+  if (mdPartsSection && mdPartsList) {
+    if (m.modoImpressao === 'multipartes' && m.partesImpressao && m.partesImpressao.length) {
+      mdPartsSection.style.display = '';
+      mdPartsList.innerHTML = m.partesImpressao.map((p, i) =>
+        `<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:5px 8px;background:var(--surface3,#0f172a);border-radius:6px">
+          <span style="font-weight:600;color:var(--text3);min-width:20px">#${i+1}</span>
+          <span class="badge badge-blue" style="font-size:11px">${escapeHtml(p.tipo||'—')}</span>
+          ${p.marca ? `<span style="color:var(--text2)">${escapeHtml(p.marca)}</span>` : ''}
+          ${p.cor   ? `<span style="color:var(--text)">${escapeHtml(p.cor)}</span>` : ''}
+          <span style="margin-left:auto;color:var(--text2)">${p.gramas||0} g · ${p.horas||0} h</span>
+        </div>`
+      ).join('');
+    } else {
+      mdPartsSection.style.display = 'none';
+    }
+  }
+
   openModal('modal-model-detail');
 }
 
@@ -6142,6 +6310,10 @@ async function saveModel() {
     nome: name, categoria: category, material, formato: format, cor_hex: color,
     peso_g: weight, horas: hours, localizacao: location || null, observacoes: notes || null,
     capa_base64: images[0] || null,
+    modo_impressao: modelMode,
+    partes_impressao: modelMode === 'multipartes'
+      ? modelParts.map(p => ({ tipo: p.tipo, marca: p.marca, cor: p.cor, gramas: p.gramas, horas: p.horas }))
+      : [],
   };
 
   let error;
@@ -6176,9 +6348,21 @@ function editModel(id) {
   nmImages = m.images ? [...m.images] : [];
   renderModelImageGallery();
   // Existing values are authoritative — mark as manual so any later upload won't overwrite
-  document.getElementById('nm-weight').dataset.manual = '1';
-  document.getElementById('nm-hours').dataset.manual = '1';
+  const nmWEl = document.getElementById('nm-weight');
+  const nmHEl = document.getElementById('nm-hours');
+  if (nmWEl) nmWEl.dataset.manual = '1';
+  if (nmHEl) nmHEl.dataset.manual = '1';
+
+  // Restaura modo e partes
+  modelParts = []; nextModelPartId = 1;
+  const modoM = m.modoImpressao || 'simples';
+  if (modoM === 'multipartes' && Array.isArray(m.partesImpressao) && m.partesImpressao.length) {
+    m.partesImpressao.forEach(p => {
+      modelParts.push({ _id: nextModelPartId++, tipo: p.tipo||'', marca: p.marca||'', cor: p.cor||'', gramas: Number(p.gramas)||0, horas: Number(p.horas)||0 });
+    });
+  }
   document.getElementById('modal-new-model').style.display = 'flex';
+  setTimeout(() => { setModelMode(modoM); renderModelParts(); }, 30);
 }
 
 function editModelFromDetail() {
@@ -6199,6 +6383,10 @@ function openNewModel() {
   const fmt = document.getElementById('nm-format'); if (fmt) fmt.selectedIndex = 0;
   nmImages = [];
   if (typeof renderModelImageGallery === 'function') renderModelImageGallery();
+  modelParts = []; nextModelPartId = 1;
+  // Pré-carrega filamentos para preencher os selects das partes
+  if (!filamentsData || !filamentsData.length) loadFilamentsForQuote();
+  setTimeout(() => setModelMode('simples'), 30);
   openModal('modal-new-model');
 }
 
@@ -6298,7 +6486,50 @@ function useModelInQuote() {
   if (!m) return;
   closeModal('modal-model-detail');
   nav('quotations');
-  showToast(`Modelo "${m.name}" pronto para orçamento (${m.weight}g · ${m.hours}h)`);
+  // Abre o modal do orçamento e aplica os dados do modelo
+  setTimeout(async () => {
+    await newQuoteFromCalc();
+    applyModelDataToQuote(m);
+  }, 150);
+}
+
+// Aplica os dados de um modelo 3D na calculadora de orçamento (suporta multipartes)
+function applyModelDataToQuote(m) {
+  if (!m) return;
+  document.getElementById('q-desc').value = m.name;
+  document.getElementById('q-hours').value = m.hours;
+  opEnergyManual = false; opWearManual = false;
+
+  if (m.modoImpressao === 'multipartes' && m.partesImpressao && m.partesImpressao.length) {
+    // Pré-preenche modo multipartes com as partes do modelo
+    multiParts = []; nextMultiPartId = 1;
+    m.partesImpressao.forEach(p => {
+      multiParts.push({
+        _id: nextMultiPartId++,
+        filamento_id: null,
+        tipo: p.tipo || '', marca: p.marca || '', cor: p.cor || '',
+        gramas: Number(p.gramas) || 0,
+        _rate: 0, _custo: 0,
+      });
+    });
+    setQuoteMode('multipartes');
+    recalcMultiParts();
+    showToast(`Modelo "${m.name}" aplicado — ${m.partesImpressao.length} parte(s) multicolor importadas!`);
+  } else {
+    // Modo simples
+    document.getElementById('q-weight').value = m.weight;
+    setQuoteMode('simples');
+    // Seleciona tipo de filamento do modelo
+    const typeSel = document.getElementById('q-fil-type');
+    if (m.material && typeSel) {
+      for (const opt of typeSel.options) {
+        if (opt.value === m.material) { typeSel.value = m.material; break; }
+      }
+      refreshQuoteFilamentBrands();
+    }
+    calcQuote();
+    showToast(`Modelo "${m.name}" aplicado (${m.weight}g · ${m.hours}h)`);
+  }
 }
 
 // ── 3D File Upload & Analysis ──
@@ -7664,23 +7895,11 @@ function applyShippingPreset() {
 
 function applyModelToQuote() {
   const sel = document.getElementById('q-model');
-  const id = parseInt(sel.value);
+  const id = sel.value;
   if (!id || typeof modelsData === 'undefined') return;
   const m = modelsData.find(x => x.id === id);
   if (!m) return;
-  document.getElementById('q-weight').value = m.weight;
-  document.getElementById('q-hours').value = m.hours;
-  document.getElementById('q-desc').value = m.name;
-  // Seleciona o tipo de filamento do modelo (se existir no dropdown)
-  const typeSel = document.getElementById('q-fil-type');
-  if (m.material && typeSel) {
-    for (const opt of typeSel.options) {
-      if (opt.value === m.material) { typeSel.value = m.material; break; }
-    }
-    refreshQuoteFilamentBrands();
-  }
-  opEnergyManual = false; opWearManual = false;
-  calcQuote();
+  applyModelDataToQuote(m);
 }
 
 // Garante que filamentsData esteja carregado (para a calculadora), sem mexer na tela de Filamentos
