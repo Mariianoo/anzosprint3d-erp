@@ -852,21 +852,19 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 
     <!-- ══ SECTION: Impressão ══ -->
     <div class="calc-section">
-      <div class="calc-section-title"><i class="ti ti-printer"></i> Impressão</div>
-      <div class="grid-4">
-        <div class="form-group"><label>Peso do modelo (g)</label><input type="number" id="q-weight" value="150" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Tempo de impressão (h)</label><input type="number" id="q-hours" value="8" step="0.1" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Tipo de filamento</label>
-          <select id="q-fil-type" onchange="onQuoteFilTypeChange()"></select>
-        </div>
-        <div class="form-group"><label>Marca <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
-          <select id="q-fil-brand" onchange="onQuoteFilBrandChange()"><option value="">Média do tipo</option></select>
+      <div class="calc-section-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span><i class="ti ti-printer"></i> Impressão</span>
+        <!-- Toggle simples / multipartes -->
+        <div style="display:flex;background:var(--surface3,#0f172a);border-radius:8px;padding:3px;gap:3px;margin-left:auto">
+          <button id="q-mode-simples" onclick="setQuoteMode('simples')" class="btn btn-sm" style="padding:4px 14px;font-size:12px;border-radius:6px;transition:all .2s">Simples</button>
+          <button id="q-mode-multi"   onclick="setQuoteMode('multipartes')" class="btn btn-sm" style="padding:4px 14px;font-size:12px;border-radius:6px;transition:all .2s"><i class="ti ti-palette" style="margin-right:4px"></i>Multipartes</button>
         </div>
       </div>
-      <div class="grid-4" style="margin-top:10px">
-        <div class="form-group"><label>Cor <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
-          <select id="q-fil-color" onchange="calcQuote()"><option value="">Todas as cores</option></select>
-        </div>
+
+      <!-- ── Campos comuns ── -->
+      <div class="grid-4" style="margin-top:8px">
+        <div class="form-group"><label>Tempo de impressão (h)</label><input type="number" id="q-hours" value="8" step="0.1" oninput="calcQuote()"></div>
+        <div class="form-group"><label>Peso total (g)</label><input type="number" id="q-weight" value="150" oninput="onQWeightManual()" placeholder="Total dos filamentos"></div>
         <div class="form-group"><label>Pós-processamento</label>
           <select id="q-post" onchange="calcQuote()">
             <option value="0">Nenhum — R$ 0</option><option value="20">Lixamento — R$ 20</option>
@@ -874,7 +872,32 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
           </select>
         </div>
       </div>
-      <div id="q-fil-info" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
+
+      <!-- ── MODO SIMPLES ── -->
+      <div id="q-section-simples" style="margin-top:10px">
+        <div class="grid-4">
+          <div class="form-group"><label>Tipo de filamento</label>
+            <select id="q-fil-type" onchange="onQuoteFilTypeChange()"></select>
+          </div>
+          <div class="form-group"><label>Marca <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
+            <select id="q-fil-brand" onchange="onQuoteFilBrandChange()"><option value="">Média do tipo</option></select>
+          </div>
+          <div class="form-group"><label>Cor <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
+            <select id="q-fil-color" onchange="calcQuote()"><option value="">Todas as cores</option></select>
+          </div>
+        </div>
+        <div id="q-fil-info" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
+      </div>
+
+      <!-- ── MODO MULTIPARTES ── -->
+      <div id="q-section-multi" style="display:none;margin-top:10px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:12px;color:var(--text2)">Adicione uma linha por cor/parte. O peso total é somado automaticamente.</span>
+          <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="addMultiPart()"><i class="ti ti-plus"></i> Adicionar Parte</button>
+        </div>
+        <div id="q-multiparts-list"></div>
+        <div style="text-align:right;font-size:13px;color:var(--text2);margin-top:6px">Subtotal filamentos: <strong id="q-multiparts-subtotal" style="color:var(--text)">R$ 0,00</strong> · Peso total: <strong id="q-multiparts-peso">0 g</strong></div>
+      </div>
     </div>
 
     <!-- ══ SECTION: Materiais Extras ══ -->
@@ -5144,13 +5167,46 @@ async function completeProduction(opUuidOrId) {
       status: 'concluido', consumido_g: gramas, fim: new Date().toISOString()
     }).eq('id', op._uuid);
 
-    // Baixa o estoque do filamento (atômico via função do banco)
-    if (op.filamento_id && gramas > 0) {
-      const { data: novoEstoque, error: stkErr } = await sb.rpc('baixar_estoque_filamento', { p_filamento_id: op.filamento_id, p_gramas: gramas });
-      if (stkErr) throw stkErr;
-      showToast(`${op.id} concluída. Estoque de ${op.filament}: ${novoEstoque}g restantes.`);
-    } else {
-      showToast(`${op.id} concluída.`);
+    // Baixa o estoque do(s) filamento(s) (atômico via função do banco)
+    // Suporte a multipartes: busca o orçamento do pedido para verificar se é modo multipartes
+    let baixaOk = false;
+    try {
+      if (op.pedido_id) {
+        const { data: pedDB } = await sb.from('pedidos').select('orcamento_id').eq('id', op.pedido_id).single();
+        if (pedDB && pedDB.orcamento_id) {
+          const { data: orcDB } = await sb.from('orcamentos')
+            .select('modo_impressao, filamentos_multipartes, peso_g')
+            .eq('id', pedDB.orcamento_id).single();
+          if (orcDB && orcDB.modo_impressao === 'multipartes' && Array.isArray(orcDB.filamentos_multipartes) && orcDB.filamentos_multipartes.length) {
+            // Distribui o consumo real proporcionalmente ao peso estimado de cada parte
+            const totalEstimado = orcDB.filamentos_multipartes.reduce((s,p) => s + (Number(p.gramas)||0), 0) || 1;
+            const msgs = [];
+            for (const parte of orcDB.filamentos_multipartes) {
+              if (!parte.filamento_id) continue;
+              const proporcao = (Number(parte.gramas)||0) / totalEstimado;
+              const gramasParte = Math.round(gramas * proporcao);
+              if (gramasParte <= 0) continue;
+              const { data: novoEst, error: stkErr2 } = await sb.rpc('baixar_estoque_filamento', {
+                p_filamento_id: parte.filamento_id, p_gramas: gramasParte
+              });
+              if (!stkErr2) msgs.push(`${parte.tipo} ${parte.cor}: ${novoEst}g restantes`);
+            }
+            showToast(`${op.id} concluída. Estoque descontado: ${msgs.join(' · ') || '(sem filamentos vinculados)'}`);
+            baixaOk = true;
+          }
+        }
+      }
+    } catch(e){ console.warn('Erro na baixa multipartes:', e); }
+
+    if (!baixaOk) {
+      // Fallback: modo simples — baixa do filamento único da OP
+      if (op.filamento_id && gramas > 0) {
+        const { data: novoEstoque, error: stkErr } = await sb.rpc('baixar_estoque_filamento', { p_filamento_id: op.filamento_id, p_gramas: gramas });
+        if (stkErr) throw stkErr;
+        showToast(`${op.id} concluída. Estoque de ${op.filament}: ${novoEstoque}g restantes.`);
+      } else {
+        showToast(`${op.id} concluída.`);
+      }
     }
 
     // Move o pedido vinculado para "Pós-proc." no kanban
@@ -5415,12 +5471,22 @@ async function onNopOrderChange() {
     // Busca o pedido → orçamento ligado → filamento/peso estimado
     const { data: ped } = await sb.from('pedidos').select('orcamento_id').eq('id', pedidoUuid).single();
     if (ped && ped.orcamento_id) {
-      const { data: orc } = await sb.from('orcamentos').select('filamento_id, peso_g').eq('id', ped.orcamento_id).single();
+      const { data: orc } = await sb.from('orcamentos')
+        .select('filamento_id, peso_g, modo_impressao, filamentos_multipartes')
+        .eq('id', ped.orcamento_id).single();
       if (orc) {
-        if (orc.filamento_id) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = orc.filamento_id; }
-        if (orc.peso_g) { const w = document.getElementById('nop-total-weight'); if (w) w.value = orc.peso_g; }
         const hint = document.getElementById('nop-fil-hint');
-        if (hint) hint.textContent = 'Filamento e peso sugeridos a partir do orçamento.';
+        if (orc.modo_impressao === 'multipartes' && Array.isArray(orc.filamentos_multipartes) && orc.filamentos_multipartes.length) {
+          const primeira = orc.filamentos_multipartes.find(p => p.filamento_id);
+          if (primeira) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = primeira.filamento_id; }
+          if (orc.peso_g) { const w = document.getElementById('nop-total-weight'); if (w) w.value = orc.peso_g; }
+          const nP = orc.filamentos_multipartes.length;
+          if (hint) hint.textContent = `Orçamento multipartes (${nP} cor${nP>1?'es':''}) — ${orc.peso_g||0}g total. Baixa proporcional a cada filamento ao concluir a OP.`;
+        } else {
+          if (orc.filamento_id) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = orc.filamento_id; }
+          if (orc.peso_g) { const w = document.getElementById('nop-total-weight'); if (w) w.value = orc.peso_g; }
+          if (hint) hint.textContent = 'Filamento e peso sugeridos a partir do orçamento.';
+        }
       }
     }
   } catch(e){}
@@ -7701,6 +7767,179 @@ function onQuoteFilBrandChange() {
   calcQuote();
 }
 
+// ══════════════════════════════════════════════
+// MULTIPARTES — modo de impressão colorida
+// ══════════════════════════════════════════════
+
+// Alterna entre modo simples e multipartes
+function setQuoteMode(mode) {
+  quoteMode = mode;
+  const simBtn  = document.getElementById('q-mode-simples');
+  const mulBtn  = document.getElementById('q-mode-multi');
+  const simSec  = document.getElementById('q-section-simples');
+  const mulSec  = document.getElementById('q-section-multi');
+  const wEl     = document.getElementById('q-weight');
+
+  // Estilo dos botões — ativo: btn-primary, inativo: btn-secondary
+  if (simBtn && mulBtn) {
+    simBtn.className = 'btn btn-sm ' + (mode === 'simples' ? 'btn-primary' : 'btn-secondary');
+    mulBtn.className = 'btn btn-sm ' + (mode === 'multipartes' ? 'btn-primary' : 'btn-secondary');
+  }
+
+  if (mode === 'simples') {
+    if (simSec) simSec.style.display = '';
+    if (mulSec) mulSec.style.display = 'none';
+    if (wEl)   { wEl.readOnly = false; wEl.title = ''; }
+    qWeightManual = false;
+  } else {
+    if (simSec) simSec.style.display = 'none';
+    if (mulSec) mulSec.style.display = '';
+    if (wEl)   { wEl.readOnly = true; wEl.title = 'Calculado automaticamente pela soma das partes'; }
+    if (!multiParts.length) addMultiPart();
+    recalcMultiParts();
+  }
+  calcQuote();
+}
+
+// Chamada quando o usuário digita em q-weight no modo simples
+function onQWeightManual() {
+  qWeightManual = true;
+  calcQuote();
+}
+
+// Adiciona uma nova linha de parte
+function addMultiPart(data) {
+  const id = nextMultiPartId++;
+  const part = { _id: id, filamento_id: null, tipo: '', marca: '', cor: '', gramas: 0 };
+  if (data) Object.assign(part, data);
+  multiParts.push(part);
+  renderMultiParts();
+}
+
+// Remove uma parte
+function removeMultiPart(id) {
+  multiParts = multiParts.filter(p => p._id !== id);
+  if (!multiParts.length) addMultiPart();
+  recalcMultiParts();
+}
+
+// Atualiza um campo de uma parte a partir do DOM
+function onMultiPartChange(id, field, value) {
+  const part = multiParts.find(p => p._id === id);
+  if (!part) return;
+  if (field === 'gramas') part.gramas = parseFloat(value) || 0;
+  else if (field === 'tipo')  { part.tipo  = value; part.marca = ''; part.cor = ''; part.filamento_id = null; refreshMultiPartBrands(id); }
+  else if (field === 'marca') { part.marca = value; part.cor = ''; part.filamento_id = null; refreshMultiPartColors(id); }
+  else if (field === 'cor')   { part.cor   = value; resolveMultiPartFilament(id); }
+  recalcMultiParts();
+}
+
+// Resolve o filamento_id de uma parte com base em tipo/marca/cor
+function resolveMultiPartFilament(partId) {
+  const part = multiParts.find(p => p._id === partId);
+  if (!part) return;
+  const fils = filamentsData || [];
+  let matches = fils.filter(f => f.type === part.tipo);
+  if (part.marca) matches = matches.filter(f => f.brand === part.marca);
+  if (part.cor)   matches = matches.filter(f => f.color === part.cor);
+  part.filamento_id = matches.length === 1 ? matches[0].id : null;
+}
+
+// Recalcula o custo de cada parte e atualiza q-weight
+function recalcMultiParts() {
+  const fils = filamentsData || [];
+  let totalPeso = 0, totalCusto = 0;
+  multiParts.forEach(part => {
+    // Resolve rate via resolveQuoteFilamentRate usando os selects virtuais da parte
+    let rate = 0;
+    let matches = fils.filter(f => f.type === part.tipo);
+    if (part.marca) matches = matches.filter(f => f.brand === part.marca);
+    if (part.cor)   matches = matches.filter(f => f.color === part.cor);
+    if (matches.length > 0) {
+      rate = matches.reduce((s, f) => s + filamentRatePerGram(f), 0) / matches.length;
+      if (matches.length === 1) part.filamento_id = matches[0].id;
+    } else if (part.tipo) {
+      const ofType = fils.filter(f => f.type === part.tipo);
+      if (ofType.length) rate = ofType.reduce((s,f) => s + filamentRatePerGram(f), 0) / ofType.length;
+      else rate = FIL_FALLBACK_RATE[part.tipo] || 0.05;
+      part.filamento_id = null;
+    }
+    part._rate = rate;
+    part._custo = round2(part.gramas * rate);
+    totalPeso  += part.gramas;
+    totalCusto += part._custo;
+  });
+  // Atualiza q-weight (read-only no modo multi)
+  const wEl = document.getElementById('q-weight');
+  if (wEl) wEl.value = totalPeso;
+  // Atualiza resumo
+  const subEl = document.getElementById('q-multiparts-subtotal');
+  const pesoEl = document.getElementById('q-multiparts-peso');
+  if (subEl)  subEl.textContent  = brlFmt(totalCusto);
+  if (pesoEl) pesoEl.textContent = totalPeso + ' g';
+  // Re-renderiza linhas (atualiza custo_unit por linha)
+  renderMultiParts();
+  calcQuote();
+}
+
+// Renderiza a tabela de partes
+function renderMultiParts() {
+  const container = document.getElementById('q-multiparts-list');
+  if (!container) return;
+  const fils  = filamentsData || [];
+  const tipos = [...new Set(fils.map(f => f.type))].sort();
+
+  container.innerHTML = multiParts.map(part => {
+    const marcas = [...new Set(fils.filter(f => f.type === part.tipo).map(f => f.brand))].sort();
+    const cores  = [...new Set(fils.filter(f => f.type === part.tipo && (!part.marca || f.brand === part.marca)).map(f => f.color))].sort();
+    const custoLinha = brlFmt(part._custo || 0);
+    const rateLabel  = part._rate ? `R$ ${part._rate.toFixed(3).replace('.',',')}/g` : '—';
+
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 80px auto 90px;gap:8px;align-items:end;margin-bottom:8px;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Tipo *</label>
+        <select onchange="onMultiPartChange(${part._id},'tipo',this.value)" style="width:100%;padding:7px 10px;background:var(--surface3,#0f172a);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+          <option value="">— tipo —</option>
+          ${tipos.map(t => `<option value="${t}" ${t===part.tipo?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Marca</label>
+        <select onchange="onMultiPartChange(${part._id},'marca',this.value)" style="width:100%;padding:7px 10px;background:var(--surface3,#0f172a);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+          <option value="">Qualquer</option>
+          ${marcas.map(m => `<option value="${m}" ${m===part.marca?'selected':''}>${escapeHtml(m)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Cor</label>
+        <select onchange="onMultiPartChange(${part._id},'cor',this.value)" style="width:100%;padding:7px 10px;background:var(--surface3,#0f172a);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+          <option value="">Qualquer</option>
+          ${cores.map(c => `<option value="${c}" ${c===part.cor?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Peso (g)</label>
+        <input type="number" value="${part.gramas||0}" min="0" step="1"
+          oninput="onMultiPartChange(${part._id},'gramas',this.value)"
+          style="width:100%;padding:7px 10px;background:var(--surface3,#0f172a);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:2px">
+        <button onclick="removeMultiPart(${part._id})" title="Remover parte" class="btn btn-danger btn-sm" style="padding:6px 10px"><i class="ti ti-trash"></i></button>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:2px">${rateLabel}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${custoLinha}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Atualiza marcas de uma linha específica (não usado diretamente — refresh via renderMultiParts)
+function refreshMultiPartBrands(id) { renderMultiParts(); }
+function refreshMultiPartColors(id)  { renderMultiParts(); }
+
+// ══ FIM MULTIPARTES ══
+
 // Retorna {rate, info, filamentId}: rate R$/g, texto explicativo e a bobina exata (se houver)
 function resolveQuoteFilamentRate() {
   const tipo = document.getElementById('q-fil-type')?.value || '';
@@ -7775,7 +8014,13 @@ function calcQuote() {
   const discount = parseFloat(document.getElementById('q-discount').value) || 0;
 
   // ── Filamento (per unit × qty) ──
-  const filCost = w * filRate * qty;
+  // No modo multipartes: soma o custo de cada parte (já calculado em recalcMultiParts)
+  let filCost;
+  if (quoteMode === 'multipartes') {
+    filCost = multiParts.reduce((s, p) => s + (p._custo || 0), 0) * qty;
+  } else {
+    filCost = w * filRate * qty;
+  }
 
   // ── Materiais Extras ──
   const matTotal = quoteMaterials.reduce((s,m) => s + m.qty * m.unit, 0);
@@ -7869,8 +8114,12 @@ function resetCalculator() {
   document.getElementById('q-ship-value').value = 0;
   document.getElementById('q-ship-passthrough').selectedIndex = 0;
   quoteMaterials = [];
+  multiParts = []; nextMultiPartId = 1; qWeightManual = false;
   opEnergyManual = false; opWearManual = false; shipManual = false;
   renderExtraMaterials();
+  // Volta para modo simples
+  quoteMode = 'simples';
+  setQuoteMode('simples');
   calcQuote();
   showToast('Calculadora limpa.');
 }
@@ -7882,6 +8131,12 @@ function resetCalculator() {
 let quotesDB = [];
 let editingQuoteId = null;
 let selectedFilamentId = null;  // bobina escolhida na calculadora (para baixar estoque na Produção)
+
+// ── Multipartes ──
+let quoteMode = 'simples';          // 'simples' | 'multipartes'
+let multiParts = [];                // [{_id, filamento_id, tipo, marca, cor, gramas}]
+let nextMultiPartId = 1;
+let qWeightManual = false;          // true quando o usuário editou q-weight no modo simples manualmente
 
 const QUOTE_STATUS_BADGE = {
   rascunho:   { label:'Rascunho',   cls:'badge-gray' },
@@ -8130,6 +8385,16 @@ async function saveCalculatorQuote() {
     filamento_tipo: document.getElementById('q-fil-type')?.value || null,
     filamento_marca: document.getElementById('q-fil-brand')?.value || null,
     filamento_cor: document.getElementById('q-fil-color')?.value || null,
+    modo_impressao: quoteMode,
+    filamentos_multipartes: quoteMode === 'multipartes'
+      ? multiParts.map(p => ({
+          filamento_id: p.filamento_id || null,
+          tipo: p.tipo, marca: p.marca, cor: p.cor,
+          gramas: p.gramas,
+          custo_unit: p._rate || 0,
+          custo_total: p._custo || 0
+        }))
+      : [],
   };
 
   const btn = document.getElementById('quote-save-btn');
@@ -8208,6 +8473,24 @@ async function editQuoteDB(id) {
     const { data: itens } = await sb.from('orcamento_itens').select('*').eq('orcamento_id', id);
     if (itens) itens.forEach(it => quoteMaterials.push({ id: nextMatId++, name: it.descricao, qty: Number(it.quantidade), unit: Number(it.valor_unit) }));
   } catch(e){}
+
+  // Restaura modo de impressão e partes multipartes
+  multiParts = []; nextMultiPartId = 1;
+  const modoSalvo = q.modo_impressao || 'simples';
+  if (modoSalvo === 'multipartes' && Array.isArray(q.filamentos_multipartes) && q.filamentos_multipartes.length) {
+    q.filamentos_multipartes.forEach(p => {
+      multiParts.push({
+        _id: nextMultiPartId++,
+        filamento_id: p.filamento_id || null,
+        tipo: p.tipo || '', marca: p.marca || '', cor: p.cor || '',
+        gramas: Number(p.gramas) || 0,
+        _rate: Number(p.custo_unit) || 0,
+        _custo: Number(p.custo_total) || 0,
+      });
+    });
+  }
+  // Aplica modo (também atualiza UI dos botões e seções)
+  setTimeout(() => { setQuoteMode(modoSalvo); }, 50);
   renderExtraMaterials();
   calcQuote();
   const title = document.getElementById('quote-modal-title');
@@ -8372,6 +8655,8 @@ async function newQuoteFromCalc() {
   refreshQuoteClientOptions();
   refreshQuoteModelOptions();
   renderExtraMaterials();
+  // Inicializa o toggle no modo simples (visual)
+  setTimeout(() => setQuoteMode('simples'), 30);
   calcQuote();
   const title = document.getElementById('quote-modal-title');
   if (title) title.textContent = 'Novo Orçamento';
