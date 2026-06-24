@@ -318,6 +318,180 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 .modal-wide .modal-footer{margin-top:0;padding:16px 24px;background:var(--surface)}
 #modal-quote.modal-overlay{animation:overlayFade 0.2s ease}
 #modal-quote .modal-wide{animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1)}
+
+/* ══ QUOTE MODAL REDESIGN ══ */
+.qm-shell{
+  background:var(--surface);border-radius:16px;width:96vw;max-width:1160px;
+  max-height:92vh;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 24px 80px rgba(0,0,0,0.5);
+  animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1);
+}
+.qm-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 24px;border-bottom:1px solid var(--border);
+  background:var(--surface);flex-shrink:0;
+}
+.qm-header-left{display:flex;align-items:center;gap:14px}
+.qm-header-icon{
+  width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#1e3a5f,#3b82f6);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:18px;flex-shrink:0;
+}
+.qm-header-title{font-size:16px;font-weight:700;color:var(--text)}
+.qm-header-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.qm-close{
+  width:32px;height:32px;border-radius:8px;border:none;background:var(--surface2);
+  color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:16px;transition:all .15s;flex-shrink:0;
+}
+.qm-close:hover{background:var(--red-light);color:var(--red)}
+
+.qm-body{display:flex;flex:1;overflow:hidden;min-height:0}
+
+/* ── Left column ── */
+.qm-form-col{
+  flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px;
+  scrollbar-width:thin;scrollbar-color:var(--border2) transparent;
+}
+
+/* ── Steps ── */
+.qm-step{
+  border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  background:var(--surface2);
+}
+.qm-step-header{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 16px;background:var(--surface);border-bottom:1px solid var(--border);
+}
+.qm-step-num{
+  width:22px;height:22px;border-radius:50%;
+  background:var(--blue);color:#fff;font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.qm-step-title{font-size:13px;font-weight:600;color:var(--text)}
+.qm-step-body{padding:14px 16px}
+
+/* ── Toggle pill ── */
+.qm-toggle-pill{
+  display:flex;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:8px;padding:2px;gap:2px;
+}
+.qm-pill-btn{
+  padding:4px 12px;font-size:11px;font-weight:600;border:none;border-radius:6px;
+  background:transparent;color:var(--text3);cursor:pointer;transition:all .15s;
+  display:flex;align-items:center;
+}
+.qm-pill-active{background:var(--blue);color:#fff !important}
+
+/* ── Field groups ── */
+.fg{display:flex;flex-direction:column;gap:4px}
+.fl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;display:flex;align-items:center;gap:5px}
+.fl-opt{font-size:10px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0}
+.fl-unit{font-size:10px;font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0}
+.fl-hint{font-size:10px;font-weight:400;color:var(--amber);text-transform:none;letter-spacing:0}
+.fi{
+  padding:9px 12px;border:1px solid var(--border2);border-radius:8px;
+  background:var(--surface);color:var(--text);font-size:13px;outline:none;
+  transition:border-color .15s,box-shadow .15s;width:100%;
+}
+.fi:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
+
+/* ── Grids ── */
+.qm-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qm-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* ── Subsection label ── */
+.qm-subsection-label{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;
+  color:var(--text3);margin-bottom:8px;
+}
+
+/* ── Filament info ── */
+.qm-fil-info{font-size:11px;color:var(--text3);margin-top:6px;padding:6px 10px;background:var(--surface);border-radius:6px;border-left:3px solid var(--blue)}
+
+/* ── Add button ── */
+.qm-add-btn{
+  padding:5px 12px;font-size:12px;font-weight:600;border-radius:8px;
+  border:1px solid var(--border2);background:var(--surface);color:var(--text2);
+  cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;
+}
+.qm-add-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* ── Subtotal row ── */
+.qm-subtotal-row{
+  display:flex;align-items:center;gap:8px;justify-content:flex-end;
+  font-size:12px;color:var(--text2);margin-top:8px;padding-top:8px;
+  border-top:1px dashed var(--border2);
+}
+.qm-subtotal-row strong{color:var(--text);font-size:13px}
+
+/* ── Labor grid ── */
+.qm-labor-grid{
+  display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;align-items:center;
+}
+.qm-labor-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--text3);padding-bottom:4px}
+.qm-labor-label{font-size:12px;color:var(--text2);display:flex;align-items:center}
+.qm-labor-total{font-size:13px;font-weight:600;color:var(--text);text-align:right;padding:9px 0}
+
+/* ══ RIGHT SIDEBAR ══ */
+.qm-sidebar{
+  width:280px;flex-shrink:0;border-left:1px solid var(--border);
+  background:var(--surface2);display:flex;flex-direction:column;overflow:hidden;
+}
+.qm-sidebar-inner{
+  flex:1;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:16px;
+  scrollbar-width:thin;scrollbar-color:var(--border2) transparent;
+}
+
+/* ── Price hero ── */
+.qm-price-hero{
+  background:linear-gradient(135deg,#0f2444,#1e3a5f,#2563eb);
+  border-radius:14px;padding:20px;text-align:center;
+}
+.qm-price-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.6);margin-bottom:6px}
+.qm-price-value{font-size:32px;font-weight:800;color:#fff;line-height:1.1;letter-spacing:-0.5px}
+.qm-price-sub{font-size:11px;color:rgba(255,255,255,0.5);margin-top:5px;min-height:16px}
+
+/* ── Breakdown ── */
+.qm-breakdown{background:var(--surface);border-radius:10px;padding:14px}
+.qm-breakdown-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:10px}
+.qm-breakdown-item{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text2);padding:4px 0}
+.qm-breakdown-item span:first-child{display:flex;align-items:center;gap:5px}
+.qm-breakdown-item span:first-child i{font-size:12px;color:var(--text3)}
+.qm-breakdown-item span:last-child{font-weight:500;color:var(--text)}
+.qm-breakdown-divider{border-top:1px solid var(--border);margin:8px 0}
+.qm-breakdown-total{font-weight:700 !important}
+.qm-breakdown-total span{color:var(--text) !important;font-size:13px !important}
+
+/* ── Margin block ── */
+.qm-margin-block{background:var(--surface);border-radius:10px;padding:14px}
+.qm-margin-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.qm-margin-item{text-align:center}
+.qm-margin-lbl{font-size:10px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;font-weight:600}
+.qm-margin-val{font-size:14px;font-weight:700}
+.qm-green{color:#22c55e}
+.qm-red{color:#ef4444}
+.qm-price-before{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding-top:10px;border-top:1px solid var(--border)}
+.qm-price-before span:last-child{font-weight:600;color:var(--text)}
+
+/* ── Actions ── */
+.qm-actions{display:flex;flex-direction:column;gap:8px}
+.qm-btn-action{
+  width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;
+  transition:all .15s;border:none;
+}
+.qm-btn-ghost{
+  background:var(--surface);border:1px solid var(--border2);color:var(--text2);
+}
+.qm-btn-ghost:hover{border-color:var(--blue);color:var(--blue)}
+.qm-btn-save{
+  background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;
+  box-shadow:0 4px 14px rgba(59,130,246,0.35);
+}
+.qm-btn-save:hover{box-shadow:0 6px 20px rgba(59,130,246,0.5);transform:translateY(-1px)}
+.qm-btn-save:disabled{opacity:.5;transform:none;box-shadow:none}
 #modal-quote.modal-closing{animation:overlayFade 0.18s ease reverse}
 #modal-quote.modal-closing .modal-wide{animation:modalPop 0.18s ease reverse}
 @keyframes overlayFade{from{opacity:0}to{opacity:1}}
@@ -831,171 +1005,340 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
      MODAL: Calculadora de Orçamento
 ═══════════════════════════════════════════ -->
 <div id="modal-quote" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal('modal-quote')">
-  <div class="modal modal-wide">
-    <div class="modal-header">
-      <h3><i class="ti ti-calculator" style="margin-right:6px"></i><span id="quote-modal-title">Novo Orçamento</span></h3>
-      <button class="modal-close" onclick="closeModal('modal-quote')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="modal-body">
+  <div class="qm-shell">
 
-    <!-- Base info -->
-    <div class="grid-3">
-      <div class="form-group"><label>Cliente</label>
-        <select id="q-client"><option value="">— selecionar cliente —</option></select>
-      </div>
-      <div class="form-group"><label>Modelo 3D</label>
-        <select id="q-model" onchange="applyModelToQuote()"><option value="">— selecionar modelo —</option></select>
-      </div>
-      <div class="form-group"><label>Quantidade</label><input type="number" id="q-qty" value="1" min="1" oninput="calcQuote()"></div>
-      <div class="form-group" style="grid-column:span 3"><label>Descrição</label><input type="text" id="q-desc" placeholder="Ex: Suporte celular × 3" value="Peça personalizada"></div>
-    </div>
-
-    <!-- ══ SECTION: Impressão ══ -->
-    <div class="calc-section">
-      <div class="calc-section-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span><i class="ti ti-printer"></i> Impressão</span>
-        <!-- Toggle simples / multipartes -->
-        <div style="display:flex;background:var(--surface3,#0f172a);border-radius:8px;padding:3px;gap:3px;margin-left:auto">
-          <button id="q-mode-simples" onclick="setQuoteMode('simples')" class="btn btn-sm" style="padding:4px 14px;font-size:12px;border-radius:6px;transition:all .2s">Simples</button>
-          <button id="q-mode-multi"   onclick="setQuoteMode('multipartes')" class="btn btn-sm" style="padding:4px 14px;font-size:12px;border-radius:6px;transition:all .2s"><i class="ti ti-palette" style="margin-right:4px"></i>Multipartes</button>
+    <!-- ── HEADER ── -->
+    <div class="qm-header">
+      <div class="qm-header-left">
+        <div class="qm-header-icon"><i class="ti ti-calculator"></i></div>
+        <div>
+          <div class="qm-header-title" id="quote-modal-title">Novo Orçamento</div>
+          <div class="qm-header-sub">Preencha da esquerda para a direita — o preço atualiza em tempo real</div>
         </div>
       </div>
+      <button class="qm-close" onclick="closeModal('modal-quote')"><i class="ti ti-x"></i></button>
+    </div>
 
-      <!-- ── Campos comuns ── -->
-      <div class="grid-4" style="margin-top:8px">
-        <div class="form-group"><label>Tempo de impressão (h)</label><input type="number" id="q-hours" value="8" step="0.1" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Peso total (g)</label><input type="number" id="q-weight" value="150" oninput="onQWeightManual()" placeholder="Total dos filamentos"></div>
-        <div class="form-group"><label>Pós-processamento</label>
-          <select id="q-post" onchange="calcQuote()">
-            <option value="0">Nenhum — R$ 0</option><option value="20">Lixamento — R$ 20</option>
-            <option value="50">Pintura simples — R$ 50</option><option value="80">Pintura completa — R$ 80</option>
-          </select>
-        </div>
-      </div>
+    <!-- ── BODY: two-column ── -->
+    <div class="qm-body">
 
-      <!-- ── MODO SIMPLES ── -->
-      <div id="q-section-simples" style="margin-top:10px">
-        <div class="grid-4">
-          <div class="form-group"><label>Tipo de filamento</label>
-            <select id="q-fil-type" onchange="onQuoteFilTypeChange()"></select>
+      <!-- ══ LEFT COLUMN: formulário ══ -->
+      <div class="qm-form-col">
+
+        <!-- STEP 1: Pedido -->
+        <div class="qm-step">
+          <div class="qm-step-header">
+            <span class="qm-step-num">1</span>
+            <span class="qm-step-title">Pedido</span>
           </div>
-          <div class="form-group"><label>Marca <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
-            <select id="q-fil-brand" onchange="onQuoteFilBrandChange()"><option value="">Média do tipo</option></select>
-          </div>
-          <div class="form-group"><label>Cor <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
-            <select id="q-fil-color" onchange="calcQuote()"><option value="">Todas as cores</option></select>
+          <div class="qm-step-body">
+            <div class="qm-grid-3">
+              <div class="fg">
+                <label class="fl">Cliente</label>
+                <select id="q-client" class="fi"><option value="">— selecionar —</option></select>
+              </div>
+              <div class="fg">
+                <label class="fl">Modelo 3D <span class="fl-opt">opcional</span></label>
+                <select id="q-model" class="fi" onchange="applyModelToQuote()"><option value="">— selecionar —</option></select>
+              </div>
+              <div class="fg">
+                <label class="fl">Qtd.</label>
+                <input type="number" id="q-qty" class="fi" value="1" min="1" oninput="calcQuote()">
+              </div>
+            </div>
+            <div class="fg" style="margin-top:10px">
+              <label class="fl">Descrição</label>
+              <input type="text" id="q-desc" class="fi" placeholder="Ex: Suporte celular × 3" value="Peça personalizada">
+            </div>
           </div>
         </div>
-        <div id="q-fil-info" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
-      </div>
 
-      <!-- ── MODO MULTIPARTES ── -->
-      <div id="q-section-multi" style="display:none;margin-top:10px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:12px;color:var(--text2)">Adicione uma linha por cor/parte. O peso total é somado automaticamente.</span>
-          <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="addMultiPart()"><i class="ti ti-plus"></i> Adicionar Parte</button>
+        <!-- STEP 2: Impressão -->
+        <div class="qm-step">
+          <div class="qm-step-header">
+            <span class="qm-step-num">2</span>
+            <span class="qm-step-title">Impressão</span>
+            <div class="qm-toggle-pill" style="margin-left:auto">
+              <button id="q-mode-simples" onclick="setQuoteMode('simples')" class="qm-pill-btn qm-pill-active">Simples</button>
+              <button id="q-mode-multi"   onclick="setQuoteMode('multipartes')" class="qm-pill-btn"><i class="ti ti-palette" style="font-size:11px;margin-right:3px"></i>Multipartes</button>
+            </div>
+          </div>
+          <div class="qm-step-body">
+            <div class="qm-grid-3" style="margin-bottom:12px">
+              <div class="fg">
+                <label class="fl">Peso total <span class="fl-unit">g</span></label>
+                <input type="number" id="q-weight" class="fi" value="150" oninput="onQWeightManual()" placeholder="g">
+              </div>
+              <div class="fg">
+                <label class="fl">Tempo de impressão <span class="fl-unit">h</span></label>
+                <input type="number" id="q-hours" class="fi" value="8" step="0.1" oninput="calcQuote()">
+              </div>
+              <div class="fg">
+                <label class="fl">Pós-processamento</label>
+                <select id="q-post" class="fi" onchange="calcQuote()">
+                  <option value="0">Nenhum</option><option value="20">Lixamento (+R$20)</option>
+                  <option value="50">Pintura simples (+R$50)</option><option value="80">Pintura completa (+R$80)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- MODO SIMPLES -->
+            <div id="q-section-simples">
+              <div class="qm-subsection-label">Filamento</div>
+              <div class="qm-grid-3">
+                <div class="fg">
+                  <label class="fl">Tipo</label>
+                  <select id="q-fil-type" class="fi" onchange="onQuoteFilTypeChange()"></select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Marca <span class="fl-opt">opcional</span></label>
+                  <select id="q-fil-brand" class="fi" onchange="onQuoteFilBrandChange()"><option value="">Média do tipo</option></select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Cor <span class="fl-opt">opcional</span></label>
+                  <select id="q-fil-color" class="fi" onchange="calcQuote()"><option value="">Todas as cores</option></select>
+                </div>
+              </div>
+              <div id="q-fil-info" class="qm-fil-info"></div>
+            </div>
+
+            <!-- MODO MULTIPARTES -->
+            <div id="q-section-multi" style="display:none">
+              <div style="display:flex;align-items:center;margin-bottom:8px">
+                <div class="qm-subsection-label" style="margin-bottom:0">Partes por cor</div>
+                <button class="qm-add-btn" style="margin-left:auto" onclick="addMultiPart()"><i class="ti ti-plus"></i> Parte</button>
+              </div>
+              <div id="q-multiparts-list"></div>
+              <div class="qm-subtotal-row">
+                <span>Filamentos</span>
+                <strong id="q-multiparts-subtotal">R$ 0,00</strong>
+                <span style="color:var(--text3)">·</span>
+                <strong id="q-multiparts-peso">0 g</strong>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="q-multiparts-list"></div>
-        <div style="text-align:right;font-size:13px;color:var(--text2);margin-top:6px">Subtotal filamentos: <strong id="q-multiparts-subtotal" style="color:var(--text)">R$ 0,00</strong> · Peso total: <strong id="q-multiparts-peso">0 g</strong></div>
-      </div>
-    </div>
 
-    <!-- ══ SECTION: Materiais Extras ══ -->
-    <div class="calc-section">
-      <div class="calc-section-title"><i class="ti ti-packages"></i> Materiais Extras
-        <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="addExtraMaterial()"><i class="ti ti-plus"></i> Adicionar</button>
-      </div>
-      <div id="q-materials-list"></div>
-      <div style="text-align:right;font-size:13px;color:var(--text2);margin-top:6px">Subtotal materiais: <strong id="q-materials-subtotal" style="color:var(--text)">R$ 0,00</strong></div>
-    </div>
-
-    <!-- ══ SECTION: Mão de Obra ══ -->
-    <div class="calc-section">
-      <div class="calc-section-title"><i class="ti ti-user-cog"></i> Mão de Obra</div>
-      <div class="grid-3">
-        <div class="form-group"><label>Horas modelagem</label><input type="number" id="q-lab-model-h" value="0" step="0.5" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Valor/hora modelagem (R$)</label><input type="number" id="q-lab-model-r" value="50" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Total modelagem</label><input type="text" id="q-lab-model-t" value="R$ 0,00" disabled style="background:var(--surface2);font-weight:600"></div>
-        <div class="form-group"><label>Horas acabamento</label><input type="number" id="q-lab-finish-h" value="0" step="0.5" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Valor/hora acabamento (R$)</label><input type="number" id="q-lab-finish-r" value="35" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Total acabamento</label><input type="text" id="q-lab-finish-t" value="R$ 0,00" disabled style="background:var(--surface2);font-weight:600"></div>
-        <div class="form-group"><label>Horas pintura</label><input type="number" id="q-lab-paint-h" value="0" step="0.5" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Valor/hora pintura (R$)</label><input type="number" id="q-lab-paint-r" value="40" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Total pintura</label><input type="text" id="q-lab-paint-t" value="R$ 0,00" disabled style="background:var(--surface2);font-weight:600"></div>
-      </div>
-      <div style="text-align:right;font-size:13px;color:var(--text2);margin-top:6px">Total mão de obra: <strong id="q-labor-total" style="color:var(--text)">R$ 0,00</strong></div>
-    </div>
-
-    <!-- ══ SECTION: Custos Operacionais ══ -->
-    <div class="calc-section">
-      <div class="calc-section-title"><i class="ti ti-bolt"></i> Custos Operacionais</div>
-      <div class="grid-4">
-        <div class="form-group"><label>Energia elétrica (R$)</label><input type="number" id="q-op-energy" value="0" step="0.01" min="0" oninput="markOpManual('energy');calcQuote()" placeholder="auto"></div>
-        <div class="form-group"><label>Desgaste impressora (R$)</label><input type="number" id="q-op-wear" value="0" step="0.01" min="0" oninput="markOpManual('wear');calcQuote()" placeholder="auto"></div>
-        <div class="form-group"><label>Taxas marketplace (R$)</label><input type="number" id="q-op-marketplace" value="0" step="0.01" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Outros custos (R$)</label><input type="number" id="q-op-other" value="0" step="0.01" min="0" oninput="calcQuote()"></div>
-      </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">Energia e desgaste são calculados automaticamente pelo tempo de impressão — edite para sobrescrever.</div>
-      <div style="text-align:right;font-size:13px;color:var(--text2);margin-top:6px">Total operacional: <strong id="q-op-total" style="color:var(--text)">R$ 0,00</strong></div>
-    </div>
-
-    <!-- ══ SECTION: Envio ══ -->
-    <div class="calc-section">
-      <div class="calc-section-title"><i class="ti ti-truck"></i> Envio</div>
-      <div class="grid-3">
-        <div class="form-group"><label>Modalidade</label>
-          <select id="q-ship-method" onchange="applyShippingPreset()">
-            <option value="0">Retirada no local — R$ 0</option>
-            <option value="22">Correios PAC</option>
-            <option value="35">Correios SEDEX</option>
-            <option value="28">Jadlog</option>
-            <option value="25">Melhor Envio</option>
-            <option value="45">Transportadora</option>
-            <option value="15">Motoboy</option>
-            <option value="custom">Outro / personalizado</option>
-          </select>
+        <!-- STEP 3: Materiais Extras -->
+        <div class="qm-step">
+          <div class="qm-step-header">
+            <span class="qm-step-num">3</span>
+            <span class="qm-step-title">Materiais Extras</span>
+            <button class="qm-add-btn" style="margin-left:auto" onclick="addExtraMaterial()"><i class="ti ti-plus"></i> Adicionar</button>
+          </div>
+          <div class="qm-step-body">
+            <div id="q-materials-list"></div>
+            <div class="qm-subtotal-row">
+              <span>Subtotal</span>
+              <strong id="q-materials-subtotal">R$ 0,00</strong>
+            </div>
+          </div>
         </div>
-        <div class="form-group"><label>Valor do frete (R$)</label><input type="number" id="q-ship-value" value="0" step="0.01" min="0" oninput="markShipManual();calcQuote()"></div>
-        <div class="form-group"><label>Repassar ao cliente?</label>
-          <select id="q-ship-passthrough" onchange="calcQuote()"><option value="1">Sim — somar ao preço</option><option value="0">Não — embutir no custo</option></select>
+
+        <!-- STEP 4: Mão de Obra -->
+        <div class="qm-step">
+          <div class="qm-step-header">
+            <span class="qm-step-num">4</span>
+            <span class="qm-step-title">Mão de Obra</span>
+          </div>
+          <div class="qm-step-body">
+            <div class="qm-labor-grid">
+              <div class="qm-labor-header">Serviço</div>
+              <div class="qm-labor-header">Horas</div>
+              <div class="qm-labor-header">R$/hora</div>
+              <div class="qm-labor-header" style="text-align:right">Total</div>
+
+              <div class="qm-labor-label"><i class="ti ti-box-model-2" style="font-size:13px;margin-right:5px;color:var(--text3)"></i>Modelagem</div>
+              <input type="number" id="q-lab-model-h" class="fi" value="0" step="0.5" min="0" oninput="calcQuote()">
+              <input type="number" id="q-lab-model-r" class="fi" value="50" min="0" oninput="calcQuote()">
+              <div class="qm-labor-total" id="q-lab-model-t">R$ 0,00</div>
+
+              <div class="qm-labor-label"><i class="ti ti-tool" style="font-size:13px;margin-right:5px;color:var(--text3)"></i>Acabamento</div>
+              <input type="number" id="q-lab-finish-h" class="fi" value="0" step="0.5" min="0" oninput="calcQuote()">
+              <input type="number" id="q-lab-finish-r" class="fi" value="35" min="0" oninput="calcQuote()">
+              <div class="qm-labor-total" id="q-lab-finish-t">R$ 0,00</div>
+
+              <div class="qm-labor-label"><i class="ti ti-brush" style="font-size:13px;margin-right:5px;color:var(--text3)"></i>Pintura</div>
+              <input type="number" id="q-lab-paint-h" class="fi" value="0" step="0.5" min="0" oninput="calcQuote()">
+              <input type="number" id="q-lab-paint-r" class="fi" value="40" min="0" oninput="calcQuote()">
+              <div class="qm-labor-total" id="q-lab-paint-t">R$ 0,00</div>
+            </div>
+            <div class="qm-subtotal-row">
+              <span>Total mão de obra</span>
+              <strong id="q-labor-total">R$ 0,00</strong>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- ══ SECTION: Embalagem & Margem ══ -->
-    <div class="calc-section">
-      <div class="calc-section-title"><i class="ti ti-box"></i> Embalagem &amp; Margem</div>
-      <div class="grid-4">
-        <div class="form-group"><label>Embalagem (R$)<span class="help-ico">?<span class="help-bubble">Custo da caixa/embalagem por unidade. Entra no custo total do orçamento.</span></span></label><input type="number" id="q-pkg" value="5" step="0.01" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Margem de lucro (%)<span class="help-ico">?<span class="help-bubble">Percentual de lucro sobre o custo. Ex: margem 100% dobra o custo. É o que define seu ganho.</span></span></label><input type="number" id="q-margin" value="40" min="0" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Desconto (%)<span class="help-ico">?<span class="help-bubble">Desconto percentual aplicado <b>no final</b>, sobre o Preço Final. Gera o "Valor Final com Desconto". Ex: 10% tira 10% do preço final.</span></span></label><input type="number" id="q-discount-pct" value="0" step="0.1" min="0" max="100" oninput="calcQuote()"></div>
-        <div class="form-group"><label>Desconto (R$)<span class="help-ico">?<span class="help-bubble">Desconto de valor fixo em reais, aplicado <b>junto com a margem</b> (já entra no Preço Final). Ex: R$ 10 abate R$ 10 do preço.</span></span></label><input type="number" id="q-discount" value="0" step="0.01" min="0" oninput="calcQuote()"></div>
-      </div>
-    </div>
+        <!-- STEP 5: Operacional & Envio -->
+        <div class="qm-step">
+          <div class="qm-step-header">
+            <span class="qm-step-num">5</span>
+            <span class="qm-step-title">Operacional &amp; Envio</span>
+          </div>
+          <div class="qm-step-body">
+            <div class="qm-grid-2" style="margin-bottom:10px">
+              <div class="fg">
+                <label class="fl">Energia elétrica <span class="fl-hint">auto</span></label>
+                <input type="number" id="q-op-energy" class="fi" value="0" step="0.01" min="0" oninput="markOpManual('energy');calcQuote()" placeholder="calculado auto">
+              </div>
+              <div class="fg">
+                <label class="fl">Desgaste impressora <span class="fl-hint">auto</span></label>
+                <input type="number" id="q-op-wear" class="fi" value="0" step="0.01" min="0" oninput="markOpManual('wear');calcQuote()" placeholder="calculado auto">
+              </div>
+              <div class="fg">
+                <label class="fl">Taxas marketplace</label>
+                <input type="number" id="q-op-marketplace" class="fi" value="0" step="0.01" min="0" oninput="calcQuote()">
+              </div>
+              <div class="fg">
+                <label class="fl">Outros custos</label>
+                <input type="number" id="q-op-other" class="fi" value="0" step="0.01" min="0" oninput="calcQuote()">
+              </div>
+            </div>
+            <div class="qm-subtotal-row" style="margin-bottom:14px">
+              <span>Total operacional</span>
+              <strong id="q-op-total">R$ 0,00</strong>
+            </div>
+            <div class="qm-subsection-label">Envio</div>
+            <div class="qm-grid-3">
+              <div class="fg">
+                <label class="fl">Modalidade</label>
+                <select id="q-ship-method" class="fi" onchange="applyShippingPreset()">
+                  <option value="0">Retirada no local</option>
+                  <option value="22">Correios PAC</option><option value="35">Correios SEDEX</option>
+                  <option value="28">Jadlog</option><option value="25">Melhor Envio</option>
+                  <option value="45">Transportadora</option><option value="15">Motoboy</option>
+                  <option value="custom">Outro</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="fl">Valor do frete <span class="fl-unit">R$</span></label>
+                <input type="number" id="q-ship-value" class="fi" value="0" step="0.01" min="0" oninput="markShipManual();calcQuote()">
+              </div>
+              <div class="fg">
+                <label class="fl">Repassar ao cliente?</label>
+                <select id="q-ship-passthrough" class="fi" onchange="calcQuote()">
+                  <option value="1">Sim — soma ao preço</option>
+                  <option value="0">Não — embutir no custo</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
 
-    <!-- ══ FINANCIAL SUMMARY ══ -->
-    <div class="calc-summary-grid" id="q-summary-grid">
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-cylinder"></i> Filamento</div><div class="calc-sum-value" id="qs-fil">R$ 0,00</div></div>
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-packages"></i> Materiais Extras</div><div class="calc-sum-value" id="qs-mat">R$ 0,00</div></div>
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-user-cog"></i> Mão de Obra</div><div class="calc-sum-value" id="qs-labor">R$ 0,00</div></div>
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-bolt"></i> Operacionais</div><div class="calc-sum-value" id="qs-op">R$ 0,00</div></div>
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-brush"></i> Pós-proc.</div><div class="calc-sum-value" id="qs-post">R$ 0,00</div></div>
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-box"></i> Embalagem</div><div class="calc-sum-value" id="qs-pkg">R$ 0,00</div></div>
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-truck"></i> Frete</div><div class="calc-sum-value" id="qs-ship">R$ 0,00</div></div>
-      <div class="calc-sum-card calc-sum-cost"><div class="calc-sum-label"><i class="ti ti-receipt"></i> Custo Total</div><div class="calc-sum-value" id="qs-cost">R$ 0,00</div></div>
-      <div class="calc-sum-card calc-sum-margin"><div class="calc-sum-label"><i class="ti ti-percentage"></i> Margem</div><div class="calc-sum-value" id="qs-margin">40%</div><div style="font-size:11px;color:var(--text3);margin-top:2px" id="qs-profit">Lucro: R$ 0,00</div></div>
-      <div class="calc-sum-card calc-sum-final"><div class="calc-sum-label"><i class="ti ti-tag"></i> Preço Final</div><div class="calc-sum-value" id="qs-price">R$ 0,00</div><div style="font-size:11px;opacity:0.85;margin-top:2px" id="qs-unit"></div></div>
-      <div class="calc-sum-card"><div class="calc-sum-label"><i class="ti ti-discount"></i> Valor do Desconto</div><div class="calc-sum-value" id="qs-desconto-valor" style="color:var(--red)">R$ 0,00</div></div>
-      <div class="calc-sum-card calc-sum-final"><div class="calc-sum-label"><i class="ti ti-cash"></i> Valor Final com Desconto</div><div class="calc-sum-value" id="qs-final-desconto">R$ 0,00</div></div>
-    </div>
+        <!-- STEP 6: Precificação -->
+        <div class="qm-step">
+          <div class="qm-step-header">
+            <span class="qm-step-num">6</span>
+            <span class="qm-step-title">Precificação</span>
+          </div>
+          <div class="qm-step-body">
+            <div class="qm-grid-2">
+              <div class="fg">
+                <label class="fl">Embalagem <span class="fl-unit">R$/un</span><span class="help-ico">?<span class="help-bubble">Custo da caixa por unidade.</span></span></label>
+                <input type="number" id="q-pkg" class="fi" value="5" step="0.01" min="0" oninput="calcQuote()">
+              </div>
+              <div class="fg">
+                <label class="fl">Margem de lucro <span class="fl-unit">%</span><span class="help-ico">?<span class="help-bubble">Percentual aplicado sobre o custo total. Margem 100% = dobra o custo.</span></span></label>
+                <input type="number" id="q-margin" class="fi" value="40" min="0" oninput="calcQuote()">
+              </div>
+              <div class="fg">
+                <label class="fl">Desconto <span class="fl-unit">%</span><span class="help-ico">?<span class="help-bubble">Aplicado no final, sobre o preço final.</span></span></label>
+                <input type="number" id="q-discount-pct" class="fi" value="0" step="0.1" min="0" max="100" oninput="calcQuote()">
+              </div>
+              <div class="fg">
+                <label class="fl">Desconto fixo <span class="fl-unit">R$</span><span class="help-ico">?<span class="help-bubble">Valor fixo abatido junto com a margem.</span></span></label>
+                <input type="number" id="q-discount" class="fi" value="0" step="0.01" min="0" oninput="calcQuote()">
+              </div>
+            </div>
+          </div>
+        </div>
 
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="resetCalculator()"><i class="ti ti-refresh"></i> Limpar</button>
-      <button class="btn btn-secondary" onclick="generateQuotePdf()"><i class="ti ti-file-type-pdf"></i> Gerar PDF</button>
-      <button class="btn btn-primary" id="quote-save-btn" onclick="saveCalculatorQuote()"><i class="ti ti-device-floppy"></i> Salvar Orçamento</button>
-    </div>
-  </div>
+      </div><!-- /qm-form-col -->
+
+      <!-- ══ RIGHT COLUMN: resumo fixo ══ -->
+      <div class="qm-sidebar">
+        <div class="qm-sidebar-inner">
+
+          <!-- Preço destaque -->
+          <div class="qm-price-hero">
+            <div class="qm-price-label">Valor Final</div>
+            <div class="qm-price-value" id="qs-final-desconto">R$ 0,00</div>
+            <div class="qm-price-sub" id="qs-unit"></div>
+          </div>
+
+          <!-- Breakdown de custos -->
+          <div class="qm-breakdown">
+            <div class="qm-breakdown-title">Composição do custo</div>
+            <div class="qm-breakdown-item">
+              <span><i class="ti ti-cylinder"></i> Filamento</span>
+              <span id="qs-fil">R$ 0,00</span>
+            </div>
+            <div class="qm-breakdown-item">
+              <span><i class="ti ti-packages"></i> Materiais</span>
+              <span id="qs-mat">R$ 0,00</span>
+            </div>
+            <div class="qm-breakdown-item">
+              <span><i class="ti ti-user-cog"></i> Mão de obra</span>
+              <span id="qs-labor">R$ 0,00</span>
+            </div>
+            <div class="qm-breakdown-item">
+              <span><i class="ti ti-bolt"></i> Operacional</span>
+              <span id="qs-op">R$ 0,00</span>
+            </div>
+            <div class="qm-breakdown-item">
+              <span><i class="ti ti-brush"></i> Pós-proc.</span>
+              <span id="qs-post">R$ 0,00</span>
+            </div>
+            <div class="qm-breakdown-item">
+              <span><i class="ti ti-box"></i> Embalagem</span>
+              <span id="qs-pkg">R$ 0,00</span>
+            </div>
+            <div class="qm-breakdown-item">
+              <span><i class="ti ti-truck"></i> Frete</span>
+              <span id="qs-ship">R$ 0,00</span>
+            </div>
+            <div class="qm-breakdown-divider"></div>
+            <div class="qm-breakdown-item qm-breakdown-total">
+              <span>Custo total</span>
+              <span id="qs-cost">R$ 0,00</span>
+            </div>
+          </div>
+
+          <!-- Margem & desconto -->
+          <div class="qm-margin-block">
+            <div class="qm-margin-row">
+              <div class="qm-margin-item">
+                <div class="qm-margin-lbl">Margem</div>
+                <div class="qm-margin-val qm-green" id="qs-margin">40%</div>
+              </div>
+              <div class="qm-margin-item">
+                <div class="qm-margin-lbl">Lucro</div>
+                <div class="qm-margin-val qm-green" id="qs-profit">R$ 0,00</div>
+              </div>
+              <div class="qm-margin-item">
+                <div class="qm-margin-lbl">Desconto</div>
+                <div class="qm-margin-val qm-red" id="qs-desconto-valor">R$ 0,00</div>
+              </div>
+            </div>
+            <div class="qm-price-before">
+              <span>Preço sem desconto</span>
+              <span id="qs-price">R$ 0,00</span>
+            </div>
+          </div>
+
+          <!-- Ações -->
+          <div class="qm-actions">
+            <button class="qm-btn-action qm-btn-ghost" onclick="resetCalculator()"><i class="ti ti-refresh"></i> Limpar</button>
+            <button class="qm-btn-action qm-btn-ghost" onclick="generateQuotePdf()"><i class="ti ti-file-type-pdf"></i> PDF</button>
+            <button class="qm-btn-action qm-btn-save" id="quote-save-btn" onclick="saveCalculatorQuote()"><i class="ti ti-device-floppy"></i> Salvar</button>
+          </div>
+
+        </div>
+      </div><!-- /qm-sidebar -->
+
+    </div><!-- /qm-body -->
+  </div><!-- /qm-shell -->
 </div>
 
 <!-- ═══════════════════════════════════════════
@@ -7999,10 +8342,10 @@ function setQuoteMode(mode) {
   const mulSec  = document.getElementById('q-section-multi');
   const wEl     = document.getElementById('q-weight');
 
-  // Estilo dos botões — ativo: btn-primary, inativo: btn-secondary
+  // Estilo dos botões toggle pill
   if (simBtn && mulBtn) {
-    simBtn.className = 'btn btn-sm ' + (mode === 'simples' ? 'btn-primary' : 'btn-secondary');
-    mulBtn.className = 'btn btn-sm ' + (mode === 'multipartes' ? 'btn-primary' : 'btn-secondary');
+    simBtn.className = 'qm-pill-btn' + (mode === 'simples' ? ' qm-pill-active' : '');
+    mulBtn.className = 'qm-pill-btn' + (mode === 'multipartes' ? ' qm-pill-active' : '');
   }
 
   if (mode === 'simples') {
@@ -8253,9 +8596,10 @@ function calcQuote() {
   const paintH = parseFloat(document.getElementById('q-lab-paint-h').value) || 0;
   const paintR = parseFloat(document.getElementById('q-lab-paint-r').value) || 0;
   const modelT = modelH * modelR, finishT = finishH * finishR, paintT = paintH * paintR;
-  document.getElementById('q-lab-model-t').value = brlFmt(modelT);
-  document.getElementById('q-lab-finish-t').value = brlFmt(finishT);
-  document.getElementById('q-lab-paint-t').value = brlFmt(paintT);
+  const setLaborVal = (id, val) => { const el = document.getElementById(id); if(el){ if(el.tagName==='INPUT') el.value=val; else el.textContent=val; } };
+  setLaborVal('q-lab-model-t', brlFmt(modelT));
+  setLaborVal('q-lab-finish-t', brlFmt(finishT));
+  setLaborVal('q-lab-paint-t', brlFmt(paintT));
   const laborTotal = modelT + finishT + paintT;
   document.getElementById('q-labor-total').textContent = brlFmt(laborTotal);
 
