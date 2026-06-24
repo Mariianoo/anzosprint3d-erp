@@ -454,7 +454,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <div class="nav-section-label">Comercial</div>
       <div class="nav-item" onclick="nav('clients')"><i class="ti ti-users"></i><span>Clientes</span></div>
       <div class="nav-item" onclick="nav('quotations')"><i class="ti ti-file-dollar"></i><span>Orçamentos</span><span class="nav-badge" id="nav-badge-quotes" style="display:none">0</span></div>
-      <div class="nav-item" onclick="nav('orders')"><i class="ti ti-shopping-cart"></i><span>Pedidos</span><span class="nav-badge" id="nav-badge-orders">7</span></div>
+      <div class="nav-item" onclick="nav('orders')"><i class="ti ti-shopping-cart"></i><span>Pedidos</span><span class="nav-badge" id="nav-badge-orders" style="display:none">0</span></div>
       <div class="nav-section-label">Produção</div>
       <div class="nav-item" onclick="nav('production')"><i class="ti ti-assembly"></i><span>Produção</span></div>
       <div class="nav-item" onclick="nav('printers')"><i class="ti ti-printer"></i><span>Impressoras</span></div>
@@ -1536,7 +1536,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
       <div><h2>Contas a Receber</h2><p>Controle de recebimentos e cobranças</p></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary btn-sm" onclick="exportReceivablesPdf()"><i class="ti ti-download"></i> Exportar</button>
-        <button class="btn btn-primary" onclick="openModal('modal-receivable')"><i class="ti ti-plus"></i> Novo Lançamento</button>
+        <button class="btn btn-primary" onclick="openReceivableModal()"><i class="ti ti-plus"></i> Novo Lançamento</button>
       </div>
     </div>
   </div>
@@ -1576,7 +1576,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
     </div>
     <div class="form-row">
       <div class="form-group"><label>Cliente *</label>
-        <select id="rc-client"><option>Rafael Almeida</option><option>Marina Costa</option><option>Loja Brinquedos JR</option><option>João Pedro Souza</option><option>Artes &amp; Design Ltda</option><option>TechGroup Ltda</option></select>
+        <select id="rc-client"></select>
       </div>
       <div class="form-group"><label>Pedido</label><input type="text" id="rc-order" placeholder="Ex: PED-0048"></div>
     </div>
@@ -3171,6 +3171,8 @@ async function afterLogin(user) {
   const ls = document.getElementById('login-screen');
   ls.style.transition = 'opacity 0.4s'; ls.style.opacity = '0';
   setTimeout(() => { ls.style.display = 'none'; document.getElementById('app').classList.add('visible'); initCharts(); renderNotifications(); refreshQuoteBadge(); }, 420);
+  // Atualiza o badge de Pedidos com dados reais do banco (evita número fantasma)
+  try { await loadOrdersDB(); refreshOrdersBadge(); } catch(e){}
   showToast(`Bem-vindo, ${currentProfile ? currentProfile.nome : 'usuário'}!`);
 }
 
@@ -4744,9 +4746,9 @@ nav = function(page) {
   if (page === 'models')     { loadModelsDB(); }
   if (page === 'suppliers')  { renderSuppliers(); }
   if (page === 'supplies')   { renderSupplies(); }
-  if (page === 'financial')  { renderFinancial(); }
-  if (page === 'receivables') { renderReceivables(); }
-  if (page === 'payables')   { renderPayables(); }
+  if (page === 'financial')  { loadTransactionsDB(); }
+  if (page === 'receivables') { loadReceivablesDB(); }
+  if (page === 'payables')   { loadPayablesDB(); }
   if (page === 'settings')   { if (typeof loadSenderInfoForm === 'function') loadSenderInfoForm(); }
 };
 
@@ -6884,15 +6886,27 @@ function formatCurrency(value) {
 // ══════════════════════════════════════════════
 // CONTAS A PAGAR — Data Store & Logic
 // ══════════════════════════════════════════════
-let payablesData = [
-  { id:1, desc:'Filamentos PLA e PETG',   category:'Materiais',      supplier:'FilaFácil',         value:890,  due:'2025-06-10', status:'pago' },
-  { id:2, desc:'Energia Elétrica — Junho', category:'Energia',        supplier:'ENEL SP',           value:2100, due:'2025-06-12', status:'pago' },
-  { id:3, desc:'Filamentos ABS e ASA',     category:'Materiais',      supplier:'3D Brasil',         value:890,  due:'2025-06-19', status:'pendente' },
-  { id:4, desc:'Manutenção Bambu P1S',     category:'Manutenção',     supplier:'TechPrint Service', value:450,  due:'2025-06-20', status:'pendente' },
-  { id:5, desc:'Embalagens e Plásticos',   category:'Embalagem',      supplier:'PackShop',          value:320,  due:'2025-06-25', status:'pendente' },
-  { id:6, desc:'Internet + Telefone',      category:'Infraestrutura', supplier:'Vivo Empresas',     value:180,  due:'2025-06-28', status:'pendente' },
-];
-let nextPayableId = 7;
+let payablesData = [];
+
+// Carrega contas a pagar do Supabase
+async function loadPayablesDB() {
+  if (!sb) return;
+  const { data, error } = await sb.from('contas_pagar').select('*').is('deleted_at', null).order('vencimento', { ascending: true });
+  if (error) { showToast('Erro ao carregar contas a pagar: ' + error.message); return; }
+  // Resolve nome do fornecedor se houver
+  payablesData = (data || []).map(p => ({
+    _uuid: p.id,
+    id: p.id,
+    desc: p.descricao,
+    category: p.categoria || 'Outros',
+    supplier: p._supplier_name || '',
+    fornecedor_id: p.fornecedor_id || null,
+    value: Number(p.valor) || 0,
+    due: p.vencimento,
+    status: p.status === 'pago' ? 'pago' : 'pendente',
+  }));
+  renderPayables();
+}
 
 function payStatus(p) {
   if (p.status === 'pago') return { key:'Pago', badge:'badge-green' };
@@ -6924,8 +6938,8 @@ function renderPayables() {
       actionBtn = `<button class="btn btn-secondary btn-sm" onclick="showToast('Comprovante — ${p.desc}')"><i class="ti ti-file"></i> Comprovante</button>`;
     } else {
       actionBtn = `<div style="display:flex;gap:4px">
-        <button class="btn btn-primary btn-sm" onclick="markPaid(${p.id})"><i class="ti ti-check"></i> Pagar</button>
-        <button class="btn btn-danger btn-sm" onclick="deletePayable(${p.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-primary btn-sm" onclick="markPaid('${p.id}')"><i class="ti ti-check"></i> Pagar</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePayable('${p.id}')" title="Excluir"><i class="ti ti-trash"></i></button>
       </div>`;
     }
     const tr = document.createElement('tr');
@@ -6971,54 +6985,71 @@ function filterPayablesBy(status) {
   renderPayables();
 }
 
-function markPaid(id) {
+async function markPaid(id) {
   const p = payablesData.find(x => x.id === id);
-  if (!p) return;
-  p.status = 'pago';
-  // Integra com o Financeiro: cria uma despesa
-  if (typeof transactionsData !== 'undefined') {
-    const catMap = { 'Materiais':'Filamentos','Energia':'Energia elétrica','Manutenção':'Manutenção','Embalagem':'Embalagem','Impostos':'Impostos','Infraestrutura':'Outros' };
-    transactionsData.push({
-      id: (typeof nextTransactionId !== 'undefined' ? nextTransactionId++ : Date.now()),
-      type: 'despesa',
-      desc: `${p.desc}${p.supplier ? ' — ' + p.supplier : ''}`,
-      category: catMap[p.category] || 'Outros',
-      value: p.value,
-      date: new Date().toISOString().slice(0,10)
+  if (!p || !sb) return;
+  const agora = new Date().toISOString();
+  const { error } = await sb.from('contas_pagar').update({ status: 'pago', pago_em: agora }).eq('id', p._uuid);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  // Integra com o Financeiro: cria uma despesa real
+  const catMap = { 'Materiais':'Filamentos','Energia':'Energia elétrica','Manutenção':'Manutenção','Embalagem':'Embalagem','Impostos':'Impostos','Infraestrutura':'Outros' };
+  try {
+    await sb.from('transacoes').insert({
+      tipo: 'despesa',
+      descricao: `${p.desc}${p.supplier ? ' — ' + p.supplier : ''}`,
+      categoria: catMap[p.category] || 'Outros',
+      valor: p.value,
+      data: new Date().toISOString().slice(0,10),
+      created_by: currentUser ? currentUser.id : null,
     });
-  }
-  renderPayables();
-  showToast(`R$ ${p.value.toFixed(2).replace('.',',')} pago a ${p.supplier || p.desc} · lançado no Financeiro`);
+  } catch(e){}
+  showToast(`R$ ${p.value.toFixed(2).replace('.',',')} pago · lançado no Financeiro`);
+  await loadPayablesDB();
+  if (typeof loadTransactionsDB === 'function') { try { await loadTransactionsDB(); } catch(e){} }
 }
 
 async function deletePayable(id) {
   const p = payablesData.find(x => x.id === id);
   if (!p) return;
   if (!await confirmAction({ title:'Excluir lançamento', message:`Excluir o lançamento "${p.desc}"?` })) return;
-  payablesData = payablesData.filter(x => x.id !== id);
-  renderPayables();
+  if (sb && p._uuid) {
+    const { error } = await sb.from('contas_pagar').update({ deleted_at: new Date().toISOString() }).eq('id', p._uuid);
+    if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+  }
   showToast('Lançamento excluído.');
+  await loadPayablesDB();
 }
 
 function refreshPayableSupplierOptions() {
   const sel = document.getElementById('pp-supplier');
   if (!sel) return;
   const names = (typeof suppliersData !== 'undefined' ? suppliersData.map(s => s.name) : []);
-  const all = [...new Set([...names, 'FilaFácil','3D Brasil','ENEL SP','Vivo Empresas','PackShop','Outro'])];
+  const all = [...new Set([...names, 'Outro'])];
   sel.innerHTML = all.map(n => `<option>${n}</option>`).join('');
 }
 
-function savePayable() {
+async function savePayable() {
   const desc = document.getElementById('pp-desc').value.trim();
   const category = document.getElementById('pp-cat').value;
   const supplier = document.getElementById('pp-supplier').value;
   const value = parseFloat(document.getElementById('pp-value').value);
   const due = document.getElementById('pp-due').value;
   if (!desc || !value || !due) { showToast('Preencha descrição, valor e vencimento (*)'); return; }
-  payablesData.push({ id: nextPayableId++, desc, category, supplier, value, due, status:'pendente' });
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  // Tenta vincular a um fornecedor cadastrado pelo nome
+  let fornecedor_id = null;
+  if (typeof suppliersData !== 'undefined') {
+    const f = suppliersData.find(s => s.name === supplier);
+    if (f && f._uuid) fornecedor_id = f._uuid;
+  }
+  const { error } = await sb.from('contas_pagar').insert({
+    descricao: desc, categoria: category, fornecedor_id, valor: value, vencimento: due, status: 'pendente',
+    created_by: currentUser ? currentUser.id : null,
+  });
+  if (error) { showToast('Erro ao salvar: ' + error.message); return; }
   closeModal('modal-payable');
-  renderPayables();
   showToast(`Lançamento de R$ ${value.toFixed(2).replace('.',',')} criado!`);
+  await loadPayablesDB();
 }
 
 function exportPayablesPdf() {
@@ -8725,28 +8756,29 @@ const FIN_REV_CATEGORIES = ['Impressão 3D','Pós-processamento','Pintura','Desi
 const FIN_EXP_CATEGORIES = ['Filamentos','Energia elétrica','Manutenção','Embalagem','Impostos','Outros'];
 const FIN_CAT_COLORS = ['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#94a3b8','#ef4444'];
 
-let transactionsData = [
-  { id:1,  type:'receita', desc:'Pagamento PED-0044 — Loja JR',   category:'Impressão 3D',     value:680,  date:'2025-06-14' },
-  { id:2,  type:'receita', desc:'Pagamento PED-0043 — Ana Souza',  category:'Impressão 3D',     value:320,  date:'2025-06-13' },
-  { id:3,  type:'receita', desc:'Pintura personalizada',           category:'Pintura',          value:210,  date:'2025-06-12' },
-  { id:4,  type:'receita', desc:'Projeto design 3D',               category:'Design',           value:450,  date:'2025-06-10' },
-  { id:5,  type:'receita', desc:'Pós-proc. lote estatuetas',       category:'Pós-processamento',value:380,  date:'2025-06-09' },
-  { id:6,  type:'receita', desc:'Pagamento PED-0038',              category:'Impressão 3D',     value:320,  date:'2025-06-08' },
-  { id:7,  type:'receita', desc:'Venda balcão diversos',           category:'Outros',           value:180,  date:'2025-06-06' },
-  { id:8,  type:'despesa', desc:'Compra filamento PLA (10kg)',     category:'Filamentos',       value:899,  date:'2025-06-12' },
-  { id:9,  type:'despesa', desc:'Conta de energia',                category:'Energia elétrica', value:2100, date:'2025-06-10' },
-  { id:10, type:'despesa', desc:'Compra PETG + ABS',               category:'Filamentos',       value:1280, date:'2025-06-07' },
-  { id:11, type:'despesa', desc:'Manutenção Bambu X1C',            category:'Manutenção',       value:890,  date:'2025-06-05' },
-  { id:12, type:'despesa', desc:'Caixas e plástico bolha',         category:'Embalagem',        value:680,  date:'2025-06-04' },
-  { id:13, type:'despesa', desc:'Impostos (Simples Nacional)',     category:'Impostos',         value:3210, date:'2025-06-03' },
-  { id:14, type:'despesa', desc:'Filamento TPU + ASA',             category:'Filamentos',       value:621,  date:'2025-06-02' },
-];
-let nextTransactionId = 15;
+let transactionsData = [];
 let currentFinPeriod = 'month';
 let ntType = 'receita';
 let chartCashObj = null, chartRecObj = null;
 
 function brl(n) { return 'R$ ' + Math.round(n).toLocaleString('pt-BR'); }
+
+// Carrega transações do Supabase
+async function loadTransactionsDB() {
+  if (!sb) return;
+  const { data, error } = await sb.from('transacoes').select('*').is('deleted_at', null).order('data', { ascending: false });
+  if (error) { showToast('Erro ao carregar financeiro: ' + error.message); return; }
+  transactionsData = (data || []).map(t => ({
+    _uuid: t.id,
+    id: t.id,
+    type: t.tipo,
+    desc: t.descricao,
+    category: t.categoria || 'Outros',
+    value: Number(t.valor) || 0,
+    date: t.data,
+  }));
+  renderFinancial();
+}
 
 function setFinancialPeriod(period) {
   currentFinPeriod = period;
@@ -8754,18 +8786,39 @@ function setFinancialPeriod(period) {
   renderFinancial();
 }
 
+// Retorna o intervalo [início, fim] do período selecionado, baseado em HOJE
+function getPeriodRange() {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  let start;
+  if (currentFinPeriod === 'week') {
+    start = new Date(now); start.setDate(now.getDate() - 6);
+  } else if (currentFinPeriod === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (currentFinPeriod === 'quarter') {
+    start = new Date(now); start.setMonth(now.getMonth() - 2); start.setDate(1);
+  } else { // year
+    start = new Date(now.getFullYear(), 0, 1);
+  }
+  start.setHours(0,0,0,0);
+  return [start, end];
+}
+
 function getFilteredTransactions() {
-  // For mock purposes, scale data by period (week=subset, month=all, quarter/year=multiplied)
-  return transactionsData;
+  const [start, end] = getPeriodRange();
+  return transactionsData.filter(t => {
+    if (!t.date) return false;
+    const d = new Date(t.date + 'T12:00:00');
+    return d >= start && d <= end;
+  });
 }
 
 function renderFinancial() {
   const txns = getFilteredTransactions();
-  const periodMult = { week: 0.3, month: 1, quarter: 2.8, year: 11 }[currentFinPeriod] || 1;
-  const periodLabel = { week:'Semana', month:'Junho 2025', quarter:'Trimestre', year:'Ano 2025' }[currentFinPeriod];
+  const periodLabel = { week:'Últimos 7 dias', month:'Este mês', quarter:'Trimestre', year:'Este ano' }[currentFinPeriod] || 'Período';
 
-  const revenue = txns.filter(t => t.type === 'receita').reduce((s,t) => s+t.value, 0) * periodMult;
-  const expenses = txns.filter(t => t.type === 'despesa').reduce((s,t) => s+t.value, 0) * periodMult;
+  const revenue = txns.filter(t => t.type === 'receita').reduce((s,t) => s+t.value, 0);
+  const expenses = txns.filter(t => t.type === 'despesa').reduce((s,t) => s+t.value, 0);
   const profit = revenue - expenses;
   const margin = revenue > 0 ? (profit / revenue * 100) : 0;
 
@@ -8781,34 +8834,63 @@ function renderFinancial() {
   const expTrend = document.getElementById('fin-expenses-trend');
   if (expTrend) expTrend.innerHTML = `<i class="ti ti-trending-down"></i> ${periodLabel}`;
 
-  // A receber (from receivables/orders not yet paid — mock as % of revenue)
-  const receivable = 4200;
+  // A receber: soma das contas a receber pendentes (dados reais)
+  const receivable = (typeof receivablesData !== 'undefined')
+    ? receivablesData.filter(r => r.status === 'pendente' || r.status === 'vencido').reduce((s,r) => s + r.value, 0) : 0;
+  const nClientes = (typeof receivablesData !== 'undefined')
+    ? new Set(receivablesData.filter(r => r.status === 'pendente' || r.status === 'vencido').map(r => r.client)).size : 0;
   set('fin-receivable', brl(receivable));
-  set('fin-receivable-sub', '3 clientes pendentes');
+  set('fin-receivable-sub', `${nClientes} cliente(s) pendente(s)`);
 
   // Chart title
   set('fin-chart-title', 'Fluxo de Caixa — ' + periodLabel);
 
-  renderFinancialCharts(periodMult);
-  renderRevenueCategoriesLegend(periodMult);
-  renderExpenseCategories(periodMult);
+  renderFinancialCharts();
+  renderRevenueCategoriesLegend();
+  renderExpenseCategories();
   renderTransactions();
 }
 
-function renderFinancialCharts(mult) {
-  // Cash flow line
+function renderFinancialCharts() {
+  const txns = getFilteredTransactions();
+  // Cash flow line — agrupa entradas/saídas por sub-período real
   const cashCanvas = document.getElementById('chartCash');
   if (cashCanvas && typeof Chart !== 'undefined') {
     if (chartCashObj) chartCashObj.destroy();
-    const labels = currentFinPeriod === 'week' ? ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
-      : currentFinPeriod === 'year' ? ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
-      : currentFinPeriod === 'quarter' ? ['Abr','Mai','Jun']
-      : ['01','02','03','04','05','06','07','08','09','10','11'];
-    const entradas = labels.map((_,i) => Math.round((800 + Math.sin(i*0.9)*700 + i*90) * mult));
-    const saidas = labels.map((_,i) => Math.round((700 + Math.cos(i*0.8)*650 + i*40) * mult));
+    const [start, end] = getPeriodRange();
+    let buckets = [];  // {label, ini, fim}
+    if (currentFinPeriod === 'year') {
+      const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      for (let m = 0; m < 12; m++) {
+        const y = start.getFullYear();
+        buckets.push({ label: meses[m], ini: new Date(y,m,1), fim: new Date(y,m+1,0,23,59,59) });
+      }
+    } else if (currentFinPeriod === 'quarter') {
+      const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      for (let k = 2; k >= 0; k--) {
+        const d = new Date(); d.setMonth(d.getMonth() - k);
+        buckets.push({ label: meses[d.getMonth()], ini: new Date(d.getFullYear(),d.getMonth(),1), fim: new Date(d.getFullYear(),d.getMonth()+1,0,23,59,59) });
+      }
+    } else if (currentFinPeriod === 'week') {
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
+        const fim = new Date(d); fim.setHours(23,59,59);
+        buckets.push({ label: d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.',''), ini: d, fim });
+      }
+    } else { // month — por semana
+      const y = start.getFullYear(), mo = start.getMonth();
+      const diasNoMes = new Date(y, mo+1, 0).getDate();
+      for (let s = 0; s < Math.ceil(diasNoMes/7); s++) {
+        const d1 = s*7+1, d2 = Math.min((s+1)*7, diasNoMes);
+        buckets.push({ label: `${d1}-${d2}`, ini: new Date(y,mo,d1,0,0,0), fim: new Date(y,mo,d2,23,59,59) });
+      }
+    }
+    const inBucket = (t, b) => { const d = new Date(t.date+'T12:00:00'); return d >= b.ini && d <= b.fim; };
+    const entradas = buckets.map(b => txns.filter(t => t.type==='receita' && inBucket(t,b)).reduce((s,t)=>s+t.value,0));
+    const saidas = buckets.map(b => txns.filter(t => t.type==='despesa' && inBucket(t,b)).reduce((s,t)=>s+t.value,0));
     chartCashObj = new Chart(cashCanvas.getContext('2d'), {
       type:'line',
-      data:{ labels, datasets:[
+      data:{ labels: buckets.map(b=>b.label), datasets:[
         { label:'Entradas', data:entradas, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.06)', borderWidth:2, pointRadius:3, tension:0.4, fill:true },
         { label:'Saídas', data:saidas, borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,0.05)', borderWidth:2, pointRadius:3, tension:0.4, fill:true }
       ]},
@@ -8819,12 +8901,12 @@ function renderFinancialCharts(mult) {
     });
   }
 
-  // Revenue doughnut
+  // Revenue doughnut — categorias reais
   const recCanvas = document.getElementById('chartRec');
   if (recCanvas && typeof Chart !== 'undefined') {
     if (chartRecObj) chartRecObj.destroy();
     const revByCat = FIN_REV_CATEGORIES.map(cat =>
-      transactionsData.filter(t => t.type==='receita' && t.category===cat).reduce((s,t)=>s+t.value,0) * mult);
+      txns.filter(t => t.type==='receita' && t.category===cat).reduce((s,t)=>s+t.value,0));
     chartRecObj = new Chart(recCanvas.getContext('2d'), {
       type:'doughnut',
       data:{ labels:FIN_REV_CATEGORIES, datasets:[{ data:revByCat, backgroundColor:FIN_CAT_COLORS, borderWidth:0 }] },
@@ -8834,13 +8916,15 @@ function renderFinancialCharts(mult) {
   }
 }
 
-function renderRevenueCategoriesLegend(mult) {
+function renderRevenueCategoriesLegend() {
   const container = document.getElementById('fin-rev-legend');
   if (!container) return;
+  const txns = getFilteredTransactions();
   const revByCat = FIN_REV_CATEGORIES.map(cat =>
-    transactionsData.filter(t => t.type==='receita' && t.category===cat).reduce((s,t)=>s+t.value,0) * mult);
+    txns.filter(t => t.type==='receita' && t.category===cat).reduce((s,t)=>s+t.value,0));
   const total = revByCat.reduce((a,b)=>a+b,0);
   container.innerHTML = '';
+  if (total === 0) { container.innerHTML = '<div style="font-size:12px;color:var(--text3)">Sem receitas no período.</div>'; return; }
   FIN_REV_CATEGORIES.forEach((cat, i) => {
     if (revByCat[i] === 0) return;
     const pct = total>0 ? Math.round(revByCat[i]/total*100) : 0;
@@ -8851,14 +8935,16 @@ function renderRevenueCategoriesLegend(mult) {
   });
 }
 
-function renderExpenseCategories(mult) {
+function renderExpenseCategories() {
   const container = document.getElementById('fin-exp-categories');
   if (!container) return;
+  const txns = getFilteredTransactions();
   const expByCat = FIN_EXP_CATEGORIES.map(cat =>
-    transactionsData.filter(t => t.type==='despesa' && t.category===cat).reduce((s,t)=>s+t.value,0) * mult);
+    txns.filter(t => t.type==='despesa' && t.category===cat).reduce((s,t)=>s+t.value,0));
   const total = expByCat.reduce((a,b)=>a+b,0);
   const colors = ['#3b82f6','#8b5cf6','#f59e0b','#22c55e','#ef4444','#94a3b8'];
   container.innerHTML = '';
+  if (total === 0) { container.innerHTML = '<div style="font-size:12px;color:var(--text3)">Sem despesas no período.</div>'; return; }
   FIN_EXP_CATEGORIES.forEach((cat, i) => {
     if (expByCat[i] === 0) return;
     const pct = total>0 ? Math.round(expByCat[i]/total*100) : 0;
@@ -8873,12 +8959,12 @@ function renderTransactions() {
   if (!tbody) return;
   const typeF = document.getElementById('fin-type-filter')?.value || 'all';
   tbody.innerHTML = '';
-  const sorted = [...transactionsData].sort((a,b) => b.date.localeCompare(a.date));
+  const sorted = getFilteredTransactions().slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
   let shown = 0;
   sorted.forEach(t => {
     if (typeF !== 'all' && t.type !== typeF) return;
     shown++;
-    const dateFmt = t.date.split('-').reverse().join('/');
+    const dateFmt = t.date ? t.date.split('-').reverse().join('/') : '—';
     const isRev = t.type === 'receita';
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -8887,10 +8973,10 @@ function renderTransactions() {
       <td>${t.category}</td>
       <td><span class="badge ${isRev ? 'badge-green' : 'badge-red'}">${isRev ? 'Receita' : 'Despesa'}</span></td>
       <td style="font-weight:600;color:${isRev ? 'var(--green)' : 'var(--red)'}">${isRev ? '+' : '−'} ${brl(t.value)}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})" title="Excluir"><i class="ti ti-trash"></i></button></td>`;
+      <td><button class="btn btn-danger btn-sm" onclick="deleteTransaction('${t.id}')" title="Excluir"><i class="ti ti-trash"></i></button></td>`;
     tbody.appendChild(tr);
   });
-  if (shown === 0) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Nenhum lançamento.</td></tr>';
+  if (shown === 0) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Nenhum lançamento no período.</td></tr>';
 }
 
 function setTransactionType(type) {
@@ -8910,25 +8996,33 @@ function setTransactionType(type) {
   catSel.innerHTML = cats.map(c => `<option>${c}</option>`).join('');
 }
 
-function saveTransaction() {
+async function saveTransaction() {
   const desc = document.getElementById('nt-desc').value.trim();
   const category = document.getElementById('nt-category').value;
   const value = parseFloat(document.getElementById('nt-value').value);
   const date = document.getElementById('nt-date').value;
   if (!desc || !value || !date) { showToast('Preencha todos os campos (*)'); return; }
-  transactionsData.push({ id: nextTransactionId++, type: ntType, desc, category, value, date });
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  const { error } = await sb.from('transacoes').insert({
+    tipo: ntType, descricao: desc, categoria: category, valor: value, data: date,
+    created_by: currentUser ? currentUser.id : null,
+  });
+  if (error) { showToast('Erro ao lançar: ' + error.message); return; }
   closeModal('modal-new-transaction');
-  renderFinancial();
   showToast(`${ntType === 'receita' ? 'Receita' : 'Despesa'} de ${brl(value)} lançada!`);
+  await loadTransactionsDB();
 }
 
 async function deleteTransaction(id) {
   const t = transactionsData.find(x => x.id === id);
   if (!t) return;
   if (!await confirmAction({ title:'Excluir lançamento', message:`Excluir o lançamento "${t.desc}"?` })) return;
-  transactionsData = transactionsData.filter(x => x.id !== id);
-  renderFinancial();
+  if (sb && t._uuid) {
+    const { error } = await sb.from('transacoes').update({ deleted_at: new Date().toISOString() }).eq('id', t._uuid);
+    if (error) { showToast('Erro ao excluir: ' + error.message); return; }
+  }
   showToast('Lançamento excluído.');
+  await loadTransactionsDB();
 }
 
 function exportFinancialPdf() {
@@ -9070,16 +9164,30 @@ function exportFinancialPdf() {
 // ══════════════════════════════════════════════
 // CONTAS A RECEBER — Data Store & Logic
 // ══════════════════════════════════════════════
-let receivablesData = [
-  { id:1, client:'TechGroup Ltda',      order:'PED-0038', value:1200, due:'2025-06-05', payment:'Boleto', status:'pendente' },
-  { id:2, client:'Marina Costa',        order:'PED-0043', value:320,  due:'2025-06-17', payment:'Pix',    status:'pendente' },
-  { id:3, client:'Loja Brinquedos JR',  order:'PED-0044', value:680,  due:'2025-06-20', payment:'Boleto', status:'pendente' },
-  { id:4, client:'Rafael Almeida',      order:'PED-0047', value:89,   due:'2025-06-22', payment:'Pix',    status:'pendente' },
-  { id:5, client:'Artes & Design Ltda', order:'PED-0041', value:520,  due:'2025-06-28', payment:'Cartão', status:'pendente' },
-  { id:6, client:'Marina Costa',        order:'PED-0034', value:75,   due:'2025-06-04', payment:'Pix',    status:'recebido' },
-  { id:7, client:'Loja Brinquedos JR',  order:'PED-0035', value:410,  due:'2025-06-05', payment:'Boleto', status:'recebido' },
-];
-let nextReceivableId = 8;
+let receivablesData = [];
+
+// Carrega contas a receber do Supabase
+async function loadReceivablesDB() {
+  if (!sb) return;
+  const { data, error } = await sb.from('contas_receber').select('*').is('deleted_at', null).order('vencimento', { ascending: true });
+  if (error) { showToast('Erro ao carregar contas a receber: ' + error.message); return; }
+  const nomeCliente = (cid) => {
+    if (typeof clientesDB !== 'undefined') { const c = clientesDB.find(x => x.id === cid); if (c) return c.nome; }
+    return '';
+  };
+  receivablesData = (data || []).map(r => ({
+    _uuid: r.id,
+    id: r.id,
+    cliente_id: r.cliente_id || null,
+    client: nomeCliente(r.cliente_id) || r.descricao || '—',
+    order: '',  // referência textual opcional
+    value: Number(r.valor) || 0,
+    due: r.vencimento,
+    payment: r.pagamento || '—',
+    status: r.status === 'recebido' ? 'recebido' : 'pendente',
+  }));
+  renderReceivables();
+}
 
 function recvStatus(r) {
   if (r.status === 'recebido') return { key:'Recebido', badge:'badge-green' };
@@ -9109,11 +9217,11 @@ function renderReceivables() {
       actionBtn = `<span style="font-size:12px;color:var(--green)"><i class="ti ti-circle-check"></i> Recebido</span>`;
     } else if (st.key === 'Vencido') {
       actionBtn = `<div style="display:flex;gap:4px">
-        <button class="btn btn-primary btn-sm" onclick="chargeReceivable(${r.id})" title="Enviar cobrança"><i class="ti ti-send"></i> Cobrar</button>
-        <button class="btn btn-success btn-sm" onclick="markReceived(${r.id})" title="Marcar como recebido"><i class="ti ti-check"></i></button>
+        <button class="btn btn-primary btn-sm" onclick="chargeReceivable('${r.id}')" title="Enviar cobrança"><i class="ti ti-send"></i> Cobrar</button>
+        <button class="btn btn-success btn-sm" onclick="markReceived('${r.id}')" title="Marcar como recebido"><i class="ti ti-check"></i></button>
       </div>`;
     } else {
-      actionBtn = `<button class="btn btn-success btn-sm" onclick="markReceived(${r.id})"><i class="ti ti-check"></i> Receber</button>`;
+      actionBtn = `<button class="btn btn-success btn-sm" onclick="markReceived('${r.id}')"><i class="ti ti-check"></i> Receber</button>`;
     }
     const tr = document.createElement('tr');
     if (r.status === 'recebido') tr.style.opacity = '0.6';
@@ -9152,23 +9260,25 @@ function filterReceivablesBy(status) {
   renderReceivables();
 }
 
-function markReceived(id) {
+async function markReceived(id) {
   const r = receivablesData.find(x => x.id === id);
-  if (!r) return;
-  r.status = 'recebido';
-  // Integra com o Financeiro: cria uma receita
-  if (typeof transactionsData !== 'undefined') {
-    transactionsData.push({
-      id: (typeof nextTransactionId !== 'undefined' ? nextTransactionId++ : Date.now()),
-      type: 'receita',
-      desc: `Recebimento ${r.order || ''} — ${r.client}`.trim(),
-      category: 'Impressão 3D',
-      value: r.value,
-      date: new Date().toISOString().slice(0,10)
+  if (!r || !sb) return;
+  const { error } = await sb.from('contas_receber').update({ status: 'recebido', recebido_em: new Date().toISOString() }).eq('id', r._uuid);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  // Integra com o Financeiro: cria uma receita real
+  try {
+    await sb.from('transacoes').insert({
+      tipo: 'receita',
+      descricao: `Recebimento — ${r.client}`.trim(),
+      categoria: 'Impressão 3D',
+      valor: r.value,
+      data: new Date().toISOString().slice(0,10),
+      created_by: currentUser ? currentUser.id : null,
     });
-  }
-  renderReceivables();
+  } catch(e){}
   showToast(`R$ ${r.value.toFixed(2).replace('.',',')} recebido de ${r.client} · lançado no Financeiro`);
+  await loadReceivablesDB();
+  if (typeof loadTransactionsDB === 'function') { try { await loadTransactionsDB(); } catch(e){} }
 }
 
 function chargeReceivable(id) {
@@ -9177,17 +9287,42 @@ function chargeReceivable(id) {
   showToast(`Cobrança enviada para ${r.client} (${r.payment})`);
 }
 
-function saveReceivable() {
-  const client = document.getElementById('rc-client').value;
+async function saveReceivable() {
+  const clientSel = document.getElementById('rc-client');
+  const clientName = clientSel ? clientSel.value : '';
+  const clientId = clientSel ? clientSel.options[clientSel.selectedIndex]?.dataset.uuid : null;
   const order = document.getElementById('rc-order').value.trim();
   const value = parseFloat(document.getElementById('rc-value').value);
   const due = document.getElementById('rc-due').value;
   const payment = document.getElementById('rc-payment').value;
   if (!value || !due) { showToast('Preencha valor e vencimento.'); return; }
-  receivablesData.push({ id: nextReceivableId++, client, order, value, due, payment, status:'pendente' });
+  if (!sb) { showToast('Supabase não configurado.'); return; }
+  const { error } = await sb.from('contas_receber').insert({
+    cliente_id: clientId || null,
+    descricao: order ? `${clientName} — ${order}` : clientName,
+    valor: value, vencimento: due, pagamento: payment, status: 'pendente',
+    created_by: currentUser ? currentUser.id : null,
+  });
+  if (error) { showToast('Erro ao salvar: ' + error.message); return; }
   closeModal('modal-receivable');
-  renderReceivables();
-  showToast(`Lançamento de R$ ${value.toFixed(2).replace('.',',')} para ${client} criado!`);
+  showToast(`Lançamento de R$ ${value.toFixed(2).replace('.',',')} criado!`);
+  await loadReceivablesDB();
+}
+
+// Preenche o select de cliente do modal de conta a receber
+function refreshReceivableClientOptions() {
+  const sel = document.getElementById('rc-client');
+  if (!sel || typeof clientesDB === 'undefined') return;
+  sel.innerHTML = clientesDB.map(c => `<option data-uuid="${c.id}">${c.nome}</option>`).join('');
+}
+
+async function openReceivableModal() {
+  // Garante clientes carregados antes de abrir
+  if (typeof clientesDB === 'undefined' || !clientesDB.length) {
+    if (typeof loadClientsDB === 'function') { try { await loadClientsDB(); } catch(e){} }
+  }
+  refreshReceivableClientOptions();
+  openModal('modal-receivable');
 }
 
 function exportReceivablesPdf() {
