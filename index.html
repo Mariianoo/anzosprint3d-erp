@@ -2695,7 +2695,7 @@ function buildNotifications() {
         if (s.stock != null && s.stock <= s.stockMin) {
           alerts.push({ id:'sup-'+s.id, type:'warn', icon:'ti-packages',
             title:'Insumo acabando',
-            desc:`${s.name} — ${s.stock} ${s.unit} em estoque.`,
+            desc:`${escapeHtml(s.name)} — ${s.stock} ${escapeHtml(s.unit)} em estoque.`,
             page:'supplies' });
         }
       });
@@ -2775,7 +2775,7 @@ function renderNotifications() {
       <div class="notif-ico ${n.type}"><i class="ti ${n.icon}"></i></div>
       <div class="notif-body">
         <div class="notif-title">${n.title}</div>
-        <div class="notif-desc">${n.desc}</div>
+        <div class="notif-desc">${escapeHtml(n.desc)}</div>
       </div>
       <button class="notif-dismiss" onclick="event.stopPropagation();dismissNotification('${n.id}')" title="Dispensar"><i class="ti ti-x"></i></button>
     </div>`).join('');
@@ -2955,10 +2955,10 @@ function renderClientsDB() {
       ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border:none" onclick="openWhatsApp('${zapNum}','${(c.nome||'').replace(/'/g,'')}')" title="Enviar WhatsApp"><i class="ti ti-brand-whatsapp"></i></button>`
       : `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.4" title="Sem WhatsApp/telefone"><i class="ti ti-brand-whatsapp"></i></button>`;
     const mailBtn = c.email
-      ? `<button class="btn btn-sm" style="background:#3b82f6;color:#fff;border:none" onclick="openEmail('${c.email}','${(c.nome||'').replace(/'/g,'')}')" title="Enviar e-mail"><i class="ti ti-mail"></i></button>`
+      ? `<button class="btn btn-sm" style="background:#3b82f6;color:#fff;border:none" onclick="openEmail('${escapeHtml(c.email)}','${(c.nome||'').replace(/'/g,'')}')" title="Enviar e-mail"><i class="ti ti-mail"></i></button>`
       : `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.4" title="Sem e-mail"><i class="ti ti-mail"></i></button>`;
     tr.innerHTML = `
-      <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar" style="background:${cor}22;color:${cor}">${ini}</div><div class="td-name">${c.nome}</div></div></td>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar" style="background:${cor}22;color:${cor}">${ini}</div><div class="td-name">${escapeHtml(c.nome)}</div></div></td>
       <td>${c.documento || '—'}</td>
       <td><div>${c.email || '—'}</div><div style="font-size:12px;color:var(--text2)">${c.telefone || ''}</div></td>
       <td>${c.cidade ? c.cidade + ' / ' + (c.estado||'') : '—'}</td>
@@ -3283,6 +3283,18 @@ function toggleTheme() {
   try { localStorage.setItem('anzos_theme', theme); } catch(e){}  // lembra na tela de login deste dispositivo
   setPref('theme', theme);  // salva no perfil (segue o usuário em qualquer dispositivo)
 }
+// ── Segurança: escapa HTML para prevenir XSS armazenado ──
+// Use SEMPRE que inserir dado vindo do usuário/banco via innerHTML.
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   document.getElementById('toast-msg').textContent = msg;
@@ -4004,8 +4016,8 @@ function renderKanban() {
         card.className = 'kanban-card';
         card.style.cursor = 'pointer';
         card.innerHTML = `
-          <div class="kanban-card-title">${o.id} — ${o.client}</div>
-          <div class="kanban-card-meta">${o.desc}<br>R$ ${o.value.toFixed(2).replace('.',',')} · entregue ${o.deadline}</div>
+          <div class="kanban-card-title">${o.id} — ${escapeHtml(o.client)}</div>
+          <div class="kanban-card-meta">${escapeHtml(o.desc)}<br>R$ ${o.value.toFixed(2).replace('.',',')} · entregue ${o.deadline}</div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
             <span class="badge badge-green" style="font-size:10px"><i class="ti ti-check"></i> Entregue</span>
             <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openOrderDetail('${o.id}')" style="padding:3px 8px;font-size:11px"><i class="ti ti-eye"></i> Ver</button>
@@ -4029,8 +4041,8 @@ function renderKanban() {
         const devEntry = [...(o.history || [])].reverse().find(h => h.to === 'Devolução');
         const reasonShort = devEntry ? devEntry.note.replace(/\|.*/, '').replace('Motivo: ','').trim() : '—';
         card.innerHTML = `
-          <div class="kanban-card-title">${o.id} — ${o.client}</div>
-          <div class="kanban-card-meta">${o.desc}<br>R$ ${o.value.toFixed(2).replace('.',',')}</div>
+          <div class="kanban-card-title">${o.id} — ${escapeHtml(o.client)}</div>
+          <div class="kanban-card-meta">${escapeHtml(o.desc)}<br>R$ ${o.value.toFixed(2).replace('.',',')}</div>
           <div style="background:var(--red-light);border-radius:4px;padding:4px 6px;margin-top:6px;font-size:11px;color:#991b1b">
             <i class="ti ti-arrow-back-up" style="font-size:11px"></i> ${reasonShort}
           </div>
@@ -4058,11 +4070,11 @@ function renderKanban() {
       card.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
           <i class="ti ti-grip-vertical" style="font-size:14px;color:var(--text3);cursor:grab" title="Arrastar para mover"></i>
-          <div class="kanban-card-title" style="margin:0">${o.id} — ${o.client}</div>
+          <div class="kanban-card-title" style="margin:0">${o.id} — ${escapeHtml(o.client)}</div>
         </div>
-        <div class="kanban-card-meta">${o.desc}<br>R$ ${o.value.toFixed(2).replace('.',',')} · prazo ${o.deadline}</div>
+        <div class="kanban-card-meta">${escapeHtml(o.desc)}<br>R$ ${o.value.toFixed(2).replace('.',',')} · prazo ${o.deadline}</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-          ${isLate ? '<span class="badge badge-red">Atrasado</span>' : `<span style="font-size:11px;color:var(--text3)">${o.resp}</span>`}
+          ${isLate ? '<span class="badge badge-red">Atrasado</span>' : `<span style="font-size:11px;color:var(--text3)">${escapeHtml(o.resp)}</span>`}
           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openOrderDetail('${o.id}')" style="padding:3px 8px;font-size:11px"><i class="ti ti-eye"></i> Ver</button>
         </div>`;
       card.onclick = () => openOrderDetail(o.id);
@@ -4095,9 +4107,9 @@ function renderOrdersTable(filter) {
     shown++;
     const badgeCls = STATUS_BADGE[o.status] || 'badge-gray';
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="td-name">${o.id}</td><td>${o.client}</td><td>${o.desc}</td>
+    tr.innerHTML = `<td class="td-name">${o.id}</td><td>${escapeHtml(o.client)}</td><td>${escapeHtml(o.desc)}</td>
       <td style="font-weight:600">R$ ${o.value.toFixed(2).replace('.',',')}</td>
-      <td>${o.deadline}</td><td>${o.resp}</td>
+      <td>${o.deadline}</td><td>${escapeHtml(o.resp)}</td>
       <td><span class="badge ${badgeCls}">${o.status}</span></td>
       <td><div style="display:flex;gap:4px">
         <button class="btn btn-secondary btn-sm" onclick="openOrderDetail('${o.id}')" title="Ver detalhes"><i class="ti ti-eye"></i> Ver</button>
@@ -4665,7 +4677,7 @@ function renderGallery() {
       <div class="model-body">
         <div style="font-size:12px;font-weight:600">${g.pedido || 'Sem pedido'}</div>
         <div style="font-size:11px;color:var(--text2)">${g.cliente || '—'}</div>
-        <span class="badge ${badge}" style="font-size:10px;margin-top:4px;display:inline-flex">${g.tipo}</span>
+        <span class="badge ${badge}" style="font-size:10px;margin-top:4px;display:inline-flex">${escapeHtml(g.tipo)}</span>
       </div>
     </div>`;
   }).join('');
@@ -4721,7 +4733,7 @@ async function viewGalleryPhoto(id) {
   if (!g) return;
   const ok = await confirmAction({
     title: g.pedido || 'Foto',
-    message: `${g.cliente ? g.cliente + ' · ' : ''}${g.tipo}${g.obs ? ' · ' + g.obs : ''}`,
+    message: `${g.cliente ? g.cliente + ' · ' : ''}${escapeHtml(g.tipo)}${g.obs ? ' · ' + g.obs : ''}`,
     confirmLabel: 'Excluir foto', danger: true, icon: 'ti-photo', sound: false,
   });
   if (ok) {
@@ -4849,7 +4861,7 @@ function openDevolutionModal() {
   const o = ordersData.find(x => x.id === currentOrderId);
   if (!o) return;
   const numEl = document.getElementById('dev-order-num');
-  if (numEl) numEl.textContent = `${o.id} — ${o.client} · ${o.desc}`;
+  if (numEl) numEl.textContent = `${o.id} — ${escapeHtml(o.client)} · ${escapeHtml(o.desc)}`;
   // Reset form
   document.getElementById('dev-reason').value = '';
   document.getElementById('dev-other').value = '';
@@ -5065,7 +5077,7 @@ async function loadProductionDB() {
   };
   const filNome = (id) => {
     const f = (filamentsData||[]).find(x => x.id === id);
-    return f ? `${f.type} ${f.color}`.trim() : '—';
+    return f ? `${f.type} ${escapeHtml(f.color)}`.trim() : '—';
   };
 
   productionData = (data || []).map(p => ({
@@ -5108,7 +5120,7 @@ async function completeProduction(opUuidOrId) {
   // Sugere o peso estimado (total), permite ajustar para o real
   const sugestao = op.totalG || op.consumedG || 0;
   const entrada = prompt(
-    `Concluir ${op.id}\nFilamento: ${op.filament}\n\nQuantos gramas foram realmente consumidos?\n(sugestão: ${sugestao}g — ajuste se necessário)`,
+    `Concluir ${op.id}\nFilamento: ${escapeHtml(op.filament)}\n\nQuantos gramas foram realmente consumidos?\n(sugestão: ${sugestao}g — ajuste se necessário)`,
     String(sugestao)
   );
   if (entrada === null) return;
@@ -5120,7 +5132,7 @@ async function completeProduction(opUuidOrId) {
     const f = (filamentsData || []).find(x => x.id === op.filamento_id);
     if (f && gramas > f.current) {
       const ok = confirm(
-        `⚠ Estoque insuficiente!\n\n${op.filament}: ${f.current}g disponível, mas a produção consumiu ${gramas}g.\n\nDeseja concluir mesmo assim? O estoque ficará negativo (${f.current - gramas}g), sinalizando reposição urgente.`
+        `⚠ Estoque insuficiente!\n\n${escapeHtml(op.filament)}: ${f.current}g disponível, mas a produção consumiu ${gramas}g.\n\nDeseja concluir mesmo assim? O estoque ficará negativo (${f.current - gramas}g), sinalizando reposição urgente.`
       );
       if (!ok) return;
     }
@@ -5190,7 +5202,7 @@ function renderProductionTable() {
       <td class="td-name">${op.id}</td>
       <td>${op.order}</td>
       <td>${op.printer}</td>
-      <td>${op.filament}</td>
+      <td>${escapeHtml(op.filament)}</td>
       <td>${op.operator}</td>
       <td>${op.start}</td>
       <td>${op.end}</td>
@@ -5374,7 +5386,7 @@ async function populateNewOpModal() {
     const ativos = ['Aguardando','Produção','Atrasado','Pós-proc.'];
     const eligible = (ordersData||[]).filter(o => ativos.includes(o.status));
     sel.innerHTML = '<option value="">— selecionar pedido —</option>' + (eligible.length
-      ? eligible.map(o => `<option value="${o._uuid || o.id}">${o.id} — ${o.client} (${o.status})</option>`).join('')
+      ? eligible.map(o => `<option value="${o._uuid || o.id}">${o.id} — ${escapeHtml(o.client)} (${o.status})</option>`).join('')
       : '');
     if (!eligible.length) sel.innerHTML = '<option value="">Nenhum pedido ativo</option>';
   }
@@ -5389,7 +5401,7 @@ async function populateNewOpModal() {
   const filSel = document.getElementById('nop-filament');
   if (filSel) {
     const opts = (filamentsData||[]).map(f =>
-      `<option value="${f.id}">${f.type} ${f.color} (${f.brand}) — ${f.current}g</option>`).join('');
+      `<option value="${f.id}">${f.type} ${escapeHtml(f.color)} (${f.brand}) — ${f.current}g</option>`).join('');
     filSel.innerHTML = '<option value="">— selecionar filamento —</option>' + opts;
   }
 }
@@ -5612,7 +5624,7 @@ function renderFilaments() {
       ? `<div style="font-size:12px;color:var(--red)">Nível crítico! Reabastecer imediatamente.</div>`
       : st.label === 'Baixo'
         ? `<div style="font-size:12px;color:var(--amber)">Repor urgente! R$ ${f.price.toFixed(2).replace('.',',')}/bobina</div>`
-        : `<div style="font-size:12px;color:var(--text2)">R$ ${f.price.toFixed(2).replace('.',',')}/bobina · ${f.supplier}</div>`;
+        : `<div style="font-size:12px;color:var(--text2)">R$ ${f.price.toFixed(2).replace('.',',')}/bobina · ${escapeHtml(f.supplier)}</div>`;
 
     const card = document.createElement('div');
     card.className = 'fil-card';
@@ -5621,16 +5633,16 @@ function renderFilaments() {
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div style="display:flex;align-items:center;gap:8px">
           <div class="fil-swatch" style="${swatchStyle}"></div>
-          <div><div style="font-weight:600">${f.type} — ${f.color}</div><div style="font-size:12px;color:var(--text2)">${f.brand} · ${f.diameter}</div></div>
+          <div><div style="font-weight:600">${f.type} — ${escapeHtml(f.color)}</div><div style="font-size:12px;color:var(--text2)">${f.brand} · ${f.diameter}</div></div>
         </div>
         <span class="badge ${st.badge}">${st.label}</span>
       </div>
       <div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
           <span>${f.current} g / ${f.total.toLocaleString('pt-BR')} g</span>
-          <strong style="color:${st.color}">${pct}%</strong>
+          <strong style="color:${escapeHtml(st.color)}">${pct}%</strong>
         </div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${st.color}"></div></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${escapeHtml(st.color)}"></div></div>
       </div>
       ${footerText}
       <div style="display:flex;gap:6px;margin-top:10px">
@@ -5667,7 +5679,7 @@ function updateFilamentKPIs() {
   if (alertBar && alertText) {
     if (alerts.length > 0) {
       alertBar.style.display = 'flex';
-      const names = alerts.map(f => `${f.type} ${f.color} (${Math.round((f.current/f.total)*100)}%)`).join(', ');
+      const names = alerts.map(f => `${f.type} ${escapeHtml(f.color)} (${Math.round((f.current/f.total)*100)}%)`).join(', ');
       alertText.innerHTML = `<strong style="margin-left:4px">Estoque baixo:</strong>&nbsp;${names}. Faça o reabastecimento urgente.`;
     } else {
       alertBar.style.display = 'none';
@@ -5733,7 +5745,7 @@ function updateFilamentStockPreview() {
   if (fillEl) { fillEl.style.width = pct + '%'; fillEl.style.background = st.color; }
   if (statusEl) {
     const icons = { 'Crítico':'🔴', 'Baixo':'🟡', 'Normal':'🟢' };
-    statusEl.innerHTML = `<span style="color:${st.color};font-weight:600">${icons[st.label]} ${st.label}</span> — ${current}g de ${total.toLocaleString('pt-BR')}g`;
+    statusEl.innerHTML = `<span style="color:${escapeHtml(st.color)};font-weight:600">${icons[st.label]} ${st.label}</span> — ${current}g de ${total.toLocaleString('pt-BR')}g`;
   }
 }
 
@@ -5803,7 +5815,7 @@ function editFilament(id) {
   document.getElementById('nf-total').value = f.total;
   document.getElementById('nf-current').value = f.current;
   refreshFilamentSupplierOptions();
-  if (!document.querySelector(`#nf-supplier option[value="${f.supplier}"]`) && f.supplier) {
+  if (!document.querySelector(`#nf-supplier option[value="${escapeHtml(f.supplier)}"]`) && f.supplier) {
     const opt = document.createElement('option'); opt.textContent = f.supplier; document.getElementById('nf-supplier').appendChild(opt);
   }
   document.getElementById('nf-supplier').value = f.supplier;
@@ -5814,7 +5826,7 @@ function editFilament(id) {
 async function restockFilament(id) {
   const f = filamentsData.find(x => x.id === id);
   if (!f) return;
-  const add = prompt(`Repor estoque de ${f.type} ${f.color}\nQuantidade atual: ${f.current}g de ${f.total}g\n\nQuantos gramas adicionar?`, String(f.total - f.current));
+  const add = prompt(`Repor estoque de ${f.type} ${escapeHtml(f.color)}\nQuantidade atual: ${f.current}g de ${f.total}g\n\nQuantos gramas adicionar?`, String(f.total - f.current));
   if (add === null) return;
   const amount = parseInt(add);
   if (isNaN(amount) || amount <= 0) { showToast('Quantidade inválida.'); return; }
@@ -5948,15 +5960,15 @@ function renderModels() {
            <img src="${m.images[0]}" style="width:100%;height:100%;object-fit:cover">
            ${m.images.length > 1 ? `<span style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,0.6);color:white;font-size:10px;padding:2px 6px;border-radius:10px"><i class="ti ti-photo" style="font-size:10px"></i> ${m.images.length}</span>` : ''}
          </div>`
-      : `<div class="model-thumb" style="background:linear-gradient(135deg,${shadeColor(m.color,-40)},${m.color})"><i class="ti ti-cube-3d-sphere"></i></div>`;
+      : `<div class="model-thumb" style="background:linear-gradient(135deg,${shadeColor(m.color,-40)},${escapeHtml(m.color)})"><i class="ti ti-cube-3d-sphere"></i></div>`;
     card.innerHTML = `
       ${thumbHtml}
       <div class="model-body">
-        <div class="model-name">${m.name}</div>
-        <div class="model-meta">${m.category} · ${m.weight} g · ${hoursStr}</div>
+        <div class="model-name">${escapeHtml(m.name)}</div>
+        <div class="model-meta">${escapeHtml(m.category)} · ${m.weight} g · ${hoursStr}</div>
         <div style="display:flex;gap:4px;margin-top:8px;align-items:center">
-          <span class="badge ${matBadge}" style="font-size:11px">${m.material}</span>
-          <span class="badge badge-gray" style="font-size:11px">${m.format}</span>
+          <span class="badge ${matBadge}" style="font-size:11px">${escapeHtml(m.material)}</span>
+          <span class="badge badge-gray" style="font-size:11px">${escapeHtml(m.format)}</span>
           <span style="margin-left:auto;font-size:11px;color:var(--text3)"><i class="ti ti-printer" style="font-size:12px"></i> ${m.prints}</span>
         </div>
       </div>`;
@@ -6007,14 +6019,14 @@ function openModelDetail(id) {
   const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.textContent = val; };
   set('md-name', m.name);
   const matBadge = MAT_BADGE[m.material] || 'badge-gray';
-  document.getElementById('md-category').innerHTML = `<span class="badge ${matBadge}">${m.material}</span> · ${m.category}`;
+  document.getElementById('md-category').innerHTML = `<span class="badge ${matBadge}">${escapeHtml(m.material)}</span> · ${escapeHtml(m.category)}`;
   const mdThumb = document.getElementById('md-thumb');
   const hasImg = m.images && m.images.length > 0;
   if (hasImg) {
     mdThumb.style.background = '#0f172a';
     mdThumb.innerHTML = `<img src="${m.images[0]}" style="width:100%;height:100%;object-fit:cover">`;
   } else {
-    mdThumb.style.background = `linear-gradient(135deg,${shadeColor(m.color,-40)},${m.color})`;
+    mdThumb.style.background = `linear-gradient(135deg,${shadeColor(m.color,-40)},${escapeHtml(m.color)})`;
     mdThumb.innerHTML = `<i class="ti ti-cube-3d-sphere" style="font-size:48px;color:rgba(255,255,255,0.5)"></i>`;
   }
   // Thumbnail gallery (other images)
@@ -6619,11 +6631,11 @@ function renderSupplies() {
     const catBadge = SUPPLY_CAT_BADGE[s.category] || 'badge-gray';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="td-name">${s.name}</td>
-      <td><span class="badge ${catBadge}">${s.category}</span></td>
-      <td>${s.unit}</td>
+      <td class="td-name">${escapeHtml(s.name)}</td>
+      <td><span class="badge ${catBadge}">${escapeHtml(s.category)}</span></td>
+      <td>${escapeHtml(s.unit)}</td>
       <td style="font-weight:600">R$ ${s.price.toFixed(2).replace('.',',')}</td>
-      <td><span style="color:${st.color};font-weight:600">${s.stock} ${s.unit}</span> <span style="font-size:11px;color:var(--text3)">(${st.label})</span></td>
+      <td><span style="color:${escapeHtml(st.color)};font-weight:600">${s.stock} ${escapeHtml(s.unit)}</span> <span style="font-size:11px;color:var(--text3)">(${st.label})</span></td>
       <td>${s.supplier || '—'}</td>
       <td><div style="display:flex;gap:4px">
         <button class="btn btn-secondary btn-sm" onclick="editSupply('${s.id}')" title="Editar"><i class="ti ti-edit"></i></button>
@@ -6658,11 +6670,11 @@ function filterSuppliesLow() {
     const catBadge = SUPPLY_CAT_BADGE[s.category] || 'badge-gray';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="td-name">${s.name}</td>
-      <td><span class="badge ${catBadge}">${s.category}</span></td>
-      <td>${s.unit}</td>
+      <td class="td-name">${escapeHtml(s.name)}</td>
+      <td><span class="badge ${catBadge}">${escapeHtml(s.category)}</span></td>
+      <td>${escapeHtml(s.unit)}</td>
       <td style="font-weight:600">R$ ${s.price.toFixed(2).replace('.',',')}</td>
-      <td><span style="color:${st.color};font-weight:600">${s.stock} ${s.unit}</span> <span style="font-size:11px;color:var(--text3)">(mín: ${s.stockMin})</span></td>
+      <td><span style="color:${escapeHtml(st.color)};font-weight:600">${s.stock} ${escapeHtml(s.unit)}</span> <span style="font-size:11px;color:var(--text3)">(mín: ${s.stockMin})</span></td>
       <td>${s.supplier || '—'}</td>
       <td><div style="display:flex;gap:4px">
         <button class="btn btn-secondary btn-sm" onclick="editSupply('${s.id}')"><i class="ti ti-edit"></i></button>
@@ -6680,7 +6692,7 @@ function refreshSupplySupplierOptions() {
   // Opções com data-uuid para vincular ao fornecedor real
   const opts = ['<option value="" data-uuid="">— sem fornecedor —</option>'];
   if (typeof suppliersData !== 'undefined') {
-    suppliersData.forEach(s => opts.push(`<option data-uuid="${s._uuid}">${s.name}</option>`));
+    suppliersData.forEach(s => opts.push(`<option data-uuid="${s._uuid}">${escapeHtml(s.name)}</option>`));
   }
   sel.innerHTML = opts.join('');
   if (cur) sel.value = cur;
@@ -6846,8 +6858,8 @@ function renderSuppliers() {
       : `<button class="btn btn-secondary btn-sm" disabled style="opacity:.4" title="Sem endereço"><i class="ti ti-map-pin"></i></button>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="td-name">${s.name}</td>
-      <td><span class="badge ${catBadge}">${s.category}</span></td>
+      <td class="td-name">${escapeHtml(s.name)}</td>
+      <td><span class="badge ${catBadge}">${escapeHtml(s.category)}</span></td>
       <td>${s.contact || '—'}</td>
       <td><div style="font-size:12px">${s.phone || '—'}</div><div style="font-size:12px;color:var(--text2)">${s.email || '—'}</div></td>
       <td style="font-size:12px">${s.cnpj || '—'}</td>
@@ -6942,7 +6954,7 @@ function openSupplierDetail(id) {
   document.getElementById('sd-name').textContent = s.name;
   const catBadge = SUP_CAT_BADGE[s.category] || 'badge-gray';
   const statusBadge = SUP_STATUS_BADGE[s.status] || 'badge-gray';
-  document.getElementById('sd-category').innerHTML = `<span class="badge ${catBadge}">${s.category}</span> <span class="badge ${statusBadge}">${s.status}</span>`;
+  document.getElementById('sd-category').innerHTML = `<span class="badge ${catBadge}">${escapeHtml(s.category)}</span> <span class="badge ${statusBadge}">${s.status}</span>`;
   const fields = [
     ['Pessoa de contato', s.contact], ['CNPJ / CPF', s.cnpj],
     ['Telefone', s.phone], ['E-mail', s.email],
@@ -7123,14 +7135,14 @@ function renderPrinters() {
       const aq = p.aquisicao ? new Date(p.aquisicao + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
       return `<div class="printer-card">
         <div style="display:flex;align-items:center;justify-content:space-between">
-          <div style="font-weight:600;font-size:15px">${p.name}</div>
+          <div style="font-weight:600;font-size:15px">${escapeHtml(p.name)}</div>
           <span class="badge ${badgeClass}"><span class="printer-dot ${dotClass}" style="display:inline-block;margin-right:4px"></span>${label}</span>
         </div>
         <div style="font-size:12px;color:var(--text2)">Modelo: ${p.modelo} · Aquisição: ${aq}</div>
         <div style="display:grid;grid-template-columns:1fr;gap:8px">
           <div style="background:var(--surface2);border-radius:var(--radius);padding:8px"><div style="font-size:11px;color:var(--text3)">Horas de uso</div><div style="font-weight:600">${Number(p.horas).toLocaleString('pt-BR')} h</div></div>
         </div>
-        ${p.obs ? `<div style="font-size:12px;color:var(--text2)">${p.obs}</div>` : ''}
+        ${p.obs ? `<div style="font-size:12px;color:var(--text2)">${escapeHtml(p.obs)}</div>` : ''}
         <div style="display:flex;gap:8px">
           <button class="btn btn-secondary btn-sm" onclick="editPrinter('${p._uuid}')"><i class="ti ti-edit"></i> Editar</button>
           <button class="btn btn-danger btn-sm" onclick="deletePrinter('${p._uuid}')"><i class="ti ti-trash"></i></button>
@@ -7283,8 +7295,8 @@ function renderPayables() {
     const tr = document.createElement('tr');
     if (p.status === 'pago') tr.style.opacity = '0.6';
     tr.innerHTML = `
-      <td class="td-name">${p.desc}</td>
-      <td>${p.category}</td>
+      <td class="td-name">${escapeHtml(p.desc)}</td>
+      <td>${escapeHtml(p.category)}</td>
       <td>${p.supplier || '—'}</td>
       <td style="font-weight:600">R$ ${p.value.toFixed(2).replace('.',',')}</td>
       <td>${dueFmt}</td>
@@ -7334,7 +7346,7 @@ async function markPaid(id) {
   try {
     await sb.from('transacoes').insert({
       tipo: 'despesa',
-      descricao: `${p.desc}${p.supplier ? ' — ' + p.supplier : ''}`,
+      descricao: `${escapeHtml(p.desc)}${p.supplier ? ' — ' + p.supplier : ''}`,
       categoria: catMap[p.category] || 'Outros',
       valor: p.value,
       data: new Date().toISOString().slice(0,10),
@@ -7523,7 +7535,7 @@ function renderExtraMaterials() {
   }
   // Build options from registered supplies
   const supplyOpts = (typeof suppliesData !== 'undefined' ? suppliesData : [])
-    .map(s => `<option value="${s.id}">${s.name} (R$ ${s.price.toFixed(2).replace('.',',')}/${s.unit})</option>`).join('');
+    .map(s => `<option value="${s.id}">${escapeHtml(s.name)} (R$ ${s.price.toFixed(2).replace('.',',')}/${escapeHtml(s.unit)})</option>`).join('');
   list.innerHTML = '';
   quoteMaterials.forEach(m => {
     const row = document.createElement('div');
@@ -7537,13 +7549,13 @@ function renderExtraMaterials() {
         </select>
       </div>
       <div class="form-group" style="margin:0"><label>Qtd</label><input type="number" value="${m.qty}" min="0" step="1" oninput="updateExtraMaterial(${m.id},'qty',this.value)"></div>
-      <div class="form-group" style="margin:0"><label>Valor unit. (R$)</label><input type="number" id="q-mat-unit-${m.id}" value="${m.unit}" min="0" step="0.01" oninput="updateExtraMaterial(${m.id},'unit',this.value)"></div>
+      <div class="form-group" style="margin:0"><label>Valor unit. (R$)</label><input type="number" id="q-mat-unit-${m.id}" value="${escapeHtml(m.unit)}" min="0" step="0.01" oninput="updateExtraMaterial(${m.id},'unit',this.value)"></div>
       <div class="form-group" style="margin:0"><label>Total</label><input type="text" id="q-mat-total-${m.id}" value="${brlFmt(m.qty*m.unit)}" disabled style="background:var(--surface2);font-weight:600"></div>
       <button class="btn btn-danger btn-sm" style="margin-bottom:1px" onclick="removeExtraMaterial(${m.id})" title="Remover"><i class="ti ti-trash"></i></button>`;
     // Add a free-text name field below the select if no supply matched
     const nameWrap = document.createElement('div');
     nameWrap.style.cssText = 'grid-column:1/-1;margin-top:-2px';
-    nameWrap.innerHTML = `<input type="text" placeholder="Nome do material (livre)" value="${m.name}" oninput="updateExtraMaterial(${m.id},'name',this.value)" style="font-size:12px;padding:6px 10px">`;
+    nameWrap.innerHTML = `<input type="text" placeholder="Nome do material (livre)" value="${escapeHtml(m.name)}" oninput="updateExtraMaterial(${m.id},'name',this.value)" style="font-size:12px;padding:6px 10px">`;
     list.appendChild(row);
     list.appendChild(nameWrap);
   });
@@ -7744,7 +7756,7 @@ function refreshQuoteModelOptions() {
   const sel = document.getElementById('q-model');
   if (!sel || typeof modelsData === 'undefined') return;
   const cur = sel.value;
-  sel.innerHTML = '<option value="">— selecionar modelo —</option>' + modelsData.map(m => `<option value="${m.id}">${m.name} (${m.weight}g · ${m.hours}h)</option>`).join('');
+  sel.innerHTML = '<option value="">— selecionar modelo —</option>' + modelsData.map(m => `<option value="${m.id}">${escapeHtml(m.name)} (${m.weight}g · ${m.hours}h)</option>`).join('');
   if (cur) sel.value = cur;
 }
 
@@ -7883,7 +7895,7 @@ function refreshQuoteClientOptions() {
   const sel = document.getElementById('q-client');
   if (!sel) return;
   const cur = sel.value;
-  const opts = (clientesDB || []).map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+  const opts = (clientesDB || []).map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
   sel.innerHTML = '<option value="">— selecionar cliente —</option>' + opts;
   if (cur) sel.value = cur;
 }
@@ -7933,7 +7945,7 @@ function renderQuotesDB() {
     const st = QUOTE_STATUS_BADGE[q.status] || QUOTE_STATUS_BADGE.rascunho;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="td-name">${q.numero}</td>
+      <td class="td-name">${escapeHtml(q.numero)}</td>
       <td>${nome}</td>
       <td>${q.descricao || '—'}</td>
       <td>${q.peso_g != null ? q.peso_g + ' g' : '—'}</td>
@@ -8045,7 +8057,7 @@ async function sendQuoteEmail(id) {
   showToast('Gerando PDF e link...');
   const link = await uploadQuotePdfAndGetLink(q);
   if (!link) showToast('Não consegui gerar o link do PDF — enviando só o texto.');
-  const assunto = encodeURIComponent(`Orçamento ${q.numero} — ANZO'S Print 3D`);
+  const assunto = encodeURIComponent(`Orçamento ${escapeHtml(q.numero)} — ANZO'S Print 3D`);
   const corpo = encodeURIComponent(buildQuoteMessage(q, link).replace(/\*/g, ''));
   window.location.href = `mailto:${email}?subject=${assunto}&body=${corpo}`;
 }
@@ -8240,7 +8252,7 @@ async function convertQuoteToOrder(id) {
       await sb.from('pedido_historico').insert({
         pedido_id: data.id, de_status: null, para_status: 'aguardando',
         usuario_id: currentUser ? currentUser.id : null,
-        nota: `Pedido criado a partir do orçamento ${q.numero}.`
+        nota: `Pedido criado a partir do orçamento ${escapeHtml(q.numero)}.`
       });
     } catch(e){}
     // Marca o orçamento como convertido
@@ -8252,7 +8264,7 @@ async function convertQuoteToOrder(id) {
     // Erro visível e detalhado (não some rápido)
     await confirmAction({
       title: 'Não foi possível converter',
-      message: `Ocorreu um erro ao converter o orçamento ${q.numero}: ${e.message || e}. Nenhum pedido foi criado. Tente novamente.`,
+      message: `Ocorreu um erro ao converter o orçamento ${escapeHtml(q.numero)}: ${e.message || e}. Nenhum pedido foi criado. Tente novamente.`,
       confirmLabel: 'Entendi', danger: false, icon: 'ti-alert-circle', sound: false
     });
   }
@@ -8273,17 +8285,17 @@ async function cancelQuoteConversion(id) {
     if (pedido && pedido.status !== 'aguardando') {
       await confirmAction({
         title: 'Não é possível cancelar',
-        message: `O pedido ${pedido.numero} já está em "${STATUS_DB_TO_LABEL[pedido.status] || pedido.status}". Como a produção já avançou, a conversão não pode ser desfeita por aqui. Cancele o pedido na tela de Pedidos, se necessário.`,
+        message: `O pedido ${escapeHtml(pedido.numero)} já está em "${STATUS_DB_TO_LABEL[pedido.status] || pedido.status}". Como a produção já avançou, a conversão não pode ser desfeita por aqui. Cancele o pedido na tela de Pedidos, se necessário.`,
         confirmLabel: 'Entendi', danger: false, icon: 'ti-alert-circle', sound: false
       });
       return;
     }
 
     // Confirmação
-    const pedInfo = pedido ? ` O pedido ${pedido.numero} será excluído.` : '';
+    const pedInfo = pedido ? ` O pedido ${escapeHtml(pedido.numero)} será excluído.` : '';
     if (!await confirmAction({
       title: 'Cancelar conversão',
-      message: `Deseja cancelar a conversão do orçamento ${q.numero}?${pedInfo} O orçamento voltará para "Aguardando".`,
+      message: `Deseja cancelar a conversão do orçamento ${escapeHtml(q.numero)}?${pedInfo} O orçamento voltará para "Aguardando".`,
       confirmLabel: 'Cancelar conversão', danger: true, icon: 'ti-arrow-back-up'
     })) return;
 
@@ -8293,7 +8305,7 @@ async function cancelQuoteConversion(id) {
         await sb.from('pedido_historico').insert({
           pedido_id: pedido.id, de_status: 'aguardando', para_status: 'cancelado',
           usuario_id: currentUser ? currentUser.id : null,
-          nota: `Pedido excluído: conversão do orçamento ${q.numero} foi cancelada.`
+          nota: `Pedido excluído: conversão do orçamento ${escapeHtml(q.numero)} foi cancelada.`
         });
       } catch(e){}
       const { error: delErr } = await sb.from('pedidos').update({ deleted_at: new Date().toISOString() }).eq('id', pedido.id);
@@ -8938,7 +8950,7 @@ function updateInsights(d) {
     div.innerHTML = `<div class="insight-icon ${t.iconCls}"><i class="ti ${ins.icon}"></i></div>
       <div class="insight-body">
         <div class="insight-title">${ins.title}</div>
-        <div class="insight-desc">${ins.desc}</div>
+        <div class="insight-desc">${escapeHtml(ins.desc)}</div>
       </div>
       <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;align-self:flex-start;background:rgba(0,0,0,0.06)">${t.label}</span>`;
     list.appendChild(div);
@@ -9040,8 +9052,8 @@ function updateAchievements(d) {
       <div style="display:flex;align-items:center;gap:10px">
         <div class="achievement-icon ${isUnlocked ? 'unlocked-icon' : 'locked'}">${ach.icon}</div>
         <div>
-          <div class="achievement-name">${ach.name}</div>
-          <div class="achievement-desc">${ach.desc}</div>
+          <div class="achievement-name">${escapeHtml(ach.name)}</div>
+          <div class="achievement-desc">${escapeHtml(ach.desc)}</div>
         </div>
       </div>
       <div class="achievement-progress-bar">
@@ -9307,8 +9319,8 @@ function renderTransactions() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${dateFmt}</td>
-      <td class="td-name">${t.desc}</td>
-      <td>${t.category}</td>
+      <td class="td-name">${escapeHtml(t.desc)}</td>
+      <td>${escapeHtml(t.category)}</td>
       <td><span class="badge ${isRev ? 'badge-green' : 'badge-red'}">${isRev ? 'Receita' : 'Despesa'}</span></td>
       <td style="font-weight:600;color:${isRev ? 'var(--green)' : 'var(--red)'}">${isRev ? '+' : '−'} ${brl(t.value)}</td>
       <td><button class="btn btn-danger btn-sm" onclick="deleteTransaction('${t.id}')" title="Excluir"><i class="ti ti-trash"></i></button></td>`;
@@ -9564,11 +9576,11 @@ function renderReceivables() {
     const tr = document.createElement('tr');
     if (r.status === 'recebido') tr.style.opacity = '0.6';
     tr.innerHTML = `
-      <td class="td-name">${r.client}</td>
+      <td class="td-name">${escapeHtml(r.client)}</td>
       <td>${r.order || '—'}</td>
       <td style="font-weight:600">R$ ${r.value.toFixed(2).replace('.',',')}</td>
       <td>${dueFmt}</td>
-      <td>${r.payment}</td>
+      <td>${escapeHtml(r.payment)}</td>
       <td><span class="badge ${st.badge}">${st.key}</span></td>
       <td>${actionBtn}</td>`;
     tbody.appendChild(tr);
@@ -9607,7 +9619,7 @@ async function markReceived(id) {
   try {
     await sb.from('transacoes').insert({
       tipo: 'receita',
-      descricao: `Recebimento — ${r.client}`.trim(),
+      descricao: `Recebimento — ${escapeHtml(r.client)}`.trim(),
       categoria: 'Impressão 3D',
       valor: r.value,
       data: new Date().toISOString().slice(0,10),
@@ -9651,7 +9663,7 @@ async function saveReceivable() {
 function refreshReceivableClientOptions() {
   const sel = document.getElementById('rc-client');
   if (!sel || typeof clientesDB === 'undefined') return;
-  sel.innerHTML = clientesDB.map(c => `<option data-uuid="${c.id}">${c.nome}</option>`).join('');
+  sel.innerHTML = clientesDB.map(c => `<option data-uuid="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
 }
 
 async function openReceivableModal() {
@@ -9865,11 +9877,11 @@ function renderSupplierInsights() {
     if (data.length >= 2) {
       const cheapest = data[0], priciest = data[data.length-1];
       const diff = ((priciest.price - cheapest.price) / cheapest.price * 100).toFixed(0);
-      insights.push({ type:'success', icon:'ti-award', title:`Mais em conta: ${cheapest.name}`, desc:`R$ ${cheapest.price.toFixed(2).replace('.',',')}/bobina — a melhor opção atual.` });
-      insights.push({ type:'danger', icon:'ti-alert-triangle', title:`Mais caro: ${priciest.name}`, desc:`R$ ${priciest.price.toFixed(2).replace('.',',')}/bobina — ${diff}% acima do mais barato.` });
+      insights.push({ type:'success', icon:'ti-award', title:`Mais em conta: ${escapeHtml(cheapest.name)}`, desc:`R$ ${cheapest.price.toFixed(2).replace('.',',')}/bobina — a melhor opção atual.` });
+      insights.push({ type:'danger', icon:'ti-alert-triangle', title:`Mais caro: ${escapeHtml(priciest.name)}`, desc:`R$ ${priciest.price.toFixed(2).replace('.',',')}/bobina — ${diff}% acima do mais barato.` });
       const avg = data.reduce((s,d)=>s+d.price,0)/data.length;
       insights.push({ type:'info', icon:'ti-calculator', title:`Média geral: R$ ${avg.toFixed(2).replace('.',',')}`, desc:`Considerando ${data.length} ${supplierView==='type'?'tipos':supplierView==='brand'?'marcas':'fornecedores'}.` });
-      if (diff > 25) insights.push({ type:'warning', icon:'ti-bulb', title:'Oportunidade de economia', desc:`Migrar compras para ${cheapest.name} pode reduzir custos em até ${diff}%.` });
+      if (diff > 25) insights.push({ type:'warning', icon:'ti-bulb', title:'Oportunidade de economia', desc:`Migrar compras para ${escapeHtml(cheapest.name)} pode reduzir custos em até ${diff}%.` });
     } else {
       insights.push({ type:'info', icon:'ti-info-circle', title:'Dados insuficientes', desc:'Cadastre mais fornecedores ou marcas para comparar preços.' });
     }
@@ -9886,7 +9898,7 @@ function renderSupplierInsights() {
     const div = document.createElement('div');
     div.className = `insight-item ${t.cardCls}`;
     div.innerHTML = `<div class="insight-icon ${t.iconCls}"><i class="ti ${ins.icon}"></i></div>
-      <div class="insight-body"><div class="insight-title">${ins.title}</div><div class="insight-desc">${ins.desc}</div></div>`;
+      <div class="insight-body"><div class="insight-title">${ins.title}</div><div class="insight-desc">${escapeHtml(ins.desc)}</div></div>`;
     container.appendChild(div);
   });
 }
