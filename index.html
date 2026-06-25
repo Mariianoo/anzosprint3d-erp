@@ -7005,6 +7005,15 @@ function syncModelPartTotals() {
   if (he) he.textContent = (totalH % 1 === 0 ? totalH : totalH.toFixed(1).replace('.',',')) + ' h';
 }
 
+// Delegação de clique para swatches de cor (evita conflito de aspas no onclick inline)
+document.addEventListener('click', function(e) {
+  const sw = e.target.closest('.mp-color-swatch');
+  if (!sw) return;
+  const pid = parseInt(sw.dataset.mpid);
+  const cor = sw.dataset.cor; // string vazia = "Qualquer"
+  if (!isNaN(pid)) onModelPartChange(pid, 'cor', cor);
+});
+
 function renderModelParts() {
   const container = document.getElementById('nm-parts-list');
   if (!container) return;
@@ -7039,15 +7048,15 @@ function renderModelParts() {
       }
     }
 
-    // Paleta de bolinhas de cor
+    // Paleta de bolinhas de cor — usa data-attributes para evitar conflito de aspas
     const paletaHTML = coresUnicas.length
-      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">
-          <div onclick="onModelPartChange(${part._id},'cor','')" title="Qualquer cor"
-            style="width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#e2e8f0,#94a3b8);cursor:pointer;border:2px solid ${!part.cor?'var(--blue)':'var(--border2)'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px">✕</div>
-          ${coresUnicas.map(c => `<div onclick="onModelPartChange(${part._id},'cor',${JSON.stringify(c.nome)})" title="${escapeHtml(c.nome)}"
-            style="width:20px;height:20px;border-radius:50%;background:${c.hex};cursor:pointer;border:2px solid ${part.cor===c.nome?'var(--blue)':'var(--border2)'};flex-shrink:0" ></div>`).join('')}
+      ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">
+          <div data-mpid="${part._id}" data-cor="" title="Qualquer cor" class="mp-color-swatch"
+            style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#e2e8f0,#94a3b8);cursor:pointer;border:2px solid ${!part.cor?'#3b82f6':'var(--border2)'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#475569">✕</div>
+          ${coresUnicas.map(c => `<div data-mpid="${part._id}" data-cor="${escapeHtml(c.nome)}" title="${escapeHtml(c.nome)}" class="mp-color-swatch"
+            style="width:22px;height:22px;border-radius:50%;background:${escapeHtml(c.hex)};cursor:pointer;border:2px solid ${part.cor===c.nome?'#3b82f6':'var(--border2)'};flex-shrink:0"></div>`).join('')}
         </div>`
-      : `<div style="font-size:11px;color:var(--text3);margin-top:5px">Selecione tipo${part.marca?'':' e marca'} primeiro</div>`;
+      : `<div style="font-size:11px;color:var(--text3);margin-top:5px">${part.tipo ? 'Nenhuma cor cadastrada para este tipo' : 'Selecione o tipo primeiro'}</div>`;
 
     // Indicador de cor selecionada
     const corSel = coresUnicas.find(c => c.nome === part.cor);
