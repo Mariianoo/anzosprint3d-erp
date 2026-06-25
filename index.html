@@ -1846,10 +1846,22 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
         <button class="btn btn-primary btn-sm" style="margin-left:auto;flex-shrink:0" onclick="addModelPart()"><i class="ti ti-plus"></i> Adicionar Parte</button>
       </div>
       <div id="nm-parts-list"></div>
-      <div style="display:flex;align-items:center;justify-content:flex-end;gap:16px;margin-top:10px;padding:12px 14px;background:linear-gradient(135deg,#0f2444,#1e3a5f);border-radius:10px">
-        <div style="font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.4px;font-weight:600">Totais</div>
-        <div style="font-size:13px;color:#fff">Peso: <strong id="nm-parts-total-peso">0 g</strong></div>
-        <div style="font-size:13px;color:#fff">Tempo: <strong id="nm-parts-total-horas">0h</strong></div>
+      <div style="margin-top:12px;padding:16px;background:linear-gradient(135deg,#0a1f3d 0%,#1e3a5f 60%,#2563eb 100%);border-radius:12px;box-shadow:0 4px 16px rgba(37,99,235,.2)">
+        <div style="font-size:11px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:12px"><i class="ti ti-sigma" style="margin-right:5px"></i>Totais Calculados</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="text-align:center;padding:10px;background:rgba(255,255,255,.06);border-radius:9px">
+            <div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px"><i class="ti ti-weight" style="font-size:12px;margin-right:3px"></i>Peso</div>
+            <div style="font-size:18px;font-weight:800;color:#fff" id="nm-parts-total-peso">0 g</div>
+          </div>
+          <div style="text-align:center;padding:10px;background:rgba(255,255,255,.06);border-radius:9px">
+            <div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px"><i class="ti ti-clock" style="font-size:12px;margin-right:3px"></i>Tempo</div>
+            <div style="font-size:18px;font-weight:800;color:#fff" id="nm-parts-total-horas">0h</div>
+          </div>
+          <div style="text-align:center;padding:10px;background:rgba(34,197,94,.15);border-radius:9px;border:1px solid rgba(34,197,94,.3)">
+            <div style="font-size:10px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px"><i class="ti ti-cash" style="font-size:12px;margin-right:3px"></i>Custo Filamento</div>
+            <div style="font-size:18px;font-weight:800;color:#4ade80" id="nm-parts-total-custo">R$ 0,00</div>
+          </div>
+        </div>
       </div>
       <!-- Campos ocultos para manter compatibilidade com saveModel -->
       <input type="hidden" id="nm-weight" value="0">
@@ -7292,6 +7304,23 @@ function updatePartCusto(id) {
 function syncModelPartTotals() {
   const totalG = modelParts.reduce((s, p) => s + (p.gramas || 0), 0);
   const totalH = modelParts.reduce((s, p) => s + (p.horas || 0), 0);
+
+  // Calcula custo total somando o custo de cada parte
+  const fils = filamentsData || [];
+  let totalCusto = 0;
+  modelParts.forEach(part => {
+    if (part.gramas > 0 && part.tipo) {
+      let match = fils.filter(f => f.type === part.tipo);
+      if (part.marca) match = match.filter(f => f.brand === part.marca);
+      if (part.cor)   match = match.filter(f => f.color === part.cor);
+      if (!match.length) match = fils.filter(f => f.type === part.tipo);
+      if (match.length) {
+        const avgRate = match.reduce((s, f) => s + (f.price / (f.total || 1000)), 0) / match.length;
+        totalCusto += part.gramas * avgRate;
+      }
+    }
+  });
+
   // Atualiza campos ocultos de compatibilidade
   const wEl = document.getElementById('nm-weight');
   const hEl = document.getElementById('nm-hours');
@@ -7301,12 +7330,14 @@ function syncModelPartTotals() {
   }
   const pe = document.getElementById('nm-parts-total-peso');
   const he = document.getElementById('nm-parts-total-horas');
-  if (pe) pe.textContent = totalG + ' g';
+  const ce = document.getElementById('nm-parts-total-custo');
+  if (pe) pe.textContent = totalG.toFixed(totalG % 1 === 0 ? 0 : 2).replace('.', ',') + ' g';
   if (he) {
     const hInt = Math.floor(totalH);
     const mInt = Math.round((totalH % 1) * 60);
     he.textContent = mInt > 0 ? `${hInt}h ${mInt}min` : `${hInt}h`;
   }
+  if (ce) ce.textContent = 'R$ ' + totalCusto.toFixed(2).replace('.', ',');
 }
 
 // seleção de cor via função global (chamada pelo onclick da pill)
