@@ -7223,19 +7223,57 @@ function syncModelPartTotals() {
   if (he) he.textContent = (totalH % 1 === 0 ? totalH : totalH.toFixed(1).replace('.',',')) + ' h';
 }
 
-// Delegação de clique para swatches de cor (evita conflito de aspas no onclick inline)
-document.addEventListener('click', function(e) {
-  const sw = e.target.closest('.mp-color-swatch');
-  if (!sw) return;
-  // Sempre lê do elemento raiz da pill (que tem data-mpid e data-cor)
-  const pid = parseInt(sw.dataset.mpid);
-  const cor = sw.dataset.cor !== undefined ? sw.dataset.cor : '';
-  if (!isNaN(pid)) {
-    e.preventDefault();
-    e.stopPropagation();
-    onModelPartChange(pid, 'cor', cor);
-  }
-});
+// seleção de cor via função global (chamada pelo onclick da pill)
+function selectPartColor(pid, cor) {
+  onModelPartChange(pid, 'cor', cor);
+}
+
+// Constrói a paleta de cores sem conflito de aspas
+function buildColorPalette(pid, corAtual, cores) {
+  if (!cores.length) return '';
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px';
+
+  // Pill "Qualquer"
+  var btnQ = document.createElement('button');
+  btnQ.type = 'button';
+  btnQ.textContent = 'Qualquer';
+  btnQ.style.cssText = [
+    'padding:3px 12px','border-radius:20px','font-size:11px','font-weight:600',
+    'cursor:pointer','border:2px solid ' + (!corAtual ? '#3b82f6' : 'rgba(255,255,255,.13)'),
+    'background:' + (!corAtual ? '#1e3a5f' : 'rgba(255,255,255,.04)'),
+    'color:' + (!corAtual ? '#93c5fd' : '#64748b'),'transition:all .15s'
+  ].join(';');
+  btnQ.addEventListener('click', function() { selectPartColor(pid, ''); });
+  wrap.appendChild(btnQ);
+
+  // Pills de cor
+  cores.forEach(function(c) {
+    var sel = corAtual === c.nome;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = c.nome;
+    btn.style.cssText = [
+      'display:inline-flex','align-items:center','gap:5px',
+      'padding:3px 12px 3px 6px','border-radius:20px','font-size:11px','font-weight:600',
+      'cursor:pointer',
+      'border:2px solid ' + (sel ? '#3b82f6' : 'rgba(255,255,255,.13)'),
+      'background:' + (sel ? '#1e3a5f' : 'rgba(255,255,255,.04)'),
+      'color:' + (sel ? '#93c5fd' : '#94a3b8'),'transition:all .15s'
+    ].join(';');
+
+    var dot = document.createElement('span');
+    dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:' + c.hex + ';border:1px solid rgba(255,255,255,.25);flex-shrink:0;display:inline-block';
+    var lbl = document.createTextNode(c.nome);
+    btn.appendChild(dot);
+    btn.appendChild(lbl);
+    (function(nome){ btn.addEventListener('click', function() { selectPartColor(pid, nome); }); })(c.nome);
+    wrap.appendChild(btn);
+  });
+
+  // Retorna o outerHTML para ser inserido no template string
+  return wrap.outerHTML;
+}
 
 function renderModelParts() {
   const container = document.getElementById('nm-parts-list');
@@ -7281,42 +7319,11 @@ function renderModelParts() {
 
     // Paleta de bolinhas de cor — usa data-attributes para evitar conflito de aspas
     const paletaHTML = coresUnicas.length
-      ? `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px">
-          <div data-mpid="${part._id}" data-cor="" class="mp-color-swatch"
-            style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;user-select:none;
-              background:${!part.cor?'#1e3a5f':'var(--surface2)'};
-              border:2px solid ${!part.cor?'#3b82f6':'var(--border2)'};
-              color:${!part.cor?'#93c5fd':'var(--text2)'};
-              transition:all .15s;pointer-events:auto">
-            <span style="pointer-events:none">Qualquer</span>
-          </div>
-          ${coresUnicas.map(c => {
-            const sel = part.cor===c.nome;
-            return `<div data-mpid="${part._id}" data-cor="${escapeHtml(c.nome)}" title="${escapeHtml(c.nome)}" class="mp-color-swatch"
-              style="display:flex;align-items:center;gap:5px;padding:3px 12px 3px 6px;border-radius:20px;
-                font-size:11px;font-weight:600;cursor:pointer;user-select:none;
-                background:${sel?'#1e3a5f':'var(--surface2)'};
-                border:2px solid ${sel?'#3b82f6':'var(--border2)'};
-                color:${sel?'#93c5fd':'var(--text2)'};
-                transition:all .15s">
-              <span style="width:12px;height:12px;border-radius:50%;background:${escapeHtml(c.hex)};
-                border:1px solid rgba(255,255,255,.25);flex-shrink:0;display:inline-block;pointer-events:none"></span>
-              <span style="pointer-events:none">${escapeHtml(c.nome)}</span>
-            </div>`;
-          }).join('')}
-        </div>`
-      : (() => {
-          if (!part.tipo) return '<div style="font-size:11px;color:var(--text3);margin-top:5px"><i class="ti ti-arrow-up" style="font-size:10px;margin-right:3px"></i>Selecione o tipo primeiro</div>';
-          if (part.marca) {
-            // Tem marca mas sem cores — pode ser que a marca não tenha cor_hex cadastrada
-            const temFilMarca = fils.filter(f => f.type === part.tipo && f.brand === part.marca);
-            if (temFilMarca.length) {
-              return '<div style="font-size:11px;color:var(--amber);margin-top:5px"><i class="ti ti-alert-triangle" style="font-size:10px;margin-right:3px"></i>Filamentos sem cor/hex cadastrado. Edite em Filamentos para adicionar.</div>';
-            }
-            return '<div style="font-size:11px;color:var(--text3);margin-top:5px">Nenhum filamento desta marca para este tipo.</div>';
-          }
-          return '<div style="font-size:11px;color:var(--text3);margin-top:5px">Nenhuma cor cadastrada para <strong>' + escapeHtml(part.tipo) + '</strong>. Cadastre filamentos com cor_hex em Filamentos.</div>';
-        })();
+      ? buildColorPalette(part._id, part.cor, coresUnicas)
+      : ('<div style="font-size:11px;color:var(--text3);margin-top:5px">'
+          + (!part.tipo ? '<i class="ti ti-arrow-up" style="font-size:10px;margin-right:3px"></i>Selecione o tipo primeiro'
+            : 'Nenhuma cor cadastrada para <strong>' + escapeHtml(part.tipo) + '</strong>. Cadastre filamentos em Filamentos.')
+          + '</div>');
 
     // Indicador de cor selecionada
     const corSel = coresUnicas.find(c => c.nome === part.cor);
