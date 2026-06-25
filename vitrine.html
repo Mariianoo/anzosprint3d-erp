@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ANZO'S Print 3D — Vitrine</title>
+<meta name="description" content="Catálogo de modelos 3D personalizados — ANZO'S Print 3D">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #3b82f6; --blue-dark: #1d4ed8;
+    --green: #22c55e; --amber: #f59e0b; --red: #ef4444;
+    --bg: #060d18; --surface: #0f1c2e; --surface2: #162035; --surface3: #1a2740;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+    --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+    --radius: 10px; --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 24px; height: 64px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .header-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+  .header-logo { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--surface2); }
+  .header-name { font-size: 16px; font-weight: 700; color: var(--text); }
+  .header-tagline { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .header-actions { display: flex; gap: 8px; }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, #060d18 0%, #0f2444 50%, #1a3a6b 100%);
+    padding: 60px 24px 50px; text-align: center; position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 60% 40%, rgba(59,130,246,0.12) 0%, transparent 70%);
+  }
+  .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); border-radius: 20px; padding: 4px 14px; font-size: 12px; color: #93c5fd; margin-bottom: 18px; }
+  .hero h1 { font-size: clamp(26px,5vw,42px); font-weight: 800; color: #fff; margin-bottom: 12px; line-height: 1.2; }
+  .hero p { font-size: 16px; color: #94a3b8; max-width: 520px; margin: 0 auto 28px; line-height: 1.6; }
+  .hero-cta { display: inline-flex; align-items: center; gap: 8px; background: #25d366; color: #fff; border: none; border-radius: 10px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none; transition: all .2s; }
+  .hero-cta:hover { background: #128c4d; transform: translateY(-1px); }
+
+  /* ── FILTROS ── */
+  .filters-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: sticky; top: 64px; z-index: 90; }
+  .search-wrap { position: relative; flex: 1; min-width: 180px; max-width: 320px; }
+  .search-wrap i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 16px; }
+  .search-input { width: 100%; height: 36px; padding: 0 12px 0 34px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 13px; outline: none; }
+  .search-input:focus { border-color: var(--blue); }
+  .filter-pill { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .filter-pill.active, .filter-pill:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .results-count { font-size: 12px; color: var(--text3); margin-left: auto; white-space: nowrap; }
+
+  /* ── GRID DE PRODUTOS ── */
+  .vitrine-main { max-width: 1200px; margin: 0 auto; padding: 28px 20px 60px; }
+  .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px; }
+
+  /* ── CARD DE PRODUTO ── */
+  .product-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; cursor: pointer;
+    transition: transform .2s, border-color .2s, box-shadow .2s;
+    display: flex; flex-direction: column;
+  }
+  .product-card:hover { transform: translateY(-3px); border-color: var(--blue); box-shadow: 0 12px 32px rgba(0,0,0,0.3); }
+  .product-thumb {
+    height: 200px; background: #0a1220;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .product-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; padding: 12px; }
+  .product-thumb-icon { font-size: 52px; color: rgba(255,255,255,0.15); }
+  .product-badge { position: absolute; top: 10px; left: 10px; background: rgba(15,28,46,0.9); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600; color: var(--text2); }
+  .product-body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .product-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .product-desc { font-size: 12px; color: var(--text2); line-height: 1.5; flex: 1; }
+  .product-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+  .product-tag { font-size: 11px; padding: 2px 8px; border-radius: 5px; background: var(--surface2); border: 1px solid var(--border2); color: var(--text3); }
+  .product-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface2); }
+  .product-price { font-size: 20px; font-weight: 800; color: var(--text); }
+  .product-price-label { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .product-price-consulta { font-size: 14px; font-weight: 600; color: var(--amber); }
+  .prazo-tag { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 4px; }
+
+  /* ── BOTÕES ── */
+  .btn-wpp { display: inline-flex; align-items: center; gap: 6px; background: #25d366; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none; transition: all .15s; white-space: nowrap; }
+  .btn-wpp:hover { background: #128c4d; }
+  .btn-orcamento { display: inline-flex; align-items: center; gap: 6px; background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .btn-orcamento:hover { background: var(--blue-dark); }
+
+  /* ── MODAL PRODUTO ── */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(4px); }
+  .overlay.hidden { display: none; }
+  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+  .modal-box::-webkit-scrollbar { width: 4px; } .modal-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+  .modal-header h2 { font-size: 16px; font-weight: 700; }
+  .modal-close { width: 30px; height: 30px; border: none; background: var(--surface2); color: var(--text2); border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .modal-body { padding: 20px; }
+  .modal-thumb { height: 240px; background: #0a1220; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; overflow: hidden; }
+  .modal-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; padding: 12px; }
+
+  /* ── FORMULÁRIO DE ORÇAMENTO ── */
+  .form-section { background: var(--surface2); border-radius: 12px; padding: 18px; margin-top: 16px; }
+  .form-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .fg { display: flex; flex-direction: column; gap: 4px; }
+  .fg.full { grid-column: span 2; }
+  .fl { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; }
+  .fi { height: 38px; padding: 0 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 13px; outline: none; width: 100%; transition: border-color .15s; font-family: var(--font); }
+  .fi:focus { border-color: var(--blue); }
+  textarea.fi { height: auto; padding: 10px 12px; resize: vertical; }
+  .form-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .submit-btn { flex: 1; min-width: 140px; height: 42px; border-radius: 10px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; transition: all .15s; }
+
+  /* ── EMPTY / LOADING ── */
+  .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+  .empty i { font-size: 48px; margin-bottom: 12px; display: block; }
+  .loading { text-align: center; padding: 60px; color: var(--text3); font-size: 15px; }
+
+  /* ── FOOTER ── */
+  .site-footer { background: var(--surface); border-top: 1px solid var(--border); padding: 24px; text-align: center; }
+  .footer-social { display: flex; justify-content: center; gap: 14px; margin-bottom: 12px; }
+  .footer-social a { color: var(--text3); font-size: 20px; text-decoration: none; transition: color .15s; }
+  .footer-social a:hover { color: var(--blue); }
+  .footer-copy { font-size: 12px; color: var(--text3); }
+
+  /* ── TOAST ── */
+  .vt-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid var(--border2); color: var(--text); padding: 10px 20px; border-radius: 10px; font-size: 13px; z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .vt-toast.show { opacity: 1; }
+
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .fg.full { grid-column: span 1; }
+    .hero { padding: 40px 16px 36px; }
+    .filters-bar { padding: 10px 14px; top: 56px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <a class="header-brand" href="#">
+    <img id="vit-logo" class="header-logo" src="./icon-192.png" alt="Logo">
+    <div>
+      <div class="header-name" id="vit-nome">ANZO'S Print 3D</div>
+      <div class="header-tagline">Impressão 3D sob medida</div>
+    </div>
+  </a>
+  <div class="header-actions">
+    <a id="vit-wpp-header" href="#" target="_blank" class="btn-wpp" style="display:none">
+      <i class="ti ti-brand-whatsapp"></i> Falar no WhatsApp
+    </a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge"><i class="ti ti-3d-cube-sphere"></i> Impressão 3D sob medida</div>
+  <h1>Catálogo ANZO'S Print 3D</h1>
+  <p id="vit-hero-desc">Peças personalizadas com qualidade profissional. Escolha um modelo, faça seu pedido e receba em casa.</p>
+  <a id="vit-wpp-hero" href="#" target="_blank" class="hero-cta">
+    <i class="ti ti-brand-whatsapp"></i> Pedir via WhatsApp
+  </a>
+</section>
+
+<!-- FILTROS -->
+<div class="filters-bar" id="filters-bar">
+  <div class="search-wrap">
+    <i class="ti ti-search"></i>
+    <input class="search-input" id="vit-search" placeholder="Buscar modelos..." oninput="filterProducts()">
+  </div>
+  <div id="cat-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <span class="results-count" id="results-count"></span>
+</div>
+
+<!-- GRID PRINCIPAL -->
+<main class="vitrine-main">
+  <div id="products-grid" class="products-grid">
+    <div class="loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:28px;display:block;margin-bottom:10px"></i>Carregando produtos...</div>
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-social" id="vit-social"></div>
+  <div class="footer-copy" id="vit-footer-copy">© ANZO'S Print 3D — Todos os direitos reservados</div>
+</footer>
+
+<!-- MODAL: PRODUTO -->
+<div class="overlay hidden" id="modal-overlay" onclick="if(event.target===this)closeProductModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="mprod-title">Produto</h2>
+      <button class="modal-close" onclick="closeProductModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-thumb" id="mprod-thumb">
+        <i class="ti ti-cube-3d-sphere" style="font-size:52px;color:rgba(255,255,255,0.15)"></i>
+      </div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:22px;font-weight:800" id="mprod-preco"></div>
+          <div style="font-size:12px;color:var(--text3)" id="mprod-prazo"></div>
+        </div>
+        <div id="mprod-tags" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+      <p id="mprod-desc" style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:8px"></p>
+
+      <!-- Formulário de orçamento -->
+      <div class="form-section">
+        <div class="form-title"><i class="ti ti-clipboard-list" style="color:var(--blue)"></i> Solicitar Orçamento / Fazer Pedido</div>
+        <div class="form-grid">
+          <div class="fg">
+            <label class="fl">Seu nome *</label>
+            <input class="fi" id="f-nome" placeholder="João Silva" type="text">
+          </div>
+          <div class="fg">
+            <label class="fl">WhatsApp *</label>
+            <input class="fi" id="f-wpp" placeholder="(11) 90000-0000" type="tel" oninput="formatFoneVitrine(this)">
+          </div>
+          <div class="fg">
+            <label class="fl">E-mail</label>
+            <input class="fi" id="f-email" placeholder="seu@email.com" type="email">
+          </div>
+          <div class="fg">
+            <label class="fl">Quantidade</label>
+            <input class="fi" id="f-qty" value="1" min="1" type="number">
+          </div>
+          <div class="fg full">
+            <label class="fl">Cor desejada / Personalização</label>
+            <input class="fi" id="f-obs" placeholder="Ex: Verde e branco, com nome 'João'...">
+          </div>
+          <div class="fg full">
+            <label class="fl">Observações adicionais</label>
+            <textarea class="fi" id="f-msg" rows="3" placeholder="Endereço de entrega, dúvidas, referências..."></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="submit-btn" style="background:#25d366;color:#fff" onclick="enviarWpp()">
+            <i class="ti ti-brand-whatsapp"></i> Enviar pelo WhatsApp
+          </button>
+          <button class="submit-btn" style="background:var(--blue);color:#fff;flex:0;min-width:auto;padding:0 18px" onclick="copiarPedido()" title="Copiar mensagem">
+            <i class="ti ti-copy"></i>
+          </button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5"><i class="ti ti-lock" style="font-size:12px;margin-right:4px"></i>Seus dados são usados apenas para o atendimento do pedido.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="vt-toast" id="vt-toast"></div>
+
+<script>
+const SUPA_URL = 'https://rjvhwffqmirpnjgmambw.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdmh3ZmZxbWlycG5qZ21hbWJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDM0MzIsImV4cCI6MjA5NzI3OTQzMn0.iFTzQOVKiI0gE89GuctJUjv6mLi8Fonm_bUe0JiRd30';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+let allProducts = [];
+let filteredProducts = [];
+let activeCategory = 'Todos';
+let currentProduct = null;
+let empresa = {};
+
+// ── Utilitários ──
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function brl(n) { return 'R$ ' + Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function toast(msg) {
+  const el = document.getElementById('vt-toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+function formatFoneVitrine(input) {
+  let v = input.value.replace(/\D/g,'').slice(0,11);
+  if (v.length > 10) v = v.replace(/^(\d{2})(\d{5})(\d{0,4}).*/,'($1) $2-$3');
+  else if (v.length > 6) v = v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/,'($1) $2-$3');
+  else if (v.length > 2) v = v.replace(/^(\d{2})(\d*)/,'($1) $2');
+  input.value = v;
+}
+
+// ── Carrega dados ──
+async function init() {
+  // Carregar configurações públicas e produtos em paralelo
+  const [cfgRes, prodRes] = await Promise.all([
+    sb.from('configuracoes_publicas').select('chave,valor').in('chave',['empresa','logo']),
+    sb.from('modelos_3d')
+      .select('id,nome,categoria,material,peso_g,horas,cor_hex,capa_base64,visivel_vitrine,preco_vitrine,prazo_dias,descricao_vitrine,impressoes,modo_impressao,partes_impressao')
+      .eq('visivel_vitrine', true)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+  ]);
+
+  // Aplicar empresa e logo do banco
+  if (cfgRes.data) {
+    const empRow = cfgRes.data.find(r => r.chave === 'empresa');
+    const logoRow = cfgRes.data.find(r => r.chave === 'logo');
+    try { if (empRow) empresa = JSON.parse(empRow.valor || '{}'); } catch(e){}
+    if (logoRow && logoRow.valor) {
+      const logoEl = document.getElementById('vit-logo');
+      if (logoEl) logoEl.src = logoRow.valor;
+    }
+  }
+  applyEmpresaData();
+
+  // Produtos
+  if (prodRes.error) {
+    document.getElementById('products-grid').innerHTML = '<div class="empty"><i class="ti ti-wifi-off"></i><div>Erro ao carregar produtos.</div><div style="font-size:12px;margin-top:6px;color:var(--text3)">'+prodRes.error.message+'</div></div>';
+    return;
+  }
+  allProducts = prodRes.data || [];
+  buildCategoryFilters();
+  filterProducts();
+}
+
+function applyEmpresaData() {
+  if (empresa.nome) { document.getElementById('vit-nome').textContent = empresa.nome; document.title = empresa.nome + ' — Vitrine'; }
+  if (empresa.whatsapp || empresa.telefone) {
+    const num = (empresa.whatsapp || empresa.telefone || '').replace(/\D/g,'');
+    const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent('Olá! Vi sua vitrine e quero fazer um pedido.');
+    ['vit-wpp-header','vit-wpp-hero'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.href = url; el.style.display = ''; }
+    });
+  }
+  // Redes sociais no footer
+  const socialEl = document.getElementById('vit-social');
+  const links = [
+    { key: 'instagram', icon: 'ti-brand-instagram', prefix: 'https://instagram.com/' },
+    { key: 'facebook',  icon: 'ti-brand-facebook',  prefix: 'https://facebook.com/' },
+    { key: 'tiktok',    icon: 'ti-brand-tiktok',     prefix: 'https://tiktok.com/@' },
+    { key: 'youtube',   icon: 'ti-brand-youtube',    prefix: 'https://youtube.com/' },
+    { key: 'site',      icon: 'ti-world',            prefix: 'https://' },
+  ];
+  if (socialEl) {
+    const html = links.filter(l => empresa[l.key]).map(l => {
+      let url = empresa[l.key];
+      if (!url.startsWith('http')) url = l.prefix + url.replace('@','');
+      return `<a href="${esc(url)}" target="_blank" title="${l.key}"><i class="ti ${l.icon}"></i></a>`;
+    }).join('');
+    socialEl.innerHTML = html;
+  }
+  if (empresa.nome) {
+    const fc = document.getElementById('vit-footer-copy');
+    if (fc) fc.textContent = '© ' + empresa.nome + ' — Todos os direitos reservados';
+  }
+}
+
+function buildCategoryFilters() {
+  const cats = ['Todos', ...new Set(allProducts.map(p => p.categoria).filter(Boolean))].sort((a,b) => a==='Todos'?-1:b==='Todos'?1:a.localeCompare(b));
+  const el = document.getElementById('cat-filters');
+  if (!el) return;
+  el.innerHTML = cats.map(c =>
+    `<button class="filter-pill ${c===activeCategory?'active':''}" onclick="setCategory('${esc(c)}')">${esc(c)}</button>`
+  ).join('');
+}
+
+function setCategory(cat) {
+  activeCategory = cat;
+  buildCategoryFilters();
+  filterProducts();
+}
+
+function filterProducts() {
+  const q = (document.getElementById('vit-search')?.value || '').toLowerCase();
+  filteredProducts = allProducts.filter(p => {
+    const matchCat = activeCategory === 'Todos' || p.categoria === activeCategory;
+    const matchQ = !q || (p.nome||'').toLowerCase().includes(q) || (p.descricao_vitrine||'').toLowerCase().includes(q) || (p.material||'').toLowerCase().includes(q);
+    return matchCat && matchQ;
+  });
+  renderGrid();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('products-grid');
+  const countEl = document.getElementById('results-count');
+  if (countEl) countEl.textContent = filteredProducts.length + ' produto' + (filteredProducts.length!==1?'s':'');
+
+  if (!filteredProducts.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><i class="ti ti-search-off"></i><div>Nenhum produto encontrado</div><div style="font-size:12px;margin-top:4px">Tente outro filtro ou busca</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = filteredProducts.map(p => {
+    const thumb = p.capa_base64
+      ? `<img src="${p.capa_base64}" alt="${esc(p.nome)}">`
+      : `<i class="ti ti-cube-3d-sphere product-thumb-icon"></i>`;
+    const precoHTML = p.preco_vitrine
+      ? `<div class="product-price">${brl(p.preco_vitrine)}</div><div class="product-price-label">preço a partir de</div>`
+      : `<div class="product-price-consulta"><i class="ti ti-message-circle" style="font-size:13px;margin-right:4px"></i>Sob consulta</div>`;
+    const prazoHTML = p.prazo_dias ? `<span class="prazo-tag"><i class="ti ti-clock"></i>${p.prazo_dias} dias úteis</span>` : '';
+
+    // Cor das partes (multipartes)
+    let matTag = `<span class="product-tag">${esc(p.material||'PLA')}</span>`;
+    if (p.modo_impressao === 'multipartes' && Array.isArray(p.partes_impressao) && p.partes_impressao.length) {
+      matTag = p.partes_impressao.slice(0,4).map(pt =>
+        `<span class="product-tag" title="${esc(pt.tipo)} ${esc(pt.cor||'')}">${esc(pt.tipo)} ${pt.cor?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+esc(pt.hex||'#808080')+';margin-left:3px;vertical-align:middle"></span>':''}</span>`
+      ).join('');
+    }
+
+    return `<div class="product-card" onclick="openProduct('${p.id}')">
+      <div class="product-thumb">
+        ${thumb}
+        <span class="product-badge">${esc(p.categoria||'Modelo')}</span>
+      </div>
+      <div class="product-body">
+        <div class="product-name">${esc(p.nome)}</div>
+        <div class="product-desc">${esc(p.descricao_vitrine || (p.material + ' · ' + (p.peso_g||0) + 'g · ' + (p.horas||0) + 'h'))}</div>
+        <div class="product-meta">${matTag}</div>
+      </div>
+      <div class="product-footer">
+        <div>${precoHTML}</div>
+        ${prazoHTML}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openProduct(id) {
+  currentProduct = allProducts.find(p => p.id === id);
+  if (!currentProduct) return;
+  const p = currentProduct;
+
+  document.getElementById('mprod-title').textContent = p.nome || '';
+  // Thumb
+  const thumbEl = document.getElementById('mprod-thumb');
+  thumbEl.innerHTML = p.capa_base64
+    ? `<img src="${p.capa_base64}" alt="${esc(p.nome)}">`
+    : `<i class="ti ti-cube-3d-sphere" style="font-size:52px;color:rgba(255,255,255,0.15)"></i>`;
+  // Preço
+  const precoEl = document.getElementById('mprod-preco');
+  precoEl.innerHTML = p.preco_vitrine
+    ? `<span style="font-size:26px;font-weight:800">${brl(p.preco_vitrine)}</span> <span style="font-size:13px;color:var(--text3);font-weight:400">a partir de</span>`
+    : `<span style="color:var(--amber);font-size:16px;font-weight:700"><i class="ti ti-message-circle"></i> Sob consulta — fale conosco</span>`;
+  // Prazo
+  document.getElementById('mprod-prazo').textContent = p.prazo_dias ? 'Prazo estimado: ' + p.prazo_dias + ' dias úteis' : '';
+  // Desc
+  document.getElementById('mprod-desc').textContent = p.descricao_vitrine || '';
+  // Tags
+  const tagsEl = document.getElementById('mprod-tags');
+  const tags = [p.categoria, p.material, p.peso_g ? p.peso_g+'g' : null, p.horas ? p.horas+'h' : null].filter(Boolean);
+  tagsEl.innerHTML = tags.map(t => `<span class="product-tag">${esc(t)}</span>`).join('');
+
+  // Pré-preencher produto no form
+  document.getElementById('f-obs').value = '';
+  document.getElementById('f-msg').value = '';
+
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeProductModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function buildWppMsg() {
+  const p = currentProduct;
+  const nome = document.getElementById('f-nome').value.trim();
+  const wpp  = document.getElementById('f-wpp').value.trim();
+  const email= document.getElementById('f-email').value.trim();
+  const qty  = document.getElementById('f-qty').value || '1';
+  const obs  = document.getElementById('f-obs').value.trim();
+  const msg  = document.getElementById('f-msg').value.trim();
+
+  if (!nome || !wpp) { toast('Preencha seu nome e WhatsApp'); return null; }
+
+  const preco = p.preco_vitrine ? brl(p.preco_vitrine) : 'Sob consulta';
+  let text = `Olá! Quero fazer um pedido pela vitrine ANZO'S Print 3D.\n\n`;
+  text += `*Produto:* ${p.nome}\n`;
+  text += `*Quantidade:* ${qty}\n`;
+  text += `*Preço ref.:* ${preco}\n`;
+  if (obs) text += `*Personalização:* ${obs}\n`;
+  text += `\n*Meus dados:*\n`;
+  text += `Nome: ${nome}\n`;
+  text += `WhatsApp: ${wpp}\n`;
+  if (email) text += `E-mail: ${email}\n`;
+  if (msg) text += `\n*Observações:* ${msg}`;
+  return text;
+}
+
+function enviarWpp() {
+  const text = buildWppMsg();
+  if (!text) return;
+  const num = (empresa.whatsapp || empresa.telefone || '').replace(/\D/g,'');
+  if (!num) { toast('Número de WhatsApp da loja não configurado'); return; }
+  const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(text);
+  window.open(url, '_blank');
+}
+
+function copiarPedido() {
+  const text = buildWppMsg();
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => toast('Mensagem copiada!')).catch(() => toast('Erro ao copiar'));
+}
+
+// Spin animation
+const style = document.createElement('style');
+style.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
+document.head.appendChild(style);
+
+init();
+</script>
+</body>
+</html>
