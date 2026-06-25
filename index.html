@@ -6981,11 +6981,11 @@ function removeModelPart(id) {
 function onModelPartChange(id, field, value) {
   const part = modelParts.find(p => p._id === id);
   if (!part) return;
-  if (field === 'gramas') part.gramas = parseFloat(value) || 0;
-  else if (field === 'horas') part.horas = parseFloat(value) || 0;
+  if (field === 'gramas') { part.gramas = parseFloat(value) || 0; renderModelParts(); }
+  else if (field === 'horas') { part.horas = parseFloat(value) || 0; }
   else if (field === 'tipo')  { part.tipo = value; part.marca = ''; part.cor = ''; renderModelParts(); }
   else if (field === 'marca') { part.marca = value; part.cor = ''; renderModelParts(); }
-  else if (field === 'cor')   { part.cor = value; }
+  else if (field === 'cor')   { part.cor = value; renderModelParts(); }
   syncModelPartTotals();
 }
 
@@ -7010,48 +7010,101 @@ function renderModelParts() {
   if (!container) return;
   const fils = filamentsData || [];
   const tipos = [...new Set(fils.map(f => f.type))].sort();
-  // Tipos padrão se não houver filamentos carregados
   const tiposOpts = tipos.length ? tipos : ['PLA','PETG','ABS','TPU','ASA'];
 
-  container.innerHTML = modelParts.map(part => {
-    const marcas = [...new Set(fils.filter(f => f.type === part.tipo).map(f => f.brand))].sort();
-    const cores  = [...new Set(fils.filter(f => f.type === part.tipo && (!part.marca || f.brand === part.marca)).map(f => f.color))].sort();
-    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 70px 70px auto;gap:8px;align-items:end;padding:10px;background:var(--surface3,#0f172a);border-radius:8px;border:1px solid var(--border)">
-      <div>
-        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Tipo *</label>
-        <select onchange="onModelPartChange(${part._id},'tipo',this.value)" style="width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
-          <option value="">— tipo —</option>
-          ${tiposOpts.map(t => `<option value="${t}" ${t===part.tipo?'selected':''}>${t}</option>`).join('')}
-        </select>
+  container.innerHTML = modelParts.map((part, idx) => {
+    const marcas = [...new Set(fils.filter(f => f.type === part.tipo).map(f => f.brand).filter(Boolean))].sort();
+    // Cores com hex para paleta visual
+    const coresFils = fils.filter(f => f.type === part.tipo && (!part.marca || f.brand === part.marca));
+    const coresUnicas = [];
+    const coresVistas = new Set();
+    coresFils.forEach(f => {
+      if (!coresVistas.has(f.color)) {
+        coresVistas.add(f.color);
+        coresUnicas.push({ nome: f.color, hex: f.swatch || '#808080' });
+      }
+    });
+
+    // Custo estimado da parte
+    let custoStr = '—';
+    if (part.gramas > 0 && part.tipo) {
+      let match = fils.filter(f => f.type === part.tipo);
+      if (part.marca) match = match.filter(f => f.brand === part.marca);
+      if (part.cor)   match = match.filter(f => f.color === part.cor);
+      if (!match.length && part.tipo) match = fils.filter(f => f.type === part.tipo);
+      if (match.length) {
+        const avgRate = match.reduce((s, f) => s + (f.price / (f.total || 1000)), 0) / match.length;
+        const custo = part.gramas * avgRate;
+        custoStr = 'R$ ' + custo.toFixed(2).replace('.', ',');
+      }
+    }
+
+    // Paleta de bolinhas de cor
+    const paletaHTML = coresUnicas.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">
+          <div onclick="onModelPartChange(${part._id},'cor','')" title="Qualquer cor"
+            style="width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#e2e8f0,#94a3b8);cursor:pointer;border:2px solid ${!part.cor?'var(--blue)':'var(--border2)'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px">✕</div>
+          ${coresUnicas.map(c => `<div onclick="onModelPartChange(${part._id},'cor',${JSON.stringify(c.nome)})" title="${escapeHtml(c.nome)}"
+            style="width:20px;height:20px;border-radius:50%;background:${c.hex};cursor:pointer;border:2px solid ${part.cor===c.nome?'var(--blue)':'var(--border2)'};flex-shrink:0" ></div>`).join('')}
+        </div>`
+      : `<div style="font-size:11px;color:var(--text3);margin-top:5px">Selecione tipo${part.marca?'':' e marca'} primeiro</div>`;
+
+    // Indicador de cor selecionada
+    const corSel = coresUnicas.find(c => c.nome === part.cor);
+    const corLabel = corSel
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text)"><span style="width:12px;height:12px;border-radius:50%;background:${corSel.hex};display:inline-block;border:1px solid var(--border2)"></span>${escapeHtml(corSel.nome)}</span>`
+      : `<span style="font-size:12px;color:var(--text3)">Qualquer</span>`;
+
+    return `<div style="background:var(--surface3,#0f172a);border-radius:10px;border:1px solid var(--border);padding:12px;margin-bottom:8px">
+      <!-- Linha 1: Tipo / Marca / botão remover -->
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:block">Tipo *</label>
+          <select onchange="onModelPartChange(${part._id},'tipo',this.value)"
+            style="width:100%;height:36px;padding:0 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px">
+            <option value="">— tipo —</option>
+            ${tiposOpts.map(t => `<option value="${escapeHtml(t)}" ${t===part.tipo?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:block">Marca</label>
+          <select onchange="onModelPartChange(${part._id},'marca',this.value)"
+            style="width:100%;height:36px;padding:0 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px">
+            <option value="">Qualquer</option>
+            ${marcas.map(m => `<option value="${escapeHtml(m)}" ${m===part.marca?'selected':''}>${escapeHtml(m)}</option>`).join('')}
+          </select>
+        </div>
+        <button onclick="removeModelPart(${part._id})" class="btn btn-danger btn-sm" style="height:36px;padding:0 10px" title="Remover parte"><i class="ti ti-trash"></i></button>
       </div>
-      <div>
-        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Marca</label>
-        <select onchange="onModelPartChange(${part._id},'marca',this.value)" style="width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
-          <option value="">Qualquer</option>
-          ${marcas.map(m => `<option value="${m}" ${m===part.marca?'selected':''}>${escapeHtml(m)}</option>`).join('')}
-        </select>
+
+      <!-- Linha 2: Cor (paleta visual) -->
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:flex;align-items:center;gap:6px">
+          Cor — ${corLabel}
+        </label>
+        ${paletaHTML}
       </div>
-      <div>
-        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Cor</label>
-        <select onchange="onModelPartChange(${part._id},'cor',this.value)" style="width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
-          <option value="">Qualquer</option>
-          ${cores.map(c => `<option value="${c}" ${c===part.cor?'selected':''}>${escapeHtml(c)}</option>`).join('')}
-        </select>
-      </div>
-      <div>
-        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Peso (g)</label>
-        <input type="number" value="${part.gramas||0}" min="0" step="1"
-          oninput="onModelPartChange(${part._id},'gramas',this.value)"
-          style="width:100%;padding:7px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
-      </div>
-      <div>
-        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Tempo (h)</label>
-        <input type="number" value="${part.horas||0}" min="0" step="0.5"
-          oninput="onModelPartChange(${part._id},'horas',this.value)"
-          style="width:100%;padding:7px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
-      </div>
-      <div style="display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:2px">
-        <button onclick="removeModelPart(${part._id})" title="Remover parte" class="btn btn-danger btn-sm" style="padding:6px 10px"><i class="ti ti-trash"></i></button>
+
+      <!-- Linha 3: Peso / Horas / Custo estimado -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:block">Peso (g)</label>
+          <input type="number" value="${part.gramas||0}" min="0" step="1"
+            oninput="onModelPartChange(${part._id},'gramas',this.value)"
+            style="width:100%;height:36px;padding:0 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:block">Tempo (h)</label>
+          <input type="number" value="${part.horas||0}" min="0" step="0.5"
+            oninput="onModelPartChange(${part._id},'horas',this.value)"
+            style="width:100%;height:36px;padding:0 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Custo est.</label>
+          <div style="height:36px;display:flex;align-items:center;padding:0 10px;background:var(--surface);border:1px solid var(--border2);border-radius:7px;font-size:13px;font-weight:600;color:${custoStr!=='—'?'var(--green)':'var(--text3)'}">
+            ${custoStr}
+          </div>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -7300,7 +7353,12 @@ function editModel(id) {
     });
   }
   document.getElementById('modal-new-model').style.display = 'flex';
-  setTimeout(() => { setModelMode(modoM); renderModelParts(); }, 30);
+  // Garante filamentos carregados antes de renderizar partes
+  if (!filamentsData || !filamentsData.length) {
+    loadFilamentsForQuote().then(() => { setModelMode(modoM); renderModelParts(); });
+  } else {
+    setTimeout(() => { setModelMode(modoM); renderModelParts(); }, 30);
+  }
 }
 
 function editModelFromDetail() {
