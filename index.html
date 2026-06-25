@@ -2407,11 +2407,14 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
     </div>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <h3 style="font-size:14px;font-weight:600">Usuários e Permissões</h3>
+        <h3 style="font-size:14px;font-weight:600"><i class="ti ti-users" style="margin-right:6px;color:var(--blue)"></i>Usuários e Permissões</h3>
+        <button class="btn btn-primary btn-sm" onclick="openModalConvidarUsuario()"><i class="ti ti-user-plus"></i> Convidar Usuário</button>
       </div>
-      <div id="settings-users-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div id="settings-users-list" style="display:flex;flex-direction:column;gap:8px">
+        <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Carregando...</div>
+      </div>
       <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text2);line-height:1.5">
-        <i class="ti ti-info-circle"></i>&nbsp;Por segurança, criar e remover usuários (com senha) é feito no painel do Supabase, em <b>Authentication → Users</b>. As permissões por perfil são controladas na tabela <code style="font-size:11px">profiles</code>.
+        <i class="ti ti-info-circle"></i>&nbsp;Para <b>remover permanentemente</b> um usuário ou redefinir senha, acesse <b>Supabase → Authentication → Users</b>. Aqui você pode convidar, ajustar perfis e ativar/desativar o acesso.
       </div>
     </div>
     <div class="card">
@@ -2433,6 +2436,95 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
     </main><!-- /content -->
   </div><!-- /main -->
 </div><!-- /app -->
+
+<!-- ═══ MODAL: CONVIDAR USUÁRIO ═══ -->
+<div id="modal-invite-user" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal('modal-invite-user')">
+  <div class="modal" style="width:480px;max-width:94vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-user-plus" style="margin-right:6px;color:var(--blue)"></i>Convidar Novo Usuário</h3>
+      <button class="modal-close" onclick="closeModal('modal-invite-user')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="padding:4px 0 16px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+        O usuário receberá um e-mail de convite para definir a própria senha e acessar o sistema.
+      </p>
+      <div class="form-group">
+        <label>Nome completo *</label>
+        <input type="text" id="inv-nome" placeholder="Ex: João Silva">
+      </div>
+      <div class="form-group">
+        <label>E-mail *</label>
+        <input type="email" id="inv-email" placeholder="joao@email.com">
+      </div>
+      <div class="form-group">
+        <label>Perfil de acesso *</label>
+        <select id="inv-perfil">
+          <option value="operador">Operador — produção, pedidos (sem financeiro)</option>
+          <option value="producao">Produção — somente OPs e impressoras</option>
+          <option value="financeiro">Financeiro — acesso a lançamentos e contas</option>
+          <option value="gerente">Gerente — tudo exceto configurações de sistema</option>
+          <option value="administrador">Administrador — acesso total</option>
+        </select>
+      </div>
+      <div id="inv-perfil-desc" style="font-size:11px;color:var(--text3);padding:7px 10px;background:var(--surface2);border-radius:var(--radius);margin-top:-8px;margin-bottom:4px;line-height:1.5"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-invite-user')">Cancelar</button>
+      <button class="btn btn-primary" id="inv-save-btn" onclick="enviarConviteUsuario()">
+        <i class="ti ti-send"></i> Enviar Convite
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: EDITAR USUÁRIO ═══ -->
+<div id="modal-edit-user" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal('modal-edit-user')">
+  <div class="modal" style="width:480px;max-width:94vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-user-edit" style="margin-right:6px;color:var(--blue)"></i>Editar Usuário</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-user')"><i class="ti ti-x"></i></button>
+    </div>
+    <input type="hidden" id="eu-id">
+    <div style="padding:4px 0 16px">
+      <div class="form-group">
+        <label>Nome completo *</label>
+        <input type="text" id="eu-nome" placeholder="Nome do usuário">
+      </div>
+      <div class="form-group">
+        <label>E-mail <span style="font-size:11px;color:var(--text3);font-weight:400">(somente leitura)</span></label>
+        <input type="email" id="eu-email" disabled style="opacity:.5">
+      </div>
+      <div class="form-group">
+        <label>Perfil de acesso *</label>
+        <select id="eu-perfil">
+          <option value="operador">Operador</option>
+          <option value="producao">Produção</option>
+          <option value="financeiro">Financeiro</option>
+          <option value="gerente">Gerente</option>
+          <option value="administrador">Administrador</option>
+        </select>
+      </div>
+      <div id="eu-perfil-desc" style="font-size:11px;color:var(--text3);padding:7px 10px;background:var(--surface2);border-radius:var(--radius);margin-top:-8px;margin-bottom:4px;line-height:1.5"></div>
+      <div class="form-group">
+        <label>Status do acesso</label>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:400">
+            <input type="radio" name="eu-ativo" id="eu-ativo-sim" value="true"> Ativo — pode entrar no sistema
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:400">
+            <input type="radio" name="eu-ativo" id="eu-ativo-nao" value="false"> Inativo — acesso bloqueado
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-edit-user')">Cancelar</button>
+      <button class="btn btn-primary" id="eu-save-btn" onclick="salvarEdicaoUsuario()">
+        <i class="ti ti-device-floppy"></i> Salvar Alterações
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ MODAL: NOVO CLIENTE ═══ -->
 <div id="modal-client" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-client')">
@@ -4837,21 +4929,182 @@ function loadCostParamsForm() {
 }
 
 // ── Lista de usuários reais (do perfil logado) ──
+// ══════════════════════════════════════════════
+// GESTÃO DE USUÁRIOS (Configurações)
+// ══════════════════════════════════════════════
+
+const PERFIL_BADGES = {
+  administrador: 'badge-red', gerente: 'badge-purple',
+  financeiro: 'badge-blue', producao: 'badge-green',
+  operador: 'badge-amber', cliente: 'badge-gray'
+};
+const PERFIL_LABELS = {
+  administrador:'Administrador', gerente:'Gerente',
+  financeiro:'Financeiro', producao:'Produção',
+  operador:'Operador', cliente:'Cliente'
+};
+const PERFIL_DESC = {
+  administrador: 'Acesso total ao sistema, incluindo configurações, usuários e financeiro.',
+  gerente:       'Acesso a todas as áreas exceto configurações de sistema e gestão de usuários.',
+  financeiro:    'Acesso ao módulo financeiro, contas a pagar/receber e relatórios.',
+  producao:      'Acesso à produção, impressoras, filamentos e modelos 3D.',
+  operador:      'Acesso a pedidos, orçamentos e produção. Sem acesso financeiro.',
+  cliente:       'Perfil externo — sem acesso ao ERP interno.',
+};
+
 async function renderSettingsUsers() {
   const container = document.getElementById('settings-users-list');
   if (!container) return;
-  let rows = '';
-  if (currentProfile) {
-    const perfBadge = { administrador:'badge-red', producao:'badge-blue', financeiro:'badge-purple', vendas:'badge-amber' }[currentProfile.perfil] || 'badge-gray';
-    rows = `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--surface2);border-radius:var(--radius)">
-      <div><div style="font-weight:500">${currentProfile.nome || 'Usuário'}</div><div style="font-size:11px;color:var(--text2)">${currentUser ? currentUser.email : ''}</div></div>
-      <span class="badge ${perfBadge}">${(currentProfile.perfil||'—')}</span>
-    </div>`;
-  } else {
-    rows = '<div style="font-size:12px;color:var(--text3)">Faça login para ver o usuário atual.</div>';
+
+  // Não-admins veem só o próprio perfil
+  if (!currentProfile || currentProfile.perfil !== 'administrador') {
+    if (!currentProfile) { container.innerHTML = '<div style="font-size:12px;color:var(--text3)">Faça login para ver usuários.</div>'; return; }
+    const badge = PERFIL_BADGES[currentProfile.perfil] || 'badge-gray';
+    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--surface2);border-radius:var(--radius)">
+      <div><div style="font-weight:500;margin-bottom:2px">${escapeHtml(currentProfile.nome||'—')}</div>
+      <div style="font-size:11px;color:var(--text2)">${escapeHtml(currentProfile.email||currentUser?.email||'')}</div></div>
+      <span class="badge ${badge}">${PERFIL_LABELS[currentProfile.perfil]||currentProfile.perfil}</span>
+    </div><div style="margin-top:10px;font-size:12px;color:var(--text3)">Apenas administradores podem gerenciar outros usuários.</div>`;
+    return;
   }
-  container.innerHTML = rows;
+
+  // Admin: busca todos via RPC
+  container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Carregando...</div>';
+  const { data: users, error } = await sb.rpc('listar_usuarios');
+  if (error) { container.innerHTML = `<div style="color:var(--red);font-size:13px">Erro: ${escapeHtml(error.message)}</div>`; return; }
+
+  if (!users || !users.length) { container.innerHTML = '<div style="color:var(--text3);font-size:13px">Nenhum usuário encontrado.</div>'; return; }
+
+  container.innerHTML = users.map(u => {
+    const badge  = PERFIL_BADGES[u.perfil] || 'badge-gray';
+    const label  = PERFIL_LABELS[u.perfil] || u.perfil;
+    const isSelf = u.id === currentUser?.id;
+    const acessoStyle = u.ativo ? '' : 'opacity:.55';
+    const statusDot = u.ativo
+      ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-right:5px"></span>'
+      : '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-right:5px"></span>';
+    const ultimoAcesso = u.ultimo_acesso
+      ? new Date(u.ultimo_acesso).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+      : 'nunca';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);${acessoStyle}">
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;flex-shrink:0">
+        ${escapeHtml((u.nome||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase())}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;margin-bottom:1px">${escapeHtml(u.nome||'—')} ${isSelf?'<span style="font-size:10px;color:var(--text3)">(você)</span>':''}</div>
+        <div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(u.email||'')}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">${statusDot}${u.ativo?'Ativo':'Inativo'} · Último acesso: ${ultimoAcesso}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <span class="badge ${badge}" style="font-size:11px">${label}</span>
+        ${!isSelf ? `<button class="btn btn-secondary btn-sm" onclick="openModalEditarUsuario(${JSON.stringify(u)})" title="Editar"><i class="ti ti-pencil"></i></button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
+
+// ── Abre o modal de convidar ──
+function openModalConvidarUsuario() {
+  if (!currentProfile || currentProfile.perfil !== 'administrador') {
+    showToast('Apenas administradores podem convidar usuários.'); return;
+  }
+  document.getElementById('inv-nome').value = '';
+  document.getElementById('inv-email').value = '';
+  document.getElementById('inv-perfil').value = 'operador';
+  updatePerfilDesc('inv-perfil','inv-perfil-desc');
+  openModal('modal-invite-user');
+}
+
+// ── Envia convite (signUp com senha temporária) ──
+async function enviarConviteUsuario() {
+  const nome   = document.getElementById('inv-nome').value.trim();
+  const email  = document.getElementById('inv-email').value.trim();
+  const perfil = document.getElementById('inv-perfil').value;
+  if (!nome)  { showToast('Informe o nome completo.'); return; }
+  if (!email) { showToast('Informe o e-mail.'); return; }
+
+  const btn = document.getElementById('inv-save-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Enviando...';
+
+  try {
+    // Cria o usuário no Auth do Supabase com senha temporária aleatória
+    const tempPwd = 'Anzos@' + Math.random().toString(36).slice(2,10);
+    const { data: authData, error: authErr } = await sb.auth.signUp({
+      email, password: tempPwd,
+      options: { data: { nome } }
+    });
+    if (authErr) throw authErr;
+    if (!authData.user) throw new Error('Usuário não criado');
+
+    // Atualiza/cria o perfil (o trigger do Supabase pode já ter criado com perfil padrão)
+    await sb.from('perfis').upsert({
+      id: authData.user.id, nome, email,
+      perfil, ativo: true
+    }, { onConflict: 'id' });
+
+    closeModal('modal-invite-user');
+    showToast(`Convite enviado para ${email}! Peça ao usuário para verificar o e-mail e redefinir a senha.`, 'success', 6000);
+    await renderSettingsUsers();
+  } catch(e) {
+    showToast('Erro ao convidar: ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Enviar Convite';
+  }
+}
+
+// ── Abre o modal de editar ──
+function openModalEditarUsuario(u) {
+  document.getElementById('eu-id').value    = u.id;
+  document.getElementById('eu-nome').value  = u.nome || '';
+  document.getElementById('eu-email').value = u.email || '';
+  document.getElementById('eu-perfil').value = u.perfil || 'operador';
+  document.getElementById(u.ativo ? 'eu-ativo-sim' : 'eu-ativo-nao').checked = true;
+  updatePerfilDesc('eu-perfil','eu-perfil-desc');
+  openModal('modal-edit-user');
+}
+
+// ── Salva edição de usuário ──
+async function salvarEdicaoUsuario() {
+  const id     = document.getElementById('eu-id').value;
+  const nome   = document.getElementById('eu-nome').value.trim();
+  const perfil = document.getElementById('eu-perfil').value;
+  const ativo  = document.getElementById('eu-ativo-sim').checked;
+  if (!nome) { showToast('Informe o nome.'); return; }
+
+  const btn = document.getElementById('eu-save-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Salvando...';
+
+  try {
+    const { error } = await sb.rpc('admin_update_usuario', {
+      p_id: id, p_perfil: perfil, p_nome: nome, p_ativo: ativo
+    });
+    if (error) throw error;
+    closeModal('modal-edit-user');
+    showToast('Usuário atualizado com sucesso!');
+    await renderSettingsUsers();
+  } catch(e) {
+    showToast('Erro: ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-device-floppy"></i> Salvar Alterações';
+  }
+}
+
+// ── Atualiza descrição do perfil selecionado ──
+function updatePerfilDesc(selId, descId) {
+  const perfil = document.getElementById(selId)?.value;
+  const el = document.getElementById(descId);
+  if (el) el.textContent = PERFIL_DESC[perfil] || '';
+}
+
+// Listeners para descrição em tempo real
+document.addEventListener('DOMContentLoaded', () => {
+  ['inv-perfil','eu-perfil'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => {
+      updatePerfilDesc(id, id === 'inv-perfil' ? 'inv-perfil-desc' : 'eu-perfil-desc');
+    });
+  });
+});
 
 // Gera um código de barras Code39 como SVG (puro JS, sem biblioteca externa).
 // Code39 aceita A-Z, 0-9, espaço e - . $ / + %
