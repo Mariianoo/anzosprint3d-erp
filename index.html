@@ -7247,8 +7247,18 @@ function addModelPart(data) {
 }
 
 function removeModelPart(id) {
+  const part = modelParts.find(p => p._id === id);
+  // Se a parte tem dados preenchidos, confirma antes de excluir
+  const temDados = part && (part.tipo || part.cor || part.gramas > 0 || part.horas > 0);
+  if (temDados) {
+    if (!confirm('Excluir esta parte? Os dados preenchidos serão perdidos.')) return;
+  }
   modelParts = modelParts.filter(p => p._id !== id);
-  if (!modelParts.length) addModelPart();
+  if (!modelParts.length) {
+    const nid = nextModelPartId++;
+    modelParts.push({ _id: nid, tipo: '', marca: '', cor: '', hex: '', gramas: 0, horas: 0 });
+  }
+  renderModelParts();
   syncModelPartTotals();
 }
 
@@ -7695,8 +7705,9 @@ function openModelDetail(id) {
     }
   }
   set('md-material', m.material);
-  set('md-weight', m.weight + ' g');
-  set('md-hours', (m.hours % 1 === 0 ? m.hours : m.hours.toString().replace('.',',')) + ' h');
+  set('md-weight', (Math.round((m.weight||0)*100)/100).toString().replace('.',',') + ' g');
+  const _mh = Math.floor(m.hours||0), _mm = Math.round(((m.hours||0)%1)*60);
+  set('md-hours', _mm > 0 ? `${_mh}h ${_mm}min` : `${_mh}h`);
   set('md-format', m.format);
   set('md-prints', m.prints + 'x');
   set('md-cost', 'R$ ' + estimateModelCost(m).toFixed(2).replace('.',','));
@@ -7709,15 +7720,43 @@ function openModelDetail(id) {
   if (mdPartsSection && mdPartsList) {
     if (m.modoImpressao === 'multipartes' && m.partesImpressao && m.partesImpressao.length) {
       mdPartsSection.style.display = '';
-      mdPartsList.innerHTML = m.partesImpressao.map((p, i) =>
-        `<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:5px 8px;background:var(--surface3,#0f172a);border-radius:6px">
-          <span style="font-weight:600;color:var(--text3);min-width:20px">#${i+1}</span>
-          <span class="badge badge-blue" style="font-size:11px">${escapeHtml(p.tipo||'—')}</span>
-          ${p.marca ? `<span style="color:var(--text2)">${escapeHtml(p.marca)}</span>` : ''}
-          ${p.cor   ? `<span style="color:var(--text)">${escapeHtml(p.cor)}</span>` : ''}
-          <span style="margin-left:auto;color:var(--text2)">${p.gramas||0} g · ${p.horas||0} h</span>
-        </div>`
-      ).join('');
+      // Calcula custo de cada parte para exibir
+      const fils = filamentsData || [];
+      let totalCustoPartes = 0;
+      mdPartsList.innerHTML = m.partesImpressao.map((p, i) => {
+        // Custo da parte
+        let custoParte = 0;
+        if (p.gramas > 0 && p.tipo) {
+          let mt = fils.filter(f => f.type === p.tipo);
+          if (p.marca) mt = mt.filter(f => f.brand === p.marca);
+          if (p.cor)   mt = mt.filter(f => f.color === p.cor);
+          if (!mt.length) mt = fils.filter(f => f.type === p.tipo);
+          if (mt.length) {
+            const rate = mt.reduce((s,f) => s + (f.price/(f.total||1000)), 0) / mt.length;
+            custoParte = p.gramas * rate;
+          }
+        }
+        totalCustoPartes += custoParte;
+        // Tempo formatado h:min
+        const h = Math.floor(p.horas||0);
+        const min = Math.round(((p.horas||0)%1)*60);
+        const tempoStr = min > 0 ? `${h}h${min}min` : `${h}h`;
+        // Cor — bolinha + nome
+        const corHex = p.hex || '#64748b';
+        const corLabel = p.cor
+          ? `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:13px;height:13px;border-radius:50%;background:${escapeHtml(corHex)};border:1px solid rgba(255,255,255,.25);flex-shrink:0"></span>${escapeHtml(p.cor)}</span>`
+          : `<span style="color:var(--text3);font-style:italic">sem cor</span>`;
+        return `<div style="display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px;align-items:center;font-size:12px;padding:8px 10px;background:var(--surface3,#0f172a);border-radius:7px;border-left:3px solid ${p.cor?escapeHtml(corHex):'var(--border2)'}">
+          <span style="font-weight:700;color:var(--text3);min-width:18px">#${i+1}</span>
+          <span class="badge badge-blue" style="font-size:10px">${escapeHtml(p.tipo||'—')}</span>
+          <span style="color:var(--text);font-weight:500">${corLabel}</span>
+          <span style="color:var(--text2);white-space:nowrap">${(p.gramas||0)} g · ${tempoStr}</span>
+          <span style="color:var(--green);font-weight:600;white-space:nowrap;min-width:60px;text-align:right">${custoParte > 0 ? 'R$ '+custoParte.toFixed(2).replace('.',',') : '—'}</span>
+        </div>`;
+      }).join('') + `<div style="display:flex;justify-content:flex-end;gap:8px;padding:8px 10px;margin-top:4px;border-top:1px solid var(--border);font-size:13px">
+        <span style="color:var(--text2)">Custo total filamento:</span>
+        <strong style="color:var(--green)">R$ ${totalCustoPartes.toFixed(2).replace('.',',')}</strong>
+      </div>`;
     } else {
       mdPartsSection.style.display = 'none';
     }
