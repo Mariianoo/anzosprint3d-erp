@@ -317,6 +317,46 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 .modal-wide .modal-body{padding:20px 24px;overflow-y:auto;flex:1}
 .modal-wide .modal-footer{margin-top:0;padding:16px 24px;background:var(--surface)}
 /* ══ CONFIGURAÇÕES — estilos ══ */
+
+/* Card empresa unificado */
+.cfg-empresa-header{
+  display:flex;align-items:flex-start;gap:24px;
+}
+.cfg-logo-zone{
+  display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0;
+}
+.cfg-logo-wrap{
+  width:96px;height:96px;border-radius:14px;
+  border:2px dashed var(--border2);background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;overflow:hidden;position:relative;transition:border-color .15s;
+}
+.cfg-logo-wrap:hover{border-color:var(--blue)}
+.cfg-logo-wrap:hover .cfg-logo-overlay{opacity:1}
+.cfg-logo-img{
+  width:100%;height:100%;object-fit:cover;border-radius:12px;
+}
+.cfg-logo-overlay{
+  position:absolute;inset:0;background:rgba(0,0,0,0.5);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:22px;opacity:0;transition:opacity .15s;border-radius:12px;
+}
+.cfg-empresa-identity{flex:1;min-width:0}
+.cfg-emp-top-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+}
+.cfg-addr-grid{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;
+}
+.cfg-addr-grid .form-group{flex-shrink:0}
+.cfg-social-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
+}
+@media(max-width:900px){
+  .cfg-empresa-header{flex-direction:column}
+  .cfg-social-grid{grid-template-columns:1fr 1fr}
+  .cfg-emp-top-grid{grid-template-columns:1fr}
+}
 .cfg-card-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:7px}
 .cfg-card-title i{color:var(--blue);font-size:16px}
 .cfg-field-err{font-size:11px;color:var(--red);margin-top:3px;display:block;min-height:14px}
@@ -2350,116 +2390,125 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
   <div class="page-header"><h2>Configurações</h2><p>Dados da empresa, usuários, parâmetros e integrações</p></div>
   <div class="grid-2">
 
-    <!-- ══ LOGO ══ -->
-    <div class="card">
-      <div class="cfg-card-title"><i class="ti ti-photo"></i> Logotipo do Sistema</div>
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-        <img id="settings-logo-preview" src="" alt="Logo" style="width:80px;height:80px;border-radius:12px;object-fit:cover;border:1px solid var(--border);background:var(--surface2)">
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:500;margin-bottom:4px">Logo atual</div>
-          <div style="font-size:12px;color:var(--text2)">PNG quadrado mínimo 256×256px. Usado no login, menu e etiquetas.</div>
+    <!-- ══ EMPRESA: card full-width unificado ══ -->
+    <div class="card" style="grid-column:span 2">
+      <!-- Header do card com logo + identidade -->
+      <div class="cfg-empresa-header">
+        <div class="cfg-logo-zone">
+          <div class="cfg-logo-wrap" onclick="document.getElementById('logo-upload-input').click()" title="Clique para trocar o logo">
+            <img id="settings-logo-preview" src="" alt="Logo" class="cfg-logo-img">
+            <div class="cfg-logo-overlay"><i class="ti ti-camera"></i></div>
+          </div>
+          <input type="file" id="logo-upload-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" onchange="handleLogoUpload(event)" style="display:none">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('logo-upload-input').click()"><i class="ti ti-upload"></i> Trocar logo</button>
+            <button class="btn btn-secondary btn-sm" onclick="resetLogo()"><i class="ti ti-refresh"></i> Restaurar</button>
+            <span style="font-size:10px;color:var(--text3);text-align:center">PNG/JPG · mín. 256px</span>
+          </div>
+        </div>
+        <div class="cfg-empresa-identity">
+          <div class="cfg-card-title" style="margin-bottom:10px"><i class="ti ti-building-store"></i> Dados da Empresa</div>
+          <div class="cfg-emp-top-grid">
+            <div class="form-group" style="margin:0;grid-column:span 2">
+              <label>Nome / Razão Social</label>
+              <input type="text" id="set-emp-nome" value="ANZO'S Print 3D" placeholder="Nome ou razão social">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>CNPJ</label>
+              <input type="text" id="set-emp-cnpj" placeholder="00.000.000/0000-00" maxlength="18"
+                oninput="formatCnpjInput(this)" onblur="validateCnpjField(this)">
+              <span id="set-emp-cnpj-err" class="cfg-field-err"></span>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Telefone / WhatsApp</label>
+              <input type="text" id="set-emp-telefone" placeholder="(11) 90000-0000" maxlength="15"
+                oninput="formatPhoneInput(this)">
+            </div>
+            <div class="form-group" style="margin:0;grid-column:span 2">
+              <label>E-mail</label>
+              <input type="email" id="set-emp-email" placeholder="contato@empresa.com.br"
+                onblur="validateEmailField(this)">
+              <span id="set-emp-email-err" class="cfg-field-err"></span>
+            </div>
+          </div>
         </div>
       </div>
-      <input type="file" id="logo-upload-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" onchange="handleLogoUpload(event)" style="display:none">
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="document.getElementById('logo-upload-input').click()"><i class="ti ti-upload"></i> Selecionar</button>
-        <button class="btn btn-secondary" onclick="resetLogo()"><i class="ti ti-refresh"></i> Restaurar</button>
-      </div>
-    </div>
 
-    <!-- ══ DADOS DA EMPRESA ══ -->
-    <div class="card">
-      <div class="cfg-card-title"><i class="ti ti-building-store"></i> Dados da Empresa</div>
-      <div class="form-group"><label>Nome da Empresa</label><input type="text" id="set-emp-nome" value="ANZO'S Print 3D" placeholder="Nome ou razão social"></div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>CNPJ</label>
-          <input type="text" id="set-emp-cnpj" placeholder="00.000.000/0000-00" maxlength="18"
-            oninput="formatCnpjInput(this)" onblur="validateCnpjField(this)">
-          <span id="set-emp-cnpj-err" class="cfg-field-err"></span>
-        </div>
-        <div class="form-group">
-          <label>Telefone / WhatsApp</label>
-          <input type="text" id="set-emp-telefone" placeholder="(11) 90000-0000" maxlength="15"
-            oninput="formatPhoneInput(this)">
-        </div>
-      </div>
-      <div class="form-group">
-        <label>E-mail</label>
-        <input type="email" id="set-emp-email" placeholder="contato@empresa.com.br"
-          onblur="validateEmailField(this)">
-        <span id="set-emp-email-err" class="cfg-field-err"></span>
-      </div>
-      <!-- CEP com busca automática -->
-      <div class="form-row">
-        <div class="form-group" style="max-width:160px">
+      <!-- Linha divisória -->
+      <div style="border-top:1px solid var(--border);margin:16px 0"></div>
+
+      <!-- Endereço em grid compacto -->
+      <div class="cfg-card-title" style="font-size:12px;margin-bottom:10px"><i class="ti ti-map-pin"></i> Endereço</div>
+      <div class="cfg-addr-grid">
+        <div class="form-group" style="margin:0;max-width:160px">
           <label>CEP <span id="set-emp-cep-status" style="font-size:10px;color:var(--text3);font-weight:400"></span></label>
           <input type="text" id="set-emp-cep" placeholder="00000-000" maxlength="9"
             oninput="formatCepInput(this)" onblur="lookupCepEmpresa()">
         </div>
-        <div class="form-group" style="flex:1">
+        <div class="form-group" style="margin:0;flex:2">
           <label>Logradouro</label>
           <input type="text" id="set-emp-endereco" placeholder="Rua, Av...">
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="max-width:100px">
+        <div class="form-group" style="margin:0;max-width:100px">
           <label>Número</label>
           <input type="text" id="set-emp-numero" placeholder="Nº">
         </div>
-        <div class="form-group" style="flex:1">
+        <div class="form-group" style="margin:0;flex:1">
           <label>Complemento</label>
-          <input type="text" id="set-emp-complemento" placeholder="Apto, sala, galpão...">
+          <input type="text" id="set-emp-complemento" placeholder="Sala, galpão...">
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" style="margin:0;flex:1">
           <label>Bairro</label>
           <input type="text" id="set-emp-bairro" placeholder="Bairro">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin:0;flex:2">
           <label>Cidade</label>
           <input type="text" id="set-emp-cidade" placeholder="Cidade">
         </div>
-        <div class="form-group" style="max-width:80px">
+        <div class="form-group" style="margin:0;max-width:70px">
           <label>UF</label>
           <input type="text" id="set-emp-estado" placeholder="SP" maxlength="2" style="text-transform:uppercase">
         </div>
       </div>
-      <!-- Redes Sociais -->
-      <div class="cfg-subsection"><i class="ti ti-share"></i> Redes Sociais &amp; Contato Online</div>
-      <div class="form-row">
-        <div class="form-group">
+
+      <!-- Linha divisória -->
+      <div style="border-top:1px solid var(--border);margin:16px 0"></div>
+
+      <!-- Redes sociais em grid 3 colunas -->
+      <div class="cfg-card-title" style="font-size:12px;margin-bottom:10px"><i class="ti ti-share"></i> Redes Sociais &amp; Contato Online</div>
+      <div class="cfg-social-grid">
+        <div class="form-group" style="margin:0">
           <label><i class="ti ti-world" style="color:var(--blue);margin-right:4px"></i>Site</label>
           <input type="text" id="set-emp-site" placeholder="anzosprint3d.com.br">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin:0">
           <label><i class="ti ti-brand-instagram" style="color:#e1306c;margin-right:4px"></i>Instagram</label>
           <input type="text" id="set-emp-instagram" placeholder="@anzos.print3d">
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" style="margin:0">
           <label><i class="ti ti-brand-facebook" style="color:#1877f2;margin-right:4px"></i>Facebook</label>
           <input type="text" id="set-emp-facebook" placeholder="facebook.com/anzos">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin:0">
           <label><i class="ti ti-brand-tiktok" style="color:var(--text);margin-right:4px"></i>TikTok</label>
           <input type="text" id="set-emp-tiktok" placeholder="@anzos.print3d">
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" style="margin:0">
           <label><i class="ti ti-brand-whatsapp" style="color:#25d366;margin-right:4px"></i>WhatsApp Business</label>
-          <input type="text" id="set-emp-whatsapp" placeholder="5511990000000 (só números)">
+          <input type="text" id="set-emp-whatsapp" placeholder="5511990000000">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin:0">
           <label><i class="ti ti-brand-youtube" style="color:#ff0000;margin-right:4px"></i>YouTube</label>
           <input type="text" id="set-emp-youtube" placeholder="youtube.com/@anzos">
         </div>
       </div>
-      <button class="btn btn-primary" onclick="saveCompanyData()"><i class="ti ti-device-floppy"></i> Salvar Dados da Empresa</button>
+
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" onclick="saveCompanyData()"><i class="ti ti-device-floppy"></i> Salvar Dados da Empresa</button>
+      </div>
     </div>
+
+
 
     <!-- ══ ETIQUETA DE ENVIO ══ -->
     <div class="card">
