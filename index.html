@@ -11028,6 +11028,13 @@ async function loadDashboardReal(period) {
     // ── Conquistas com dados reais ──
     updateAchievements([concluidos, pedTotalAll, receitaTotal, 0]);
 
+    // ── Atualiza análise de preços de fornecedores ──
+    // Carrega filamentsData completo (com preço/fornecedor) se ainda não estiver
+    if ((!filamentsData || !filamentsData.length) && typeof loadFilamentsDB === 'function') {
+      await loadFilamentsDB();
+    }
+    if (typeof renderSupplierChart === 'function') { renderSupplierChart(); renderSupplierInsights(); }
+
     // ── Gráficos: mostrar placeholder se sem dados ──
     const revLabel = {today:'Hoje',week:'7 dias',month:'Mês atual',quarter:'Trimestre',semester:'Semestre',year:'Ano'}[period];
     const badge = document.getElementById('revenue-chart-badge');
@@ -12047,11 +12054,14 @@ const SUPPLIER_COLORS = ['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ef4444','#06b
 
 function computeSupplierAvgPrices() {
   // Average filament price per supplier (from filamentsData)
+  // Fallback: se fornecedor vazio, usa a marca como agrupador
   const map = {};
   filamentsData.forEach(f => {
-    if (!map[f.supplier]) map[f.supplier] = { sum:0, count:0 };
-    map[f.supplier].sum += f.price;
-    map[f.supplier].count++;
+    if (!f.price) return; // ignora sem preço
+    const key = (f.supplier && f.supplier.trim()) ? f.supplier : (f.brand || 'Não informado');
+    if (!map[key]) map[key] = { sum:0, count:0 };
+    map[key].sum += f.price;
+    map[key].count++;
   });
   return Object.entries(map)
     .map(([name, v]) => ({ name, price: v.sum / v.count, count: v.count }))
@@ -12059,13 +12069,22 @@ function computeSupplierAvgPrices() {
 }
 
 function computeBrandPrices() {
-  // Average reference price per brand (from brandPrices table)
+  // Preço médio por marca — usa brandPrices se houver, senão filamentsData
   const map = {};
-  brandPrices.forEach(b => {
-    if (!map[b.brand]) map[b.brand] = { sum:0, count:0 };
-    map[b.brand].sum += b.price;
-    map[b.brand].count++;
-  });
+  if (brandPrices && brandPrices.length) {
+    brandPrices.forEach(b => {
+      if (!map[b.brand]) map[b.brand] = { sum:0, count:0 };
+      map[b.brand].sum += b.price;
+      map[b.brand].count++;
+    });
+  } else {
+    filamentsData.forEach(f => {
+      if (!f.price || !f.brand) return;
+      if (!map[f.brand]) map[f.brand] = { sum:0, count:0 };
+      map[f.brand].sum += f.price;
+      map[f.brand].count++;
+    });
+  }
   return Object.entries(map)
     .map(([name, v]) => ({ name, price: v.sum / v.count, count: v.count }))
     .sort((a,b) => a.price - b.price);
@@ -12075,6 +12094,7 @@ function computeTypePrices() {
   // Average price per filament type (from filamentsData)
   const map = {};
   filamentsData.forEach(f => {
+    if (!f.price) return;
     if (!map[f.type]) map[f.type] = { sum:0, count:0 };
     map[f.type].sum += f.price;
     map[f.type].count++;
@@ -12183,7 +12203,11 @@ function renderSupplierInsights() {
       insights.push({ type:'info', icon:'ti-calculator', title:`Média geral: R$ ${avg.toFixed(2).replace('.',',')}`, desc:`Considerando ${data.length} ${supplierView==='type'?'tipos':supplierView==='brand'?'marcas':'fornecedores'}.` });
       if (diff > 25) insights.push({ type:'warning', icon:'ti-bulb', title:'Oportunidade de economia', desc:`Migrar compras para ${escapeHtml(cheapest.name)} pode reduzir custos em até ${diff}%.` });
     } else {
-      insights.push({ type:'info', icon:'ti-info-circle', title:'Dados insuficientes', desc:'Cadastre mais fornecedores ou marcas para comparar preços.' });
+      if (data.length === 1) {
+        insights.push({ type:'info', icon:'ti-package', title:`Único: ${escapeHtml(data[0].name)}`, desc:`R$ ${data[0].price.toFixed(2).replace('.',',')}/bobina. Cadastre mais para comparar preços.` });
+      } else {
+        insights.push({ type:'info', icon:'ti-info-circle', title:'Sem dados de preço', desc:'Cadastre filamentos com preço da bobina em Filamentos para ver a análise.' });
+      }
     }
   }
 
