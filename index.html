@@ -307,6 +307,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:5px;color:var(--text2)}
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px;outline:none;transition:border-color 0.15s}
+.qm-shell .fi{background:var(--surface2) !important;color:var(--text) !important;border-color:var(--border2) !important}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--blue)}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;border-top:1px solid var(--border);padding-top:16px}
@@ -322,9 +323,10 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 /* ══ QUOTE MODAL REDESIGN ══ */
 .qm-shell{
   background:var(--surface);border-radius:16px;width:96vw;max-width:1160px;
-  max-height:92vh;display:flex;flex-direction:column;overflow:hidden;
+  height:90vh;display:flex;flex-direction:column;overflow:hidden;
   box-shadow:0 24px 80px rgba(0,0,0,0.5);
   animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1);
+  position:relative;z-index:1;
 }
 .qm-header{
   display:flex;align-items:center;justify-content:space-between;
@@ -347,7 +349,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 }
 .qm-close:hover{background:var(--red-light);color:var(--red)}
 
-.qm-body{display:flex;flex:1;overflow:hidden;min-height:0}
+.qm-body{display:flex;flex:1;overflow:hidden;min-height:0;height:0}
 
 /* ── Left column ── */
 .qm-form-col{
@@ -394,8 +396,11 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
   padding:9px 12px;border:1px solid var(--border2);border-radius:8px;
   background:var(--surface);color:var(--text);font-size:13px;outline:none;
   transition:border-color .15s,box-shadow .15s;width:100%;
+  -webkit-appearance:none;appearance:none;
 }
 .fi:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
+select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+select.fi option{background:var(--surface);color:var(--text)}
 
 /* ── Grids ── */
 .qm-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -436,7 +441,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 
 /* ══ RIGHT SIDEBAR ══ */
 .qm-sidebar{
-  width:280px;flex-shrink:0;border-left:1px solid var(--border);
+  width:290px;flex-shrink:0;border-left:1px solid var(--border);
   background:var(--surface2);display:flex;flex-direction:column;overflow:hidden;
 }
 .qm-sidebar-inner{
@@ -1004,8 +1009,8 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 <!-- ═══════════════════════════════════════════
      MODAL: Calculadora de Orçamento
 ═══════════════════════════════════════════ -->
-<div id="modal-quote" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal('modal-quote')">
-  <div class="qm-shell">
+<div id="modal-quote" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal('modal-quote')" onmousedown="event.stopPropagation()">
+  <div class="qm-shell" onclick="event.stopPropagation()">
 
     <!-- ── HEADER ── -->
     <div class="qm-header">
@@ -1035,11 +1040,11 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
             <div class="qm-grid-3">
               <div class="fg">
                 <label class="fl">Cliente</label>
-                <select id="q-client" class="fi"><option value="">— selecionar —</option></select>
+                <select id="q-client" class="fi"><option value="">Selecionar cliente...</option></select>
               </div>
               <div class="fg">
                 <label class="fl">Modelo 3D <span class="fl-opt">opcional</span></label>
-                <select id="q-model" class="fi" onchange="applyModelToQuote()"><option value="">— selecionar —</option></select>
+                <select id="q-model" class="fi" onchange="applyModelToQuote()"><option value="">Selecionar modelo...</option></select>
               </div>
               <div class="fg">
                 <label class="fl">Qtd.</label>
@@ -1048,7 +1053,7 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
             </div>
             <div class="fg" style="margin-top:10px">
               <label class="fl">Descrição</label>
-              <input type="text" id="q-desc" class="fi" placeholder="Ex: Suporte celular × 3" value="Peça personalizada">
+              <input type="text" id="q-desc" class="fi" placeholder="Ex: Suporte celular, Busto personalizado..." value="Peça personalizada">
             </div>
           </div>
         </div>
@@ -8557,7 +8562,7 @@ function refreshQuoteModelOptions() {
   const sel = document.getElementById('q-model');
   if (!sel || typeof modelsData === 'undefined') return;
   const cur = sel.value;
-  sel.innerHTML = '<option value="">— selecionar modelo —</option>' + modelsData.map(m => `<option value="${m.id}">${escapeHtml(m.name)} (${m.weight}g · ${m.hours}h)</option>`).join('');
+  sel.innerHTML = '<option value="">Selecionar modelo...</option>' + modelsData.map(m => `<option value="${m.id}">${escapeHtml(m.name)} (${m.weight}g · ${m.hours}h)</option>`).join('');
   if (cur) sel.value = cur;
 }
 
@@ -8660,6 +8665,7 @@ function calcQuote() {
 }
 
 function resetCalculator() {
+  const qdesc = document.getElementById('q-desc'); if(qdesc) qdesc.value = 'Peça personalizada';
   document.getElementById('q-qty').value = 1;
   document.getElementById('q-weight').value = 150;
   document.getElementById('q-hours').value = 8;
@@ -8714,7 +8720,7 @@ function refreshQuoteClientOptions() {
   if (!sel) return;
   const cur = sel.value;
   const opts = (clientesDB || []).map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
-  sel.innerHTML = '<option value="">— selecionar cliente —</option>' + opts;
+  sel.innerHTML = '<option value="">Selecionar cliente...</option>' + opts;
   if (cur) sel.value = cur;
 }
 
