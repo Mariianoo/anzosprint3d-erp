@@ -316,6 +316,25 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 .modal-wide .modal-header{padding:20px 24px;margin-bottom:0;border-bottom:1px solid var(--border)}
 .modal-wide .modal-body{padding:20px 24px;overflow-y:auto;flex:1}
 .modal-wide .modal-footer{margin-top:0;padding:16px 24px;background:var(--surface)}
+/* ══ CONFIGURAÇÕES — estilos ══ */
+.cfg-card-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.cfg-card-title i{color:var(--blue);font-size:16px}
+.cfg-field-err{font-size:11px;color:var(--red);margin-top:3px;display:block;min-height:14px}
+.cfg-subsection{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);padding:10px 0 8px;border-top:1px solid var(--border);margin-top:12px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+
+/* Parâmetros de custo */
+.cfg-cost-group{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:12px}
+.cfg-cost-group-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.cfg-cost-group-title i{color:var(--blue);font-size:14px}
+.cfg-cost-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.cfg-cost-field{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.cfg-cost-label{font-size:11px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:4px;line-height:1.3}
+.cfg-cost-unit{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.3px}
+.cfg-cost-input{background:transparent;border:none;border-bottom:2px solid var(--border2);border-radius:0;color:var(--text);font-size:18px;font-weight:700;padding:4px 0;width:100%;outline:none;transition:border-color .15s}
+.cfg-cost-input:focus{border-bottom-color:var(--blue)}
+.cfg-cost-formula{font-size:11px;color:var(--text3);margin-top:10px;padding:7px 10px;background:var(--surface);border-radius:6px;border-left:3px solid var(--border2);line-height:1.5;display:flex;align-items:flex-start;gap:5px}
+.cfg-cost-formula i{flex-shrink:0;margin-top:1px;color:var(--text3)}
+
 #modal-quote.modal-overlay{animation:overlayFade 0.2s ease}
 #modal-quote .modal-wide{animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1)}
 
@@ -2330,61 +2349,145 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 <div class="page" id="page-settings">
   <div class="page-header"><h2>Configurações</h2><p>Dados da empresa, usuários, parâmetros e integrações</p></div>
   <div class="grid-2">
+
+    <!-- ══ LOGO ══ -->
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Logotipo do Sistema</h3>
+      <div class="cfg-card-title"><i class="ti ti-photo"></i> Logotipo do Sistema</div>
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-        <img id="settings-logo-preview" src="" alt="Logo atual" style="width:80px;height:80px;border-radius:12px;object-fit:cover;border:1px solid var(--border);background:var(--surface2)">
+        <img id="settings-logo-preview" src="" alt="Logo" style="width:80px;height:80px;border-radius:12px;object-fit:cover;border:1px solid var(--border);background:var(--surface2)">
         <div style="flex:1">
           <div style="font-size:13px;font-weight:500;margin-bottom:4px">Logo atual</div>
-          <div style="font-size:12px;color:var(--text2)">Usado no login, menu lateral e favicon do navegador. Recomendado: PNG quadrado, mínimo 256×256px.</div>
+          <div style="font-size:12px;color:var(--text2)">PNG quadrado mínimo 256×256px. Usado no login, menu e etiquetas.</div>
+        </div>
+      </div>
+      <input type="file" id="logo-upload-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" onchange="handleLogoUpload(event)" style="display:none">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="document.getElementById('logo-upload-input').click()"><i class="ti ti-upload"></i> Selecionar</button>
+        <button class="btn btn-secondary" onclick="resetLogo()"><i class="ti ti-refresh"></i> Restaurar</button>
+      </div>
+    </div>
+
+    <!-- ══ DADOS DA EMPRESA ══ -->
+    <div class="card">
+      <div class="cfg-card-title"><i class="ti ti-building-store"></i> Dados da Empresa</div>
+      <div class="form-group"><label>Nome da Empresa</label><input type="text" id="set-emp-nome" value="ANZO'S Print 3D" placeholder="Nome ou razão social"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>CNPJ</label>
+          <input type="text" id="set-emp-cnpj" placeholder="00.000.000/0000-00" maxlength="18"
+            oninput="formatCnpjInput(this)" onblur="validateCnpjField(this)">
+          <span id="set-emp-cnpj-err" class="cfg-field-err"></span>
+        </div>
+        <div class="form-group">
+          <label>Telefone / WhatsApp</label>
+          <input type="text" id="set-emp-telefone" placeholder="(11) 90000-0000" maxlength="15"
+            oninput="formatPhoneInput(this)">
         </div>
       </div>
       <div class="form-group">
-        <label>Enviar novo logotipo</label>
-        <input type="file" id="logo-upload-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" onchange="handleLogoUpload(event)">
+        <label>E-mail</label>
+        <input type="email" id="set-emp-email" placeholder="contato@empresa.com.br"
+          onblur="validateEmailField(this)">
+        <span id="set-emp-email-err" class="cfg-field-err"></span>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="document.getElementById('logo-upload-input').click()"><i class="ti ti-upload"></i> Selecionar Arquivo</button>
-        <button class="btn btn-secondary" onclick="resetLogo()"><i class="ti ti-refresh"></i> Restaurar Padrão</button>
-      </div>
-      <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text2)">
-        <i class="ti ti-info-circle"></i>&nbsp;Em produção, o arquivo será enviado ao bucket <code style="font-size:11px">company</code> do Supabase Storage e referenciado em <code style="font-size:11px">settings.logo_url</code>.
-      </div>
-    </div>
-    <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Dados da Empresa</h3>
-      <div class="form-group"><label>Nome da Empresa</label><input type="text" id="set-emp-nome" value="ANZO'S Print 3D"></div>
+      <!-- CEP com busca automática -->
       <div class="form-row">
-        <div class="form-group"><label>CNPJ</label><input type="text" id="set-emp-cnpj"></div>
-        <div class="form-group"><label>Telefone</label><input type="text" id="set-emp-telefone"></div>
+        <div class="form-group" style="max-width:160px">
+          <label>CEP <span id="set-emp-cep-status" style="font-size:10px;color:var(--text3);font-weight:400"></span></label>
+          <input type="text" id="set-emp-cep" placeholder="00000-000" maxlength="9"
+            oninput="formatCepInput(this)" onblur="lookupCepEmpresa()">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Logradouro</label>
+          <input type="text" id="set-emp-endereco" placeholder="Rua, Av...">
+        </div>
       </div>
-      <div class="form-group"><label>E-mail</label><input type="email" id="set-emp-email"></div>
-      <div class="form-group"><label>Endereço</label><input type="text" id="set-emp-endereco"></div>
       <div class="form-row">
-        <div class="form-group"><label>Cidade</label><input type="text" id="set-emp-cidade"></div>
-        <div class="form-group"><label>CEP</label><input type="text" id="set-emp-cep"></div>
+        <div class="form-group" style="max-width:100px">
+          <label>Número</label>
+          <input type="text" id="set-emp-numero" placeholder="Nº">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Complemento</label>
+          <input type="text" id="set-emp-complemento" placeholder="Apto, sala, galpão...">
+        </div>
       </div>
-      <button class="btn btn-primary" onclick="saveCompanyData()"><i class="ti ti-device-floppy"></i> Salvar Dados</button>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Bairro</label>
+          <input type="text" id="set-emp-bairro" placeholder="Bairro">
+        </div>
+        <div class="form-group">
+          <label>Cidade</label>
+          <input type="text" id="set-emp-cidade" placeholder="Cidade">
+        </div>
+        <div class="form-group" style="max-width:80px">
+          <label>UF</label>
+          <input type="text" id="set-emp-estado" placeholder="SP" maxlength="2" style="text-transform:uppercase">
+        </div>
+      </div>
+      <!-- Redes Sociais -->
+      <div class="cfg-subsection"><i class="ti ti-share"></i> Redes Sociais &amp; Contato Online</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label><i class="ti ti-world" style="color:var(--blue);margin-right:4px"></i>Site</label>
+          <input type="text" id="set-emp-site" placeholder="anzosprint3d.com.br">
+        </div>
+        <div class="form-group">
+          <label><i class="ti ti-brand-instagram" style="color:#e1306c;margin-right:4px"></i>Instagram</label>
+          <input type="text" id="set-emp-instagram" placeholder="@anzos.print3d">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label><i class="ti ti-brand-facebook" style="color:#1877f2;margin-right:4px"></i>Facebook</label>
+          <input type="text" id="set-emp-facebook" placeholder="facebook.com/anzos">
+        </div>
+        <div class="form-group">
+          <label><i class="ti ti-brand-tiktok" style="color:var(--text);margin-right:4px"></i>TikTok</label>
+          <input type="text" id="set-emp-tiktok" placeholder="@anzos.print3d">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label><i class="ti ti-brand-whatsapp" style="color:#25d366;margin-right:4px"></i>WhatsApp Business</label>
+          <input type="text" id="set-emp-whatsapp" placeholder="5511990000000 (só números)">
+        </div>
+        <div class="form-group">
+          <label><i class="ti ti-brand-youtube" style="color:#ff0000;margin-right:4px"></i>YouTube</label>
+          <input type="text" id="set-emp-youtube" placeholder="youtube.com/@anzos">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveCompanyData()"><i class="ti ti-device-floppy"></i> Salvar Dados da Empresa</button>
     </div>
+
+    <!-- ══ ETIQUETA DE ENVIO ══ -->
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Etiqueta de Envio</h3>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:16px">Dados do remetente e transportadora usados na etiqueta 100×150mm dos pedidos.</p>
+      <div class="cfg-card-title"><i class="ti ti-truck-delivery"></i> Etiqueta de Envio</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Remetente e transportadora usados na etiqueta 100×150mm gerada nos pedidos.</p>
       <div class="form-group"><label>Nome do remetente</label><input type="text" id="set-rem-nome" placeholder="ANZO'S Print 3D"></div>
       <div class="form-row">
-        <div class="form-group"><label>Endereço (rua)</label><input type="text" id="set-rem-endereco" placeholder="Rua ..."></div>
-        <div class="form-group"><label>Número</label><input type="text" id="set-rem-numero" placeholder="123"></div>
+        <div class="form-group" style="max-width:160px">
+          <label>CEP <span id="set-rem-cep-status" style="font-size:10px;color:var(--text3);font-weight:400"></span></label>
+          <input type="text" id="set-rem-cep" placeholder="00000-000" maxlength="9"
+            oninput="formatCepInput(this)" onblur="lookupCepRemetente()">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Logradouro</label>
+          <input type="text" id="set-rem-endereco" placeholder="Rua...">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:100px"><label>Número</label><input type="text" id="set-rem-numero" placeholder="123"></div>
+        <div class="form-group" style="flex:1"><label>Complemento</label><input type="text" id="set-rem-complemento" placeholder="Sala, galpão..."></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Bairro</label><input type="text" id="set-rem-bairro"></div>
-        <div class="form-group"><label>Complemento</label><input type="text" id="set-rem-complemento"></div>
-      </div>
-      <div class="form-row">
         <div class="form-group"><label>Cidade</label><input type="text" id="set-rem-cidade" placeholder="Mairinque"></div>
-        <div class="form-group"><label>Estado (UF)</label><input type="text" id="set-rem-estado" placeholder="SP" maxlength="2"></div>
-        <div class="form-group"><label>CEP</label><input type="text" id="set-rem-cep"></div>
+        <div class="form-group" style="max-width:80px"><label>UF</label><input type="text" id="set-rem-estado" placeholder="SP" maxlength="2" style="text-transform:uppercase"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Telefone</label><input type="text" id="set-rem-telefone" placeholder="(11) 90000-0000"></div>
+        <div class="form-group"><label>Telefone</label><input type="text" id="set-rem-telefone" placeholder="(11) 90000-0000" maxlength="15" oninput="formatPhoneInput(this)"></div>
         <div class="form-group"><label>Site</label><input type="text" id="set-rem-site" placeholder="anzosprint3d.com.br"></div>
         <div class="form-group"><label>Instagram</label><input type="text" id="set-rem-instagram" placeholder="@anzos.print3d"></div>
       </div>
@@ -2394,16 +2497,97 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       </div>
       <button class="btn btn-primary" onclick="saveSenderInfo()"><i class="ti ti-device-floppy"></i> Salvar Dados da Etiqueta</button>
     </div>
+
+    <!-- ══ PARÂMETROS DE CUSTO ══ -->
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Parâmetros de Custo</h3>
-      <div class="form-group"><label>Custo kWh (R$)</label><input type="number" id="set-cost-kwh" value="0.80" step="0.01"></div>
-      <div class="form-group"><label>Custo filamento PLA (R$/g)</label><input type="number" id="set-cost-pla" value="0.05" step="0.001"></div>
-      <div class="form-group"><label>Custo filamento PETG (R$/g)</label><input type="number" id="set-cost-petg" value="0.095" step="0.001"></div>
-      <div class="form-group"><label>Custo filamento ABS (R$/g)</label><input type="number" id="set-cost-abs" value="0.08" step="0.001"></div>
-      <div class="form-group"><label>Margem padrão de lucro (%)</label><input type="number" id="set-cost-margem" value="40"></div>
-      <div class="form-group"><label>Consumo médio impressora (W)</label><input type="number" id="set-cost-watts" value="200"></div>
-      <div class="form-group"><label>Desgaste impressora (R$/h)</label><input type="number" id="set-cost-wear" value="0.50" step="0.01"></div>
-      <button class="btn btn-primary" onclick="saveCostParams()"><i class="ti ti-device-floppy"></i> Salvar Custos</button>
+      <div class="cfg-card-title"><i class="ti ti-calculator"></i> Parâmetros de Custo</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:16px">Valores usados como base nos cálculos automáticos dos orçamentos. Campos com <i class="ti ti-calculator" style="font-size:11px;color:var(--blue)"></i> mostram a fórmula de uso.</p>
+
+      <!-- ENERGIA -->
+      <div class="cfg-cost-group">
+        <div class="cfg-cost-group-title"><i class="ti ti-bolt"></i> Energia</div>
+        <div class="cfg-cost-row">
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">
+              Custo do kWh
+              <span class="help-ico">?<span class="help-bubble">Valor da tarifa de energia elétrica por quilowatt-hora. Verifique na sua conta de luz (média residencial SP ≈ R$ 0,80).</span></span>
+            </div>
+            <div class="cfg-cost-unit">R$/kWh</div>
+            <input type="number" id="set-cost-kwh" class="cfg-cost-input" oninput="updateCostPreview()" value="0.80" step="0.01" min="0">
+          </div>
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">
+              Consumo da impressora
+              <span class="help-ico">?<span class="help-bubble">Potência média da sua impressora em Watts. Bambu Lab X1C ≈ 350W · Ender 3 ≈ 150W · P1S ≈ 300W. Veja na plaquinha da máquina ou no manual.</span></span>
+            </div>
+            <div class="cfg-cost-unit">Watts</div>
+            <input type="number" id="set-cost-watts" class="cfg-cost-input" oninput="updateCostPreview()" value="200" step="10" min="0">
+          </div>
+        </div>
+        <div class="cfg-cost-formula"><i class="ti ti-calculator"></i> Energia por hora = (Watts ÷ 1000) × kWh · Ex: 200W × 8h × R$0,80/kWh = <span id="cfg-preview-energy">R$ 1,28</span></div>
+      </div>
+
+      <!-- FILAMENTOS FALLBACK -->
+      <div class="cfg-cost-group">
+        <div class="cfg-cost-group-title"><i class="ti ti-cylinder"></i> Custo Fallback de Filamentos</div>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:10px">Usado quando não há filamento cadastrado com o tipo selecionado no orçamento.</p>
+        <div class="cfg-cost-row">
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">PLA <span class="help-ico">?<span class="help-bubble">Custo médio por grama de PLA quando não há bobina cadastrada. R$ 0,05/g = R$ 100/kg (1kg de PLA ÷ 1000g).</span></span></div>
+            <div class="cfg-cost-unit">R$/g</div>
+            <input type="number" id="set-cost-pla" class="cfg-cost-input" oninput="updateCostPreview()" value="0.05" step="0.001" min="0">
+          </div>
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">PETG <span class="help-ico">?<span class="help-bubble">Custo médio por grama de PETG. PETG costuma ser ~20% mais caro que PLA. R$ 0,095/g ≈ R$ 95/500g.</span></span></div>
+            <div class="cfg-cost-unit">R$/g</div>
+            <input type="number" id="set-cost-petg" class="cfg-cost-input" value="0.095" step="0.001" min="0">
+          </div>
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">ABS <span class="help-ico">?<span class="help-bubble">Custo médio por grama de ABS. ABS tem custo parecido com PLA mas exige impressora fechada.</span></span></div>
+            <div class="cfg-cost-unit">R$/g</div>
+            <input type="number" id="set-cost-abs" class="cfg-cost-input" value="0.08" step="0.001" min="0">
+          </div>
+        </div>
+        <div class="cfg-cost-formula"><i class="ti ti-info-circle"></i> Esses valores são fallback. Para preços precisos, cadastre suas bobinas em <b>Filamentos</b> com o preço pago.</div>
+      </div>
+
+      <!-- IMPRESSORA / MARGEM -->
+      <div class="cfg-cost-group">
+        <div class="cfg-cost-group-title"><i class="ti ti-tool"></i> Impressora &amp; Negócio</div>
+        <div class="cfg-cost-row">
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">
+              Desgaste da impressora
+              <span class="help-ico">?<span class="help-bubble">Custo por hora de uso para amortizar peças e manutenção. Cálculo sugerido: (preço da impressora ÷ vida útil em horas). Ex: R$5.000 ÷ 5.000h = R$1,00/h.</span></span>
+            </div>
+            <div class="cfg-cost-unit">R$/hora</div>
+            <input type="number" id="set-cost-wear" class="cfg-cost-input" oninput="updateCostPreview()" value="0.50" step="0.01" min="0">
+          </div>
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">
+              Margem padrão de lucro
+              <span class="help-ico">?<span class="help-bubble">Percentual de lucro pré-preenchido ao abrir um novo orçamento. Pode ser ajustado por orçamento. Ex: margem 40% sobre custo de R$10 → preço final R$14. Margem 100% → dobra o custo.</span></span>
+            </div>
+            <div class="cfg-cost-unit">%</div>
+            <input type="number" id="set-cost-margem" class="cfg-cost-input" oninput="updateCostPreview()" value="40" step="1" min="0">
+          </div>
+        </div>
+        <div class="cfg-cost-formula"><i class="ti ti-calculator"></i> Desgaste por impressão = R$/h × horas · Preço final = Custo × (1 + margem%/100)</div>
+      </div>
+
+      <div id="cfg-cost-preview" style="background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--text2);margin-bottom:14px">
+        <div style="font-weight:600;color:var(--blue);margin-bottom:6px"><i class="ti ti-eye"></i> Prévia — impressão de 150g × 8h (PLA, sem mão de obra)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <div>Filamento: <strong id="cfg-prev-fil">R$ 7,50</strong></div>
+          <div>Energia: <strong id="cfg-prev-en">R$ 1,28</strong></div>
+          <div>Desgaste: <strong id="cfg-prev-wear">R$ 4,00</strong></div>
+          <div>Custo total: <strong id="cfg-prev-custo">R$ 12,78</strong></div>
+          <div>Margem: <strong id="cfg-prev-margem">40%</strong></div>
+          <div>Preço final: <strong id="cfg-prev-preco" style="color:var(--blue)">R$ 17,89</strong></div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveCostParams()"><i class="ti ti-device-floppy"></i> Salvar Parâmetros</button>
     </div>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -4891,27 +5075,125 @@ function loadSenderInfoForm() {
 function getCompanyData() {
   try { return JSON.parse(localStorage.getItem('anzos_empresa') || '{}'); } catch(e){ return {}; }
 }
+
+function validateEmailField(input) {
+  const errEl = document.getElementById(input.id + '-err');
+  const v = input.value.trim();
+  if (!v) { if(errEl) errEl.textContent=''; return true; }
+  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  if(errEl) errEl.textContent = ok ? '' : 'E-mail inválido';
+  return ok;
+}
+
+function validateCnpjField(input) {
+  const errEl = document.getElementById(input.id + '-err');
+  const digits = input.value.replace(/\D/g,'');
+  if (!digits) { if(errEl) errEl.textContent=''; return true; }
+  const ok = digits.length === 14;
+  if(errEl) errEl.textContent = ok ? '' : 'CNPJ deve ter 14 dígitos';
+  return ok;
+}
+
+async function lookupCepEmpresa() {
+  const cep = (document.getElementById('set-emp-cep')?.value||'').replace(/\D/g,'');
+  const st  = document.getElementById('set-emp-cep-status');
+  if (cep.length !== 8) return;
+  if(st) st.textContent = '⏳';
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) { if(st) st.textContent='❌ CEP não encontrado'; return; }
+    const set = (id,v) => { const el=document.getElementById(id); if(el&&v) el.value=v; };
+    set('set-emp-endereco', d.logradouro);
+    set('set-emp-bairro',   d.bairro);
+    set('set-emp-cidade',   d.localidade);
+    set('set-emp-estado',   d.uf);
+    if(st) st.textContent = '✅';
+    document.getElementById('set-emp-numero')?.focus();
+  } catch(e){ if(st) st.textContent='❌ Erro'; }
+}
+
+async function lookupCepRemetente() {
+  const cep = (document.getElementById('set-rem-cep')?.value||'').replace(/\D/g,'');
+  const st  = document.getElementById('set-rem-cep-status');
+  if (cep.length !== 8) return;
+  if(st) st.textContent = '⏳';
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) { if(st) st.textContent='❌ CEP não encontrado'; return; }
+    const set = (id,v) => { const el=document.getElementById(id); if(el&&v) el.value=v; };
+    set('set-rem-endereco', d.logradouro);
+    set('set-rem-bairro',   d.bairro);
+    set('set-rem-cidade',   d.localidade);
+    set('set-rem-estado',   d.uf);
+    if(st) st.textContent = '✅';
+    document.getElementById('set-rem-numero')?.focus();
+  } catch(e){ if(st) st.textContent='❌ Erro'; }
+}
+
 function saveCompanyData() {
-  const g = id => (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
+  const g = id => (document.getElementById(id)?.value||'').trim();
+  // Validações
+  const emailOk = validateEmailField(document.getElementById('set-emp-email'));
+  const cnpjOk  = validateCnpjField(document.getElementById('set-emp-cnpj'));
+  if (!emailOk || !cnpjOk) { showToast('Corrija os campos em vermelho antes de salvar.'); return; }
+
   const data = {
     nome: g('set-emp-nome'), cnpj: g('set-emp-cnpj'), telefone: g('set-emp-telefone'),
-    email: g('set-emp-email'), endereco: g('set-emp-endereco'), cidade: g('set-emp-cidade'), cep: g('set-emp-cep'),
+    email: g('set-emp-email'),
+    cep: g('set-emp-cep'), endereco: g('set-emp-endereco'), numero: g('set-emp-numero'),
+    complemento: g('set-emp-complemento'), bairro: g('set-emp-bairro'),
+    cidade: g('set-emp-cidade'), estado: g('set-emp-estado'),
+    site: g('set-emp-site'), instagram: g('set-emp-instagram'),
+    facebook: g('set-emp-facebook'), tiktok: g('set-emp-tiktok'),
+    whatsapp: g('set-emp-whatsapp'), youtube: g('set-emp-youtube'),
   };
   localStorage.setItem('anzos_empresa', JSON.stringify(data));
   showToast('Dados da empresa salvos!');
 }
+
 function loadCompanyDataForm() {
   const d = getCompanyData();
-  const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
-  if (d.nome) set('set-emp-nome', d.nome);
-  set('set-emp-cnpj', d.cnpj); set('set-emp-telefone', d.telefone); set('set-emp-email', d.email);
-  set('set-emp-endereco', d.endereco); set('set-emp-cidade', d.cidade); set('set-emp-cep', d.cep);
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  set('set-emp-nome', d.nome); set('set-emp-cnpj', d.cnpj);
+  set('set-emp-telefone', d.telefone); set('set-emp-email', d.email);
+  set('set-emp-cep', d.cep); set('set-emp-endereco', d.endereco);
+  set('set-emp-numero', d.numero); set('set-emp-complemento', d.complemento);
+  set('set-emp-bairro', d.bairro); set('set-emp-cidade', d.cidade);
+  set('set-emp-estado', d.estado);
+  set('set-emp-site', d.site); set('set-emp-instagram', d.instagram);
+  set('set-emp-facebook', d.facebook); set('set-emp-tiktok', d.tiktok);
+  set('set-emp-whatsapp', d.whatsapp); set('set-emp-youtube', d.youtube);
 }
 
 // ── Parâmetros de Custo (localStorage) ──
 function getCostParams() {
   try { return JSON.parse(localStorage.getItem('anzos_custos') || '{}'); } catch(e){ return {}; }
 }
+
+function updateCostPreview() {
+  const g = id => parseFloat(document.getElementById(id)?.value)||0;
+  const kwh=g('set-cost-kwh'), watts=g('set-cost-watts'), pla=g('set-cost-pla');
+  const wear=g('set-cost-wear'), margem=g('set-cost-margem');
+  const horas=8, gramas=150;
+  const en   = round2((watts/1000)*kwh*horas);
+  const fil  = round2(gramas*pla);
+  const dsg  = round2(wear*horas);
+  const custo= round2(fil+en+dsg);
+  const preco= round2(custo*(1+margem/100));
+  const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('cfg-prev-fil',   'R$ '+fil.toFixed(2).replace('.',','));
+  set('cfg-prev-en',    'R$ '+en.toFixed(2).replace('.',','));
+  set('cfg-prev-wear',  'R$ '+dsg.toFixed(2).replace('.',','));
+  set('cfg-prev-custo', 'R$ '+custo.toFixed(2).replace('.',','));
+  set('cfg-prev-margem', margem+'%');
+  set('cfg-prev-preco', 'R$ '+preco.toFixed(2).replace('.',','));
+  // fórmula de energia
+  const enEx = document.getElementById('cfg-preview-energy');
+  if(enEx) enEx.textContent = 'R$ '+en.toFixed(2).replace('.',',');
+}
+
 function saveCostParams() {
   const g = id => parseFloat(document.getElementById(id)?.value) || 0;
   const data = {
@@ -4926,6 +5208,7 @@ function loadCostParamsForm() {
   const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
   set('set-cost-kwh', d.kwh); set('set-cost-pla', d.pla); set('set-cost-petg', d.petg); set('set-cost-abs', d.abs);
   set('set-cost-margem', d.margem); set('set-cost-watts', d.watts); set('set-cost-wear', d.wear);
+  setTimeout(updateCostPreview, 50);
 }
 
 // ── Lista de usuários reais (do perfil logado) ──
