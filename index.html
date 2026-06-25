@@ -821,43 +821,43 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
     <div class="metric-card">
       <div class="metric-icon" style="background:#eff6ff;color:#3b82f6"><i class="ti ti-shopping-cart"></i></div>
       <div class="metric-label">Pedidos Abertos</div>
-      <div class="metric-value" id="kpi-open-orders">12</div>
+      <div class="metric-value" id="kpi-open-orders">—</div>
       <div class="metric-trend trend-up" id="kpi-open-orders-trend"><i class="ti ti-trending-up"></i> +3 esta semana</div>
     </div>
     <div class="metric-card">
       <div class="metric-icon" style="background:#f0fdf4;color:#22c55e"><i class="ti ti-assembly"></i></div>
       <div class="metric-label">Em Produção</div>
-      <div class="metric-value" id="kpi-production">5</div>
+      <div class="metric-value" id="kpi-production">—</div>
       <div class="metric-trend trend-up"><i class="ti ti-trending-up"></i> 4 printers ativas</div>
     </div>
     <div class="metric-card">
       <div class="metric-icon" style="background:#fffbeb;color:#f59e0b"><i class="ti ti-check"></i></div>
       <div class="metric-label" id="kpi-completed-label">Concluídos/mês</div>
-      <div class="metric-value" id="kpi-completed">34</div>
+      <div class="metric-value" id="kpi-completed">—</div>
       <div class="metric-trend trend-up" id="kpi-completed-trend"><i class="ti ti-trending-up"></i> +18% vs ant.</div>
     </div>
     <div class="metric-card">
       <div class="metric-icon" style="background:#eff6ff;color:#3b82f6"><i class="ti ti-currency-real"></i></div>
       <div class="metric-label" id="kpi-revenue-label">Faturamento</div>
-      <div class="metric-value" id="kpi-revenue" style="font-size:22px">R$ 18.420</div>
+      <div class="metric-value" id="kpi-revenue" style="font-size:22px">—</div>
       <div class="metric-trend trend-up" id="kpi-revenue-trend"><i class="ti ti-trending-up"></i> +22%</div>
     </div>
     <div class="metric-card">
       <div class="metric-icon" style="background:#f0fdf4;color:#22c55e"><i class="ti ti-chart-line"></i></div>
       <div class="metric-label" id="kpi-profit-label">Lucro</div>
-      <div class="metric-value" id="kpi-profit" style="font-size:22px">R$ 7.340</div>
+      <div class="metric-value" id="kpi-profit" style="font-size:22px">—</div>
       <div class="metric-trend trend-up" id="kpi-profit-trend"><i class="ti ti-trending-up"></i> Margem 39,8%</div>
     </div>
     <div class="metric-card">
       <div class="metric-icon" style="background:#f5f3ff;color:#8b5cf6"><i class="ti ti-cylinder"></i></div>
       <div class="metric-label" id="kpi-filament-label">Filamento (mês)</div>
-      <div class="metric-value" id="kpi-filament">4,2 kg</div>
+      <div class="metric-value" id="kpi-filament">—</div>
       <div class="metric-sub">consumido</div>
     </div>
     <div class="metric-card">
       <div class="metric-icon" style="background:#fef2f2;color:#ef4444"><i class="ti ti-clock"></i></div>
       <div class="metric-label" id="kpi-hours-label">Horas Impressão</div>
-      <div class="metric-value" id="kpi-hours">312 h</div>
+      <div class="metric-value" id="kpi-hours">—</div>
       <div class="metric-sub" id="kpi-hours-sub">mês atual</div>
     </div>
     <div class="metric-card">
@@ -10318,7 +10318,7 @@ function fmt(n) {
 }
 
 // ══════════════════════════════════════════════
-// DASHBOARD — dados reais do Supabase
+// DASHBOARD — 100% dados reais do Supabase
 // ══════════════════════════════════════════════
 
 function setDashboardPeriod(period) {
@@ -10326,100 +10326,7 @@ function setDashboardPeriod(period) {
   document.querySelectorAll('.period-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.period === period);
   });
-  // Carrega dados reais; fallback para mock se não houver banco ainda
   loadDashboardReal(period);
-}
-
-async function loadDashboardReal(period) {
-  if (!sb) { _dashFallback(period); return; }
-
-  try {
-    // Calcula intervalo de datas
-    const { ini, fim } = dashPeriodRange(period);
-
-    // Busca paralela
-    const [pedRes, transRes, opRes, filRes, prnRes, clientRes] = await Promise.all([
-      sb.from('pedidos')
-        .select('id, numero, descricao, valor_final, created_at, status, cliente_id, clientes(nome)')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false }),
-      sb.from('transacoes')
-        .select('tipo, valor, created_at')
-        .gte('created_at', ini).lte('created_at', fim)
-        .is('deleted_at', null),
-      sb.from('producao')
-        .select('status, created_at')
-        .is('deleted_at', null),
-      sb.from('filamentos')
-        .select('tipo, marca, cor, estoque_g, estoque_minimo_g')
-        .is('deleted_at', null),
-      sb.from('impressoras')
-        .select('nome, status')
-        .is('deleted_at', null),
-      sb.from('clientes')
-        .select('id, created_at')
-        .is('deleted_at', null),
-    ]);
-
-    const pedidos    = pedRes.data    || [];
-    const transacoes = transRes.data  || [];
-    const ops        = opRes.data     || [];
-    const filamentos = filRes.data    || [];
-    const impressoras= prnRes.data    || [];
-    const clientes   = clientRes.data || [];
-
-    // ── KPIs ──
-    const pedAbertos = pedidos.filter(p => !['finalizado','entregue','cancelado'].includes(p.status)).length;
-    const emProducao = ops.filter(o => ['Imprimindo','Iniciada','Aguardando'].includes(o.status)).length;
-
-    // Pedidos e transações dentro do período
-    const pedPeriodo = pedidos.filter(p => p.created_at >= ini && p.created_at <= fim);
-    const concluidos = pedPeriodo.filter(p => ['finalizado','entregue'].includes(p.status)).length;
-
-    const receitas = transacoes.filter(t => t.tipo === 'receita').reduce((s,t) => s + Number(t.valor), 0);
-    const despesas = transacoes.filter(t => t.tipo === 'despesa').reduce((s,t) => s + Number(t.valor), 0);
-    const lucro    = receitas - despesas;
-
-    // Impressoras
-    const prnAtivas = impressoras.filter(p => p.status === 'ativa' || p.status === 'ativo' || !p.status).length;
-    const prnManut  = impressoras.filter(p => ['manutenção','manutencao','inativa'].includes((p.status||'').toLowerCase())).length;
-
-    // KPI impressoras
-    const kpiPrn = document.getElementById('kpi-printers');
-    const kpiPrnSub = document.getElementById('kpi-printers-sub');
-    if (kpiPrn) kpiPrn.textContent = `${prnAtivas} / ${impressoras.length}`;
-    if (kpiPrnSub) kpiPrnSub.textContent = prnManut > 0 ? `${prnManut} em manutenção` : 'todas operacionais';
-
-    // Mock data estruturado com números reais onde possível
-    const d = DASHBOARD_DATA[period];
-    if (d) {
-      d.kpi.openOrders = pedAbertos;
-      d.kpi.production = emProducao;
-      d.kpi.completed  = concluidos;
-      d.kpi.revenue    = 'R$ ' + receitas.toLocaleString('pt-BR', {minimumFractionDigits:0,maximumFractionDigits:0});
-      d.kpi.profit     = 'R$ ' + lucro.toLocaleString('pt-BR', {minimumFractionDigits:0,maximumFractionDigits:0});
-      d.cashFlow.in    = receitas;
-      d.cashFlow.out   = despesas;
-      d.cashFlow.balance = lucro;
-      updateKPIs(d);
-      updateCashFlow(d);
-      updateGoal(d, period);
-      updateInsights(d);
-      updateRevenueChart(d);
-      updateRevenueSources(d);
-      updateAchievements(d);
-    }
-
-    // ── Alertas reais ──
-    renderDashAlerts(filamentos, pedidos);
-
-    // ── Últimos pedidos reais ──
-    renderDashRecentOrders(pedidos.slice(0, 5));
-
-  } catch(e) {
-    console.warn('Dashboard real error:', e);
-    _dashFallback(period);
-  }
 }
 
 function dashPeriodRange(period) {
@@ -10436,80 +10343,310 @@ function dashPeriodRange(period) {
     const d = new Date(now); d.setMonth(d.getMonth() - 3); ini = d.toISOString();
   } else if (period === 'semester') {
     const d = new Date(now); d.setMonth(d.getMonth() - 6); ini = d.toISOString();
-  } else { // year
+  } else {
     ini = new Date(now.getFullYear(), 0, 1).toISOString();
   }
   return { ini, fim };
+}
+
+const _brl = (n) => 'R$ ' + Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const _brl0 = (n) => 'R$ ' + Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const _set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+async function loadDashboardReal(period) {
+  if (!sb) { _dashEmpty(); return; }
+
+  // Spinner nos KPIs
+  ['kpi-open-orders','kpi-production','kpi-completed','kpi-revenue','kpi-profit',
+   'kpi-filament','kpi-hours','kpi-printers'].forEach(id => _set(id,'—'));
+
+  try {
+    const { ini, fim } = dashPeriodRange(period);
+    const periodLabel = {today:'Hoje',week:'Semana',month:'Mês',quarter:'Trimestre',semester:'Semestre',year:'Ano'}[period]||period;
+
+    const [pedRes, transRes, transAllRes, opRes, filRes, prnRes] = await Promise.all([
+      sb.from('pedidos')
+        .select('id,numero,descricao,valor_final,created_at,status,clientes(nome)')
+        .is('deleted_at',null).order('created_at',{ascending:false}),
+      sb.from('transacoes')
+        .select('tipo,valor,created_at,descricao')
+        .gte('created_at',ini).lte('created_at',fim).is('deleted_at',null),
+      sb.from('transacoes')
+        .select('tipo,valor,created_at').is('deleted_at',null),
+      sb.from('producao')
+        .select('status,filamento_id,peso_g,created_at').is('deleted_at',null),
+      sb.from('filamentos')
+        .select('tipo,marca,cor,estoque_g,estoque_minimo_g').is('deleted_at',null),
+      sb.from('impressoras')
+        .select('nome,status').is('deleted_at',null),
+    ]);
+
+    const pedidos     = pedRes.data     || [];
+    const trans       = transRes.data   || [];
+    const transAll    = transAllRes.data|| [];
+    const ops         = opRes.data      || [];
+    const filamentos  = filRes.data     || [];
+    const impressoras = prnRes.data     || [];
+
+    // ── Pedidos ──
+    const pedAbertos  = pedidos.filter(p => !['finalizado','entregue','cancelado'].includes(p.status)).length;
+    const pedPeriodo  = pedidos.filter(p => p.created_at >= ini && p.created_at <= fim);
+    const concluidos  = pedPeriodo.filter(p => ['finalizado','entregue'].includes(p.status)).length;
+    const pedTotalAll = pedidos.filter(p => ['finalizado','entregue'].includes(p.status)).length;
+
+    // ── Produção ──
+    const emProducao = ops.filter(o => ['Imprimindo','Iniciada','Em andamento'].includes(o.status)).length;
+    // Filamento consumido no período (via OPs)
+    const opsPeriodo = ops.filter(o => o.created_at >= ini && o.created_at <= fim);
+    const gramTotal  = opsPeriodo.reduce((s,o) => s + (Number(o.peso_g)||0), 0);
+    const kgStr      = gramTotal >= 1000 ? (gramTotal/1000).toFixed(1).replace('.',',') + ' kg' : gramTotal + ' g';
+
+    // ── Financeiro ──
+    const receitas = trans.filter(t => t.tipo==='receita').reduce((s,t) => s+Number(t.valor),0);
+    const despesas = trans.filter(t => t.tipo==='despesa').reduce((s,t) => s+Number(t.valor),0);
+    const lucro    = receitas - despesas;
+    const margem   = receitas > 0 ? ((lucro/receitas)*100).toFixed(1) : '0';
+
+    // Receita total histórica para conquistas
+    const receitaTotal = transAll.filter(t => t.tipo==='receita').reduce((s,t) => s+Number(t.valor),0);
+
+    // ── Impressoras ──
+    const prnAtivas = impressoras.filter(p => ['ativa','ativo','operacional'].includes((p.status||'ativa').toLowerCase())).length;
+    const prnManut  = impressoras.filter(p => ['manutenção','manutencao','inativa','manutenção'].includes((p.status||'').toLowerCase())).length;
+
+    // ── KPIs ──
+    _set('kpi-open-orders', pedAbertos);
+    _set('kpi-production',  emProducao);
+    _set('kpi-completed',   concluidos);
+    _set('kpi-revenue',     _brl0(receitas));
+    _set('kpi-profit',      _brl0(lucro));
+    _set('kpi-filament',    gramTotal > 0 ? kgStr : '0 g');
+    _set('kpi-hours',       '—');
+    _set('kpi-printers',    `${prnAtivas} / ${impressoras.length}`);
+    _set('kpi-printers-sub', prnManut > 0 ? `${prnManut} em manutenção` : impressoras.length > 0 ? 'todas operacionais' : 'nenhuma cadastrada');
+
+    // Trends — só texto real, sem invenção
+    const elOT = document.getElementById('kpi-open-orders-trend');
+    if (elOT) elOT.innerHTML = pedAbertos > 0 ? `<i class="ti ti-shopping-cart"></i> ${pedAbertos} aberto${pedAbertos>1?'s':''}` : '<i class="ti ti-check"></i> nenhum pendente';
+    const elRT = document.getElementById('kpi-revenue-trend');
+    if (elRT) elRT.innerHTML = receitas > 0 ? `<i class="ti ti-trending-up"></i> ${periodLabel}` : '<i class="ti ti-minus"></i> sem receitas';
+    const elPT = document.getElementById('kpi-profit-trend');
+    if (elPT) elPT.innerHTML = receitas > 0 ? `<i class="ti ti-percentage"></i> Margem ${margem}%` : '<i class="ti ti-minus"></i> —';
+    const elCT = document.getElementById('kpi-completed-trend');
+    if (elCT) elCT.innerHTML = concluidos > 0 ? `<i class="ti ti-check"></i> ${periodLabel}` : '<i class="ti ti-minus"></i> nenhum';
+
+    // ── Caixa ──
+    _set('cf-in',       _brl(receitas));
+    _set('cf-out',      _brl(despesas));
+    const cfBal = document.getElementById('cf-balance');
+    if (cfBal) { cfBal.textContent = _brl(lucro); cfBal.style.color = lucro >= 0 ? 'var(--green)' : 'var(--red)'; cfBal.style.fontSize='18px'; }
+    _set('cf-projected', _brl(receitas * 1.05)); // projeção conservadora +5%
+    const cfGr = document.getElementById('cf-growth');
+    if (cfGr) { cfGr.textContent = receitas > 0 ? '+' + margem + '%' : '—'; cfGr.style.color = lucro >= 0 ? 'var(--green)' : 'var(--red)'; }
+    const cfBadge = document.getElementById('cashflow-indicator-badge');
+    if (cfBadge) { cfBadge.className = lucro > 0 ? 'badge badge-green' : lucro < 0 ? 'badge badge-red' : 'badge badge-gray'; cfBadge.textContent = lucro > 0 ? 'Positivo' : lucro < 0 ? 'Negativo' : 'Neutro'; }
+
+    // ── Meta ──
+    const goalTarget = Number(localStorage.getItem('anzos_dash_meta') || 0);
+    const goalCur    = document.getElementById('goal-current');
+    const goalTgt    = document.getElementById('goal-target');
+    const goalFill   = document.getElementById('goal-progress-fill');
+    const goalPct    = document.getElementById('goal-percent');
+    const goalDays   = document.getElementById('goal-days-left');
+    const goalProj   = document.getElementById('goal-projection');
+    const goalBadge  = document.getElementById('goal-pace-badge');
+    if (goalCur)  goalCur.textContent  = _brl0(receitas);
+    if (goalTgt)  goalTgt.textContent  = goalTarget > 0 ? _brl0(goalTarget) : 'Meta não definida';
+    if (goalTarget > 0) {
+      const pct = Math.min(100, Math.round((receitas/goalTarget)*100));
+      if (goalFill)  goalFill.style.width = pct + '%';
+      if (goalPct)   goalPct.textContent  = pct + '%';
+      const now2 = new Date(); const fim2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0);
+      const diasRest = Math.ceil((fim2-now2)/86400000);
+      if (goalDays)  goalDays.textContent = `${diasRest} dias restantes`;
+      const diasPassados = now2.getDate();
+      const proj = diasPassados > 0 ? Math.round((receitas/diasPassados) * (diasPassados+diasRest)) : 0;
+      if (goalProj)  goalProj.textContent = _brl0(proj);
+      if (goalBadge) { goalBadge.className = pct >= 80 ? 'badge badge-green' : pct >= 50 ? 'badge badge-amber' : 'badge badge-red'; goalBadge.textContent = pct >= 80 ? 'Em ritmo' : pct >= 50 ? 'Atenção' : 'Abaixo'; }
+    } else {
+      if (goalFill)  goalFill.style.width = '0%';
+      if (goalPct)   goalPct.textContent  = '—';
+      if (goalDays)  goalDays.textContent = 'Defina uma meta nas configurações';
+      if (goalProj)  goalProj.textContent = '—';
+      if (goalBadge) { goalBadge.className = 'badge badge-gray'; goalBadge.textContent = 'Sem meta'; }
+    }
+
+    // ── Insights reais ──
+    renderDashInsights(receitas, despesas, lucro, pedAbertos, concluidos, filamentos, impressoras, period);
+
+    // ── Alertas reais ──
+    renderDashAlerts(filamentos, pedidos);
+
+    // ── Últimos pedidos ──
+    renderDashRecentOrders(pedidos.slice(0,5));
+
+    // ── Conquistas com dados reais ──
+    updateAchievements([concluidos, pedTotalAll, receitaTotal, 0]);
+
+    // ── Gráficos: mostrar placeholder se sem dados ──
+    const revLabel = {today:'Hoje',week:'7 dias',month:'Mês atual',quarter:'Trimestre',semester:'Semestre',year:'Ano'}[period];
+    const badge = document.getElementById('revenue-chart-badge');
+    if (badge) badge.textContent = revLabel || period;
+    if (trans.length > 0) {
+      _buildRevenueChart(trans, period);
+    } else {
+      if (dashChartRevenue) { dashChartRevenue.data.labels=[]; dashChartRevenue.data.datasets.forEach(d=>d.data=[]); dashChartRevenue.update(); }
+    }
+    _buildSourcesChart(trans);
+
+  } catch(e) {
+    console.warn('Dashboard real error:', e);
+    _dashEmpty();
+  }
+}
+
+function renderDashInsights(receitas, despesas, lucro, abertos, concluidos, filamentos, impressoras, period) {
+  const list  = document.getElementById('insights-list');
+  const badge = document.getElementById('insights-count-badge');
+  if (!list) return;
+
+  const insights = [];
+  const margem = receitas > 0 ? ((lucro/receitas)*100).toFixed(1) : null;
+
+  // Receita positiva
+  if (receitas > 0) insights.push({ type:'success', icon:'ti-trending-up', title:'Faturamento registrado', desc:`${_brl0(receitas)} em receitas no período${margem ? ' · margem ' + margem + '%' : ''}.` });
+  // Sem receitas
+  if (receitas === 0) insights.push({ type:'info', icon:'ti-coin', title:'Sem receitas no período', desc:'Nenhuma transação de receita registrada. Cadastre lançamentos em Financeiro.' });
+  // Pedidos abertos
+  if (abertos > 0) insights.push({ type:'info', icon:'ti-shopping-cart', title:`${abertos} pedido${abertos>1?'s':''} em aberto`, desc:`${concluidos} concluído${concluidos!==1?'s':''} no período.` });
+  // Filamento crítico
+  const criticos = filamentos.filter(f => f.estoque_minimo_g && f.estoque_g < f.estoque_minimo_g*0.5);
+  if (criticos.length) insights.push({ type:'danger', icon:'ti-cylinder', title:'Filamento crítico', desc:`${criticos.map(f=>`${f.tipo} ${f.cor||''}(${f.estoque_g}g)`).slice(0,2).join(', ')} abaixo de 50% do mínimo.` });
+  else {
+    const baixos = filamentos.filter(f => f.estoque_minimo_g && f.estoque_g <= f.estoque_minimo_g);
+    if (baixos.length) insights.push({ type:'warning', icon:'ti-alert-triangle', title:'Estoque baixo', desc:`${baixos.length} filamento${baixos.length>1?'s':''} próximos do mínimo.` });
+  }
+  // Saldo negativo
+  if (receitas > 0 && lucro < 0) insights.push({ type:'danger', icon:'ti-alert-circle', title:'Saldo negativo', desc:`Despesas (${_brl0(despesas)}) superam receitas (${_brl0(receitas)}) no período.` });
+  // Impressoras em manutenção
+  const emManut = impressoras.filter(p => ['manutenção','manutencao','inativa'].includes((p.status||'').toLowerCase()));
+  if (emManut.length) insights.push({ type:'warning', icon:'ti-tool', title:`${emManut.length} impressora${emManut.length>1?'s':''} em manutenção`, desc:emManut.map(p=>p.nome).join(', ') });
+
+  if (!insights.length) insights.push({ type:'info', icon:'ti-database', title:'Sistema pronto', desc:'Cadastre clientes, pedidos e transações para ver insights aqui.' });
+
+  const typeMap = {
+    success:{ cardCls:'insight-success', iconCls:'insight-icon-success', label:'Sucesso' },
+    warning:{ cardCls:'insight-warning', iconCls:'insight-icon-warning', label:'Atenção' },
+    danger: { cardCls:'insight-danger',  iconCls:'insight-icon-danger',  label:'Crítico' },
+    info:   { cardCls:'insight-info',    iconCls:'insight-icon-info',    label:'Info' },
+  };
+  list.innerHTML = '';
+  insights.forEach(ins => {
+    const t = typeMap[ins.type] || typeMap.info;
+    const div = document.createElement('div');
+    div.className = `insight-item ${t.cardCls}`;
+    div.innerHTML = `<div class="insight-icon ${t.iconCls}"><i class="ti ${ins.icon}"></i></div>
+      <div class="insight-body"><div class="insight-title">${escapeHtml(ins.title)}</div><div class="insight-desc">${escapeHtml(ins.desc)}</div></div>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;align-self:flex-start;background:rgba(0,0,0,0.06)">${t.label}</span>`;
+    list.appendChild(div);
+  });
+  if (badge) badge.textContent = insights.length;
+  setInsightsView(insightsView, true);
 }
 
 function renderDashAlerts(filamentos, pedidos) {
   const container = document.getElementById('dash-alerts');
   if (!container) return;
   const alerts = [];
-
-  // Filamentos abaixo do mínimo
   const baixos = filamentos.filter(f => f.estoque_minimo_g && f.estoque_g <= f.estoque_minimo_g);
   if (baixos.length) {
     const nomes = baixos.slice(0,3).map(f => `${f.tipo} ${f.cor||''} (${f.estoque_g}g)`).join(', ');
     alerts.push(`<div class="alert-bar alert-warning"><i class="ti ti-alert-triangle"></i><strong style="margin-left:4px">Estoque baixo:</strong>&nbsp;${escapeHtml(nomes)}${baixos.length>3?' e mais...':''}. <a href="#" onclick="nav('filaments');return false;" style="color:#1d4ed8;font-weight:600;margin-left:8px">Ver Filamentos →</a></div>`);
   }
-
-  // Pedidos em atraso (em produção/processamento criados há mais de 14 dias)
   const limite = new Date(); limite.setDate(limite.getDate() - 14);
-  const atrasados = pedidos.filter(p =>
-    ['producao','pos_processamento','aguardando'].includes(p.status) &&
-    new Date(p.created_at) < limite
-  );
+  const atrasados = pedidos.filter(p => ['producao','pos_processamento','aguardando'].includes(p.status) && new Date(p.created_at) < limite);
   if (atrasados.length) {
     const nums = atrasados.slice(0,3).map(p => p.numero||p.id.slice(0,8)).join(', ');
-    alerts.push(`<div class="alert-bar alert-danger"><i class="ti ti-clock-x"></i><strong style="margin-left:4px">${atrasados.length} pedido${atrasados.length>1?'s':''} com prazo longo:</strong>&nbsp;${escapeHtml(nums)}${atrasados.length>3?' e outros':''}. <a href="#" onclick="nav('orders');return false;" style="color:#991b1b;font-weight:600;margin-left:8px">Ver Pedidos →</a></div>`);
+    alerts.push(`<div class="alert-bar alert-danger"><i class="ti ti-clock-x"></i><strong style="margin-left:4px">${atrasados.length} pedido${atrasados.length>1?'s':''} com prazo longo:</strong>&nbsp;${escapeHtml(nums)}. <a href="#" onclick="nav('orders');return false;" style="color:#991b1b;font-weight:600;margin-left:8px">Ver Pedidos →</a></div>`);
   }
-
-  container.innerHTML = alerts.join('') || '';
+  container.innerHTML = alerts.join('');
 }
 
 function renderDashRecentOrders(pedidos) {
   const container = document.getElementById('dash-recent-orders');
   if (!container) return;
   if (!pedidos.length) {
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Nenhum pedido ainda.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Nenhum pedido cadastrado ainda.</div>';
     return;
   }
-  const statusBadge = { aguardando:'badge-amber', producao:'badge-blue', pos_processamento:'badge-purple', finalizado:'badge-green', entregue:'badge-gray', cancelado:'badge-red', devolucao:'badge-red' };
+  const statusBadge = {aguardando:'badge-amber',producao:'badge-blue',pos_processamento:'badge-purple',finalizado:'badge-green',entregue:'badge-gray',cancelado:'badge-red',devolucao:'badge-red'};
   container.innerHTML = pedidos.map(p => {
-    const badge = statusBadge[p.status] || 'badge-gray';
-    const nomeCliente = p.clientes?.nome || 'Cliente';
-    const num = p.numero || ('#' + p.id.slice(0,6).toUpperCase());
-    const val = p.valor_final ? 'R$ ' + Number(p.valor_final).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
-    const dt  = new Date(p.created_at);
-    const hoje = new Date(); hoje.setHours(0,0,0,0);
-    const diff = Math.floor((hoje - dt) / 86400000);
-    const dtLabel = diff === 0 ? 'hoje' : diff === 1 ? 'ontem' : `${diff} dias atrás`;
+    const badge = statusBadge[p.status]||'badge-gray';
+    const nome  = p.clientes?.nome || '—';
+    const num   = p.numero || ('#'+p.id.slice(0,6).toUpperCase());
+    const val   = p.valor_final ? _brl(p.valor_final) : '—';
+    const hoje  = new Date(); hoje.setHours(0,0,0,0);
+    const diff  = Math.floor((hoje - new Date(p.created_at)) / 86400000);
+    const dtLbl = diff===0?'hoje':diff===1?'ontem':`${diff}d atrás`;
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border-radius:var(--radius)">
       <span class="badge ${badge}" style="flex-shrink:0;font-size:11px">${escapeHtml(num)}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(nomeCliente)}</div>
-        <div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.descricao||'—')}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:13px;font-weight:600">${val}</div>
-        <div style="font-size:11px;color:var(--text2)">${dtLabel}</div>
-      </div>
+      <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(nome)}</div><div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.descricao||'—')}</div></div>
+      <div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:600">${val}</div><div style="font-size:11px;color:var(--text2)">${dtLbl}</div></div>
     </div>`;
   }).join('');
 }
 
-function _dashFallback(period) {
-  const d = DASHBOARD_DATA[period];
-  if (!d) return;
-  updateKPIs(d); updateInsights(d); updateRevenueChart(d);
-  updateRevenueSources(d); updateGoal(d, period);
-  updateAchievements(d); updateCashFlow(d);
-  // Limpa alertas e pedidos mockados
-  const da = document.getElementById('dash-alerts');
-  if (da) da.innerHTML = '';
+function _buildRevenueChart(trans, period) {
+  if (!dashChartRevenue) return;
+  // Agrupa receitas e despesas por data simples
+  const byDay = {};
+  trans.forEach(t => {
+    const day = t.created_at.slice(0,10);
+    if (!byDay[day]) byDay[day] = {r:0,d:0};
+    if (t.tipo==='receita') byDay[day].r += Number(t.valor);
+    else byDay[day].d += Number(t.valor);
+  });
+  const days = Object.keys(byDay).sort();
+  dashChartRevenue.data.labels   = days.map(d => d.slice(5)); // MM-DD
+  dashChartRevenue.data.datasets[0].data = days.map(d => byDay[d].r);
+  dashChartRevenue.data.datasets[1].data = days.map(d => byDay[d].d);
+  dashChartRevenue.data.datasets[2].data = days.map(d => byDay[d].r - byDay[d].d);
+  dashChartRevenue.update();
+}
+
+function _buildSourcesChart(trans) {
+  if (!dashChartSources) return;
+  const receitas = trans.filter(t => t.tipo==='receita');
+  // Agrupa por categoria (primeiras palavras da descrição)
+  const cats = {};
+  receitas.forEach(t => {
+    const cat = (t.descricao||'Outros').split(' ').slice(0,2).join(' ');
+    cats[cat] = (cats[cat]||0) + Number(t.valor);
+  });
+  const labels = Object.keys(cats).slice(0,6);
+  const values = labels.map(l => cats[l]);
+  dashChartSources.data.labels  = labels.length ? labels : ['Sem dados'];
+  dashChartSources.data.datasets[0].data = values.length ? values : [1];
+  dashChartSources.update();
+  // Legenda
+  const leg = document.getElementById('revenue-sources-legend');
+  if (leg) {
+    const colors = ['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ef4444','#06b6d4'];
+    const total = values.reduce((s,v)=>s+v,0);
+    leg.innerHTML = labels.map((l,i) => `<div style="display:flex;align-items:center;justify-content:space-between;font-size:12px"><div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:${colors[i%colors.length]};display:inline-block"></span>${escapeHtml(l)}</div><span style="font-weight:600">${total>0?Math.round((values[i]/total)*100):0}%</span></div>`).join('') || '<div style="color:var(--text3);font-size:12px">Sem receitas no período</div>';
+  }
+}
+
+function _dashEmpty() {
+  ['kpi-open-orders','kpi-production','kpi-completed'].forEach(id => _set(id,'0'));
+  ['kpi-revenue','kpi-profit'].forEach(id => _set(id,'R$ 0'));
+  _set('kpi-filament','0 g'); _set('kpi-hours','0 h');
+  _set('kpi-printers','—'); _set('kpi-printers-sub','sem dados');
+  const da = document.getElementById('dash-alerts'); if(da) da.innerHTML='';
   const ro = document.getElementById('dash-recent-orders');
-  if (ro) ro.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Conecte ao Supabase para ver os pedidos reais.</div>';
+  if(ro) ro.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Sem conexão com o banco.</div>';
+  renderDashInsights(0,0,0,0,0,[],[],currentPeriod);
+  updateAchievements([0,0,0,0]);
 }
 
 function updateKPIs(d) {
@@ -10636,9 +10773,10 @@ function updateGoal(d, period) {
   }
 }
 
-function updateAchievements(d) {
-  // d.achievements = [totalCompletedOrders, totalOrders, totalRevenue, extraUnlock]
-  const [completed, orders, revenue, extra] = d.achievements;
+function updateAchievements(achData) {
+  // achData = [concluidos, totalPedidos, receitaTotal, extraUnlock]  (array direto)
+  const arr = Array.isArray(achData) ? achData : (achData.achievements || [0,0,0,0]);
+  const [completed, orders, revenue, extra] = arr;
   const grid = document.getElementById('achievements-grid');
   if (!grid) return;
   const unlockMap = {
