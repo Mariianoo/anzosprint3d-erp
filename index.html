@@ -7232,14 +7232,21 @@ function openPartColorPicker(pid) {
 
 // Chamado quando o color picker nativo muda
 function onPartColorPickerChange(pid, hex) {
-  // Encontra a parte e atualiza cor e hex
   var part = modelParts.find(function(p){ return p._id === pid; });
   if (!part) return;
-  // Nome = o hex como fallback se não achar nos filamentos
-  var match = (filamentsData||[]).find(function(f){ return f.swatch && f.swatch.toLowerCase() === hex.toLowerCase() && f.type === part.tipo; });
-  var nomeCor = match ? match.color : hex.toUpperCase();
-  part.cor  = nomeCor;
-  part.hex  = hex;   // campo extra para guardar o hex escolhido manualmente
+  // Tenta achar o nome da cor no cadastro de filamentos (mesmo hex)
+  var match = (filamentsData||[]).find(function(f){ return f.swatch && f.swatch.toLowerCase() === hex.toLowerCase(); });
+  var nomeCor;
+  if (match) {
+    nomeCor = match.color;
+  } else {
+    // Cor manual — pergunta um nome amigável (opcional)
+    nomeCor = prompt('Nome para esta cor (ex: Verde Bandeira, Branco Gelo):', hex.toUpperCase());
+    if (nomeCor === null) return; // cancelou
+    if (!nomeCor.trim()) nomeCor = hex.toUpperCase();
+  }
+  part.cor = nomeCor;
+  part.hex = hex;
   renderModelParts();
   syncModelPartTotals();
 }
@@ -7296,20 +7303,6 @@ function renderModelParts() {
       }
     }
 
-    // Paleta de bolinhas de cor — usa data-attributes para evitar conflito de aspas
-    const paletaHTML = coresUnicas.length
-      ? buildColorPalette(part._id, part.cor, coresUnicas)
-      : ('<div style="font-size:11px;color:var(--text3);margin-top:5px">'
-          + (!part.tipo ? '<i class="ti ti-arrow-up" style="font-size:10px;margin-right:3px"></i>Selecione o tipo primeiro'
-            : 'Nenhuma cor cadastrada para <strong>' + escapeHtml(part.tipo) + '</strong>. Cadastre filamentos em Filamentos.')
-          + '</div>');
-
-    // Indicador de cor selecionada
-    const corSel = coresUnicas.find(c => c.nome === part.cor);
-    const corLabel = corSel
-      ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text)"><span style="width:12px;height:12px;border-radius:50%;background:${corSel.hex};display:inline-block;border:1px solid var(--border2)"></span>${escapeHtml(corSel.nome)}</span>`
-      : `<span style="font-size:12px;color:var(--text3)">Qualquer</span>`;
-
     return `<div style="background:var(--surface3,#0f172a);border-radius:10px;border:1px solid var(--border);padding:12px;margin-bottom:8px">
       <!-- Linha 1: Tipo / Marca / botão remover -->
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px">
@@ -7351,7 +7344,6 @@ function renderModelParts() {
           <input type="color" id="mp-colorpick-${part._id}"
             value="${escapeHtml(part.hex||(coresUnicas.find(c=>c.nome===part.cor)||{}).hex||'#3b82f6')}"
             style="position:absolute;opacity:0;width:0;height:0;pointer-events:none"
-            oninput="onPartColorPickerChange(${part._id},this.value)"
             onchange="onPartColorPickerChange(${part._id},this.value)">
 
           <!-- Botão abrir picker -->
