@@ -7974,30 +7974,32 @@ function useModelInQuote() {
 // Aplica os dados de um modelo 3D na calculadora de orçamento (suporta multipartes)
 function applyModelDataToQuote(m) {
   if (!m) return;
-  document.getElementById('q-desc').value = m.name;
   document.getElementById('q-hours').value = m.hours;
   opEnergyManual = false; opWearManual = false;
 
   if (m.modoImpressao === 'multipartes' && m.partesImpressao && m.partesImpressao.length) {
-    // Pré-preenche modo multipartes com as partes do modelo
+    // Pré-preenche modo multipartes com as partes do modelo (incluindo hex)
     multiParts = []; nextMultiPartId = 1;
     m.partesImpressao.forEach(p => {
       multiParts.push({
         _id: nextMultiPartId++,
         filamento_id: null,
         tipo: p.tipo || '', marca: p.marca || '', cor: p.cor || '',
+        hex: p.hex || '',
         gramas: Number(p.gramas) || 0,
         _rate: 0, _custo: 0,
       });
     });
     setQuoteMode('multipartes');
     recalcMultiParts();
+    // Descrição automática com as cores
+    document.getElementById('q-desc').value = buildMultipartDesc(m);
     showToast(`Modelo "${m.name}" aplicado — ${m.partesImpressao.length} parte(s) multicolor importadas!`);
   } else {
     // Modo simples
+    document.getElementById('q-desc').value = m.name;
     document.getElementById('q-weight').value = m.weight;
     setQuoteMode('simples');
-    // Seleciona tipo de filamento do modelo
     const typeSel = document.getElementById('q-fil-type');
     if (m.material && typeSel) {
       for (const opt of typeSel.options) {
@@ -8008,6 +8010,17 @@ function applyModelDataToQuote(m) {
     calcQuote();
     showToast(`Modelo "${m.name}" aplicado (${m.weight}g · ${m.hours}h)`);
   }
+}
+
+// Monta a descrição de um modelo multipartes listando as cores
+function buildMultipartDesc(m) {
+  if (!m.partesImpressao || !m.partesImpressao.length) return m.name;
+  const cores = m.partesImpressao
+    .filter(p => p.cor)
+    .map(p => p.cor);
+  const coresUnicas = [...new Set(cores)];
+  if (!coresUnicas.length) return `${m.name} (impressão multicolor — ${m.partesImpressao.length} partes)`;
+  return `${m.name} — impressão multicolor (${coresUnicas.join(', ')})`;
 }
 
 // ── 3D File Upload & Analysis ──
@@ -9609,10 +9622,14 @@ function renderMultiParts() {
       </div>
       <div>
         <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Cor</label>
-        <select onchange="onMultiPartChange(${part._id},'cor',this.value)" style="width:100%;padding:7px 10px;background:var(--surface3,#0f172a);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
-          <option value="">Qualquer</option>
-          ${cores.map(c => `<option value="${c}" ${c===part.cor?'selected':''}>${escapeHtml(c)}</option>`).join('')}
-        </select>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${part.hex || part.cor ? `<span style="width:18px;height:18px;border-radius:50%;flex-shrink:0;border:1.5px solid var(--border2);background:${escapeHtml(part.hex || (fils.find(f=>f.color===part.cor)||{}).swatch || '#808080')}" title="${escapeHtml(part.cor||'')}"></span>` : ''}
+          <select onchange="onMultiPartChange(${part._id},'cor',this.value)" style="flex:1;min-width:0;padding:7px 10px;background:var(--surface3,#0f172a);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px">
+            <option value="">Qualquer</option>
+            ${part.cor && !cores.includes(part.cor) ? `<option value="${escapeHtml(part.cor)}" selected>${escapeHtml(part.cor)}</option>` : ''}
+            ${cores.map(c => `<option value="${escapeHtml(c)}" ${c===part.cor?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
       </div>
       <div>
         <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px;display:block">Peso (g)</label>
@@ -10089,6 +10106,7 @@ async function saveCalculatorQuote() {
       ? multiParts.map(p => ({
           filamento_id: p.filamento_id || null,
           tipo: p.tipo, marca: p.marca, cor: p.cor,
+          hex: p.hex || (filamentsData.find(f=>f.color===p.cor)||{}).swatch || '',
           gramas: p.gramas,
           custo_unit: p._rate || 0,
           custo_total: p._custo || 0
@@ -10506,9 +10524,54 @@ function buildQuotePdf(data) {
   doc.text('Acabamento: ' + finishLabel, rx + 5, oy);
 
   // ════════════════════════════════════════════
+  // PARTES MULTICOLOR (se houver)
+  // ════════════════════════════════════════════
+  let extraY = 0;
+  if (data.partesMulti && data.partesMulti.length) {
+    let py = y + cardH + 14;
+    sectionTitle('Impressão Multicolor', marginX, py, 50);
+    py += 7;
+    // Cabeçalho
+    doc.setFillColor(...blueBg);
+    doc.roundedRect(marginX, py, contentW, 8 + data.partesMulti.length * 7 + 2, 2, 2, 'F');
+    py += 6;
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...slate);
+    doc.text('COR', marginX + 12, py);
+    doc.text('MATERIAL', marginX + 70, py);
+    doc.text('PESO', pageW - marginX - 10, py, { align: 'right' });
+    py += 5;
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...navy);
+    data.partesMulti.forEach((p, i) => {
+      // Bolinha de cor
+      try {
+        const hex = (p.hex || '#808080').replace('#','');
+        const rr = parseInt(hex.substring(0,2),16) || 128;
+        const gg = parseInt(hex.substring(2,4),16) || 128;
+        const bb = parseInt(hex.substring(4,6),16) || 128;
+        doc.setFillColor(rr, gg, bb);
+        doc.circle(marginX + 6, py - 1, 2, 'F');
+        doc.setDrawColor(...slateLt);
+        doc.setLineWidth(0.2);
+        doc.circle(marginX + 6, py - 1, 2, 'S');
+      } catch(e){}
+      doc.setFontSize(9);
+      doc.setTextColor(...navy);
+      doc.text(p.cor || '—', marginX + 12, py);
+      doc.setTextColor(...slate);
+      doc.text((p.tipo || 'PLA') + (p.marca ? ' · ' + p.marca : ''), marginX + 70, py);
+      doc.text((p.gramas || 0) + ' g', pageW - marginX - 10, py, { align: 'right' });
+      py += 7;
+    });
+    extraY = py - (y + cardH + 14) + 6;
+  }
+
+  // ════════════════════════════════════════════
   // FINANCIAL SUMMARY TABLE
   // ════════════════════════════════════════════
-  y += cardH + 14;
+  y += cardH + 14 + extraY;
   sectionTitle('Resumo Financeiro', marginX, y, 50);
   y += 7;
 
@@ -10688,10 +10751,17 @@ function generateQuotePdf() {
   const postType = postNames[document.getElementById('q-post').value] || 'Nenhum';
   const quoteNum = 'ORC-' + String(nextQuoteNum).padStart(4, '0');
 
+  const partesMulti = quoteMode === 'multipartes' ? multiParts.map(p => ({
+    tipo: p.tipo, marca: p.marca, cor: p.cor,
+    hex: p.hex || (filamentsData.find(f=>f.color===p.cor)||{}).swatch || '#808080',
+    gramas: p.gramas
+  })) : null;
+
   const doc = buildQuotePdf({
     quoteNum, client, desc, weight: r.weight, hours: r.hours, filType, postType,
     margin: r.margin, filCost: r.filCost, energy: r.energy, wear: r.wear,
-    post: r.post, pkg: r.pkg, total: r.total, price: r.price
+    post: r.post, pkg: r.pkg, total: r.total, price: r.price,
+    partesMulti
   });
 
   doc.save(`Orcamento_${quoteNum}_${client.replace(/\s+/g,'_')}.pdf`);
