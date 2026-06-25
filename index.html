@@ -7227,9 +7227,14 @@ function syncModelPartTotals() {
 document.addEventListener('click', function(e) {
   const sw = e.target.closest('.mp-color-swatch');
   if (!sw) return;
+  // Sempre lê do elemento raiz da pill (que tem data-mpid e data-cor)
   const pid = parseInt(sw.dataset.mpid);
-  const cor = sw.dataset.cor; // string vazia = "Qualquer"
-  if (!isNaN(pid)) onModelPartChange(pid, 'cor', cor);
+  const cor = sw.dataset.cor !== undefined ? sw.dataset.cor : '';
+  if (!isNaN(pid)) {
+    e.preventDefault();
+    e.stopPropagation();
+    onModelPartChange(pid, 'cor', cor);
+  }
 });
 
 function renderModelParts() {
@@ -7278,25 +7283,25 @@ function renderModelParts() {
     const paletaHTML = coresUnicas.length
       ? `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px">
           <div data-mpid="${part._id}" data-cor="" class="mp-color-swatch"
-            style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
-              background:${!part.cor?'var(--blue)':'var(--surface2)'};
-              border:1.5px solid ${!part.cor?'var(--blue)':'var(--border2)'};
-              color:${!part.cor?'#fff':'var(--text3)'};
-              transition:all .15s">
-            Qualquer
+            style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;user-select:none;
+              background:${!part.cor?'#1e3a5f':'var(--surface2)'};
+              border:2px solid ${!part.cor?'#3b82f6':'var(--border2)'};
+              color:${!part.cor?'#93c5fd':'var(--text2)'};
+              transition:all .15s;pointer-events:auto">
+            <span style="pointer-events:none">Qualquer</span>
           </div>
           ${coresUnicas.map(c => {
             const sel = part.cor===c.nome;
             return `<div data-mpid="${part._id}" data-cor="${escapeHtml(c.nome)}" title="${escapeHtml(c.nome)}" class="mp-color-swatch"
-              style="display:flex;align-items:center;gap:5px;padding:2px 10px 2px 5px;border-radius:20px;
-                font-size:11px;font-weight:600;cursor:pointer;
-                background:${sel?'var(--surface3,#0f172a)':'var(--surface2)'};
-                border:1.5px solid ${sel?'#3b82f6':'var(--border2)'};
-                color:${sel?'var(--text)':'var(--text3)'};
+              style="display:flex;align-items:center;gap:5px;padding:3px 12px 3px 6px;border-radius:20px;
+                font-size:11px;font-weight:600;cursor:pointer;user-select:none;
+                background:${sel?'#1e3a5f':'var(--surface2)'};
+                border:2px solid ${sel?'#3b82f6':'var(--border2)'};
+                color:${sel?'#93c5fd':'var(--text2)'};
                 transition:all .15s">
-              <span style="width:14px;height:14px;border-radius:50%;background:${escapeHtml(c.hex)};
-                border:1px solid rgba(255,255,255,.2);flex-shrink:0;display:inline-block"></span>
-              ${escapeHtml(c.nome)}
+              <span style="width:12px;height:12px;border-radius:50%;background:${escapeHtml(c.hex)};
+                border:1px solid rgba(255,255,255,.25);flex-shrink:0;display:inline-block;pointer-events:none"></span>
+              <span style="pointer-events:none">${escapeHtml(c.nome)}</span>
             </div>`;
           }).join('')}
         </div>`
