@@ -7224,55 +7224,34 @@ function syncModelPartTotals() {
 }
 
 // seleção de cor via função global (chamada pelo onclick da pill)
-function selectPartColor(pid, cor) {
-  onModelPartChange(pid, 'cor', cor);
+// Abre o color picker nativo para escolher cor de uma parte
+function openPartColorPicker(pid) {
+  var inp = document.getElementById('mp-colorpick-' + pid);
+  if (inp) inp.click();
 }
 
-// Constrói a paleta de cores sem conflito de aspas
-function buildColorPalette(pid, corAtual, cores) {
-  if (!cores.length) return '';
-  var wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px';
+// Chamado quando o color picker nativo muda
+function onPartColorPickerChange(pid, hex) {
+  // Encontra a parte e atualiza cor e hex
+  var part = modelParts.find(function(p){ return p._id === pid; });
+  if (!part) return;
+  // Nome = o hex como fallback se não achar nos filamentos
+  var match = (filamentsData||[]).find(function(f){ return f.swatch && f.swatch.toLowerCase() === hex.toLowerCase() && f.type === part.tipo; });
+  var nomeCor = match ? match.color : hex.toUpperCase();
+  part.cor  = nomeCor;
+  part.hex  = hex;   // campo extra para guardar o hex escolhido manualmente
+  renderModelParts();
+  syncModelPartTotals();
+}
 
-  // Pill "Qualquer"
-  var btnQ = document.createElement('button');
-  btnQ.type = 'button';
-  btnQ.textContent = 'Qualquer';
-  btnQ.style.cssText = [
-    'padding:3px 12px','border-radius:20px','font-size:11px','font-weight:600',
-    'cursor:pointer','border:2px solid ' + (!corAtual ? '#3b82f6' : 'rgba(255,255,255,.13)'),
-    'background:' + (!corAtual ? '#1e3a5f' : 'rgba(255,255,255,.04)'),
-    'color:' + (!corAtual ? '#93c5fd' : '#64748b'),'transition:all .15s'
-  ].join(';');
-  btnQ.addEventListener('click', function() { selectPartColor(pid, ''); });
-  wrap.appendChild(btnQ);
-
-  // Pills de cor
-  cores.forEach(function(c) {
-    var sel = corAtual === c.nome;
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.title = c.nome;
-    btn.style.cssText = [
-      'display:inline-flex','align-items:center','gap:5px',
-      'padding:3px 12px 3px 6px','border-radius:20px','font-size:11px','font-weight:600',
-      'cursor:pointer',
-      'border:2px solid ' + (sel ? '#3b82f6' : 'rgba(255,255,255,.13)'),
-      'background:' + (sel ? '#1e3a5f' : 'rgba(255,255,255,.04)'),
-      'color:' + (sel ? '#93c5fd' : '#94a3b8'),'transition:all .15s'
-    ].join(';');
-
-    var dot = document.createElement('span');
-    dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:' + c.hex + ';border:1px solid rgba(255,255,255,.25);flex-shrink:0;display:inline-block';
-    var lbl = document.createTextNode(c.nome);
-    btn.appendChild(dot);
-    btn.appendChild(lbl);
-    (function(nome){ btn.addEventListener('click', function() { selectPartColor(pid, nome); }); })(c.nome);
-    wrap.appendChild(btn);
-  });
-
-  // Retorna o outerHTML para ser inserido no template string
-  return wrap.outerHTML;
+// Remove a cor selecionada de uma parte
+function clearPartColor(pid) {
+  var part = modelParts.find(function(p){ return p._id === pid; });
+  if (!part) return;
+  part.cor = '';
+  part.hex = '';
+  renderModelParts();
+  syncModelPartTotals();
 }
 
 function renderModelParts() {
@@ -7353,12 +7332,53 @@ function renderModelParts() {
         <button onclick="removeModelPart(${part._id})" class="btn btn-danger btn-sm" style="height:36px;padding:0 10px" title="Remover parte"><i class="ti ti-trash"></i></button>
       </div>
 
-      <!-- Linha 2: Cor (paleta visual) -->
+      <!-- Linha 2: Cor com picker nativo + chips cadastradas -->
       <div style="margin-bottom:10px">
-        <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:flex;align-items:center;gap:6px">
-          Cor — ${corLabel}
-        </label>
-        ${paletaHTML}
+        <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;display:block">Cor da Parte</label>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+
+          ${/* chip da cor selecionada ou placeholder */ part.cor ? `
+            <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 6px;border-radius:20px;background:var(--surface2);border:1.5px solid var(--blue)">
+              <span style="width:16px;height:16px;border-radius:50%;background:${escapeHtml(part.hex||(coresUnicas.find(c=>c.nome===part.cor)||{}).hex||'#808080')};border:1px solid rgba(255,255,255,.25);flex-shrink:0"></span>
+              <span style="font-size:12px;font-weight:600;color:var(--text)">${escapeHtml(part.cor)}</span>
+              <button type="button" onclick="clearPartColor(${part._id})" title="Remover cor"
+                style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1;margin-left:2px">&times;</button>
+            </div>` : `
+            <span style="font-size:12px;color:var(--text3);font-style:italic">Nenhuma cor selecionada</span>`
+          }
+
+          <!-- Input color picker oculto -->
+          <input type="color" id="mp-colorpick-${part._id}"
+            value="${escapeHtml(part.hex||(coresUnicas.find(c=>c.nome===part.cor)||{}).hex||'#3b82f6')}"
+            style="position:absolute;opacity:0;width:0;height:0;pointer-events:none"
+            oninput="onPartColorPickerChange(${part._id},this.value)"
+            onchange="onPartColorPickerChange(${part._id},this.value)">
+
+          <!-- Botão abrir picker -->
+          <button type="button" onclick="openPartColorPicker(${part._id})"
+            style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;
+              border:1.5px solid var(--border2);background:var(--surface2);color:var(--text2);
+              font-size:12px;font-weight:600;cursor:pointer;transition:all .15s"
+            onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
+            onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">
+            <i class="ti ti-palette" style="font-size:14px"></i>
+            ${part.cor ? 'Trocar cor' : 'Selecionar cor'}
+          </button>
+
+          <!-- Cores cadastradas como atalho (se houver) -->
+          ${coresUnicas.length ? `<span style="font-size:11px;color:var(--text3)">ou:</span>
+            ${coresUnicas.map(c => `
+              <button type="button" onclick="(function(){var p=modelParts.find(function(x){return x._id===${part._id}});if(p){p.cor='${c.nome.replace(/'/g,"\'")}';p.hex='${c.hex}';renderModelParts();syncModelPartTotals();}})()"
+                title="${escapeHtml(c.nome)}"
+                style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px 4px 5px;border-radius:20px;
+                  font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;
+                  border:1.5px solid ${part.cor===c.nome?'#3b82f6':'rgba(255,255,255,.13)'};
+                  background:${part.cor===c.nome?'#1e3a5f':'rgba(255,255,255,.04)'};
+                  color:${part.cor===c.nome?'#93c5fd':'#94a3b8'}">
+                <span style="width:10px;height:10px;border-radius:50%;background:${escapeHtml(c.hex)};border:1px solid rgba(255,255,255,.2);flex-shrink:0"></span>
+                ${escapeHtml(c.nome)}
+              </button>`).join('')}` : ''}
+        </div>
       </div>
 
       <!-- Linha 3: Peso / Horas / Custo estimado -->
@@ -7583,7 +7603,7 @@ async function saveModel() {
     capa_base64: images[0] || null,
     modo_impressao: modelMode,
     partes_impressao: modelMode === 'multipartes'
-      ? modelParts.map(p => ({ tipo: p.tipo, marca: p.marca, cor: p.cor, gramas: p.gramas, horas: p.horas }))
+      ? modelParts.map(p => ({ tipo: p.tipo, marca: p.marca, cor: p.cor, hex: p.hex||'', gramas: p.gramas, horas: p.horas }))
       : [],
   };
 
@@ -7629,7 +7649,7 @@ function editModel(id) {
   const modoM = m.modoImpressao || 'simples';
   if (modoM === 'multipartes' && Array.isArray(m.partesImpressao) && m.partesImpressao.length) {
     m.partesImpressao.forEach(p => {
-      modelParts.push({ _id: nextModelPartId++, tipo: p.tipo||'', marca: p.marca||'', cor: p.cor||'', gramas: Number(p.gramas)||0, horas: Number(p.horas)||0 });
+      modelParts.push({ _id: nextModelPartId++, tipo: p.tipo||'', marca: p.marca||'', cor: p.cor||'', hex: p.hex||'', gramas: Number(p.gramas)||0, horas: Number(p.horas)||0 });
     });
   }
   document.getElementById('modal-new-model').style.display = 'flex';
