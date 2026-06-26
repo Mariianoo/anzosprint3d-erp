@@ -21,11 +21,51 @@
   const SUPABASE_URL = 'https://rjvhwffqmirpnjgmambw.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdmh3ZmZxbWlycG5qZ21hbWJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDM0MzIsImV4cCI6MjA5NzI3OTQzMn0.iFTzQOVKiI0gE89GuctJUjv6mLi8Fonm_bUe0JiRd30';
   let sb = null;
-  try {
-    if (typeof supabase !== 'undefined' && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'COLE_SUA_ANON_KEY_AQUI') {
-      sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Inicializa o cliente Supabase (chamado após a biblioteca carregar)
+  function initSupabaseClient() {
+    if (sb) return true; // já inicializado
+    try {
+      if (typeof supabase !== 'undefined' && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'COLE_SUA_ANON_KEY_AQUI') {
+        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        return true;
+      }
+    } catch (e) { console.warn('Supabase não inicializado:', e); }
+    return false;
+  }
+  initSupabaseClient();
+
+  // Se a biblioteca não carregou (internet oscilando), tenta CDN alternativo
+  function loadSupabaseFallback(attempt) {
+    attempt = attempt || 0;
+    if (typeof supabase !== 'undefined') { initSupabaseClient(); return; }
+    if (attempt >= 2) {
+      console.error('Falha ao carregar biblioteca Supabase após várias tentativas.');
+      return;
     }
-  } catch (e) { console.warn('Supabase não inicializado:', e); }
+    const cdns = [
+      'https://unpkg.com/@supabase/supabase-js@2',
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
+    ];
+    const s = document.createElement('script');
+    s.src = cdns[attempt];
+    s.onload = function() {
+      if (initSupabaseClient()) {
+        console.log('Supabase carregado via CDN alternativo.');
+        // Reprocessa a sessão agora que o cliente existe
+        if (typeof checkExistingSession === 'function') checkExistingSession();
+      }
+    };
+    s.onerror = function() { loadSupabaseFallback(attempt + 1); };
+    document.head.appendChild(s);
+  }
+
+  // Após o carregamento da página, verifica se o Supabase está disponível
+  window.addEventListener('load', function() {
+    if (typeof supabase === 'undefined' || !sb) {
+      loadSupabaseFallback(0);
+    }
+  });
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -656,7 +696,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 
     <!-- Aviso de configuração (some quando Supabase conecta) -->
     <div id="login-config-warning" style="display:none;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px;font-size:12px;color:#92400e;margin-bottom:14px">
-      <i class="ti ti-alert-triangle"></i> Supabase não configurado. Cole a <strong>anon key</strong> no código (constante SUPABASE_ANON_KEY) para ativar o login real.
+      <i class="ti ti-wifi-off"></i> Não foi possível conectar ao servidor. Verifique sua internet e recarregue a página (F5).
     </div>
 
     <!-- Campo nome (só no cadastro) -->
@@ -3948,8 +3988,17 @@ function setLoginMsg(msg, type='info') {
 
 async function doAuth() {
   if (!sb) {
-    setLoginMsg('Supabase não configurado. Cole a anon key no código.', 'error');
-    return;
+    // Tenta inicializar de novo (caso a biblioteca tenha carregado tarde por internet lenta)
+    if (typeof initSupabaseClient === 'function') initSupabaseClient();
+    if (!sb) {
+      if (typeof supabase === 'undefined') {
+        setLoginMsg('Falha ao carregar o sistema. Verifique sua conexão e recarregue a página (F5).', 'error');
+        if (typeof loadSupabaseFallback === 'function') loadSupabaseFallback(0);
+      } else {
+        setLoginMsg('Erro de configuração. Recarregue a página (F5).', 'error');
+      }
+      return;
+    }
   }
   const email = document.getElementById('li-email').value.trim();
   const pass = document.getElementById('li-pass').value;
@@ -4112,9 +4161,20 @@ async function logout() {
 // Verifica sessão existente ao carregar a página
 async function checkExistingSession() {
   if (!sb) {
-    document.getElementById('login-config-warning').style.display = 'block';
+    // Tenta inicializar (biblioteca pode ter carregado tarde)
+    if (typeof initSupabaseClient === 'function') initSupabaseClient();
+  }
+  if (!sb) {
+    // Ainda sem cliente — provavelmente a biblioteca não carregou (internet)
+    const w = document.getElementById('login-config-warning');
+    if (w) w.style.display = 'block';
+    // Agenda nova tentativa quando a biblioteca carregar
+    if (typeof loadSupabaseFallback === 'function') loadSupabaseFallback(0);
     return;
   }
+  // Conectou — esconde o aviso
+  const w = document.getElementById('login-config-warning');
+  if (w) w.style.display = 'none';
   // Detecta retorno do link de recuperação de senha
   sb.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') {
