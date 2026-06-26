@@ -1351,15 +1351,21 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
           <div class="qm-step-header">
             <span class="qm-step-num">6</span>
             <span class="qm-step-title">Precificação</span>
+            <button type="button" onclick="savePricingDefaults()" title="Salvar embalagem, margem e descontos como padrão para os próximos orçamentos"
+              style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s"
+              onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
+              onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">
+              <i class="ti ti-device-floppy" style="font-size:13px"></i> Salvar como padrão
+            </button>
           </div>
           <div class="qm-step-body">
             <div class="qm-grid-2">
               <div class="fg">
-                <label class="fl">Embalagem <span class="fl-unit">R$/un</span><span class="help-ico">?<span class="help-bubble">Custo da caixa por unidade.</span></span></label>
-                <input type="number" id="q-pkg" class="fi" value="5" step="0.01" min="0" oninput="calcQuote()">
+                <label class="fl">Embalagem <span class="fl-unit">R$/un</span><span class="help-ico">?<span class="help-bubble">Custo da caixa/embalagem por unidade. Deixe 0 e preencha manualmente se variar por pedido.</span></span></label>
+                <input type="number" id="q-pkg" class="fi" value="0" step="0.01" min="0" oninput="calcQuote()">
               </div>
               <div class="fg">
-                <label class="fl">Margem de lucro <span class="fl-unit">%</span><span class="help-ico">?<span class="help-bubble">Percentual aplicado sobre o custo total. Margem 100% = dobra o custo.</span></span></label>
+                <label class="fl">Margem de lucro <span class="fl-unit">%</span><span class="help-ico">?<span class="help-bubble">Percentual aplicado sobre o custo total. Margem 100% = dobra o custo. Use "Salvar como padrão" para manter seu valor.</span></span></label>
                 <input type="number" id="q-margin" class="fi" value="40" min="0" oninput="calcQuote()">
               </div>
               <div class="fg">
@@ -1370,6 +1376,19 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
                 <label class="fl">Desconto fixo <span class="fl-unit">R$</span><span class="help-ico">?<span class="help-bubble">Valor fixo abatido junto com a margem.</span></span></label>
                 <input type="number" id="q-discount" class="fi" value="0" step="0.01" min="0" oninput="calcQuote()">
               </div>
+            </div>
+
+            <!-- Toggle BRINDE -->
+            <div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+                <input type="checkbox" id="q-brinde" onchange="onBrindeToggle()" style="width:18px;height:18px;accent-color:var(--amber);cursor:pointer;flex-shrink:0">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px">
+                    <i class="ti ti-gift" style="color:var(--amber)"></i> Marcar como brinde / cortesia
+                  </div>
+                  <div style="font-size:11px;color:var(--text3);margin-top:2px">Zera o preço final mas registra o custo real no sistema (para controle de quanto você investiu no brinde).</div>
+                </div>
+              </label>
             </div>
           </div>
         </div>
@@ -1382,9 +1401,10 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 
           <!-- Preço destaque -->
           <div class="qm-price-hero">
-            <div class="qm-price-label">Valor Final</div>
+            <div class="qm-price-label" id="qs-price-label">Valor Final</div>
             <div class="qm-price-value" id="qs-final-desconto">R$ 0,00</div>
             <div class="qm-price-sub" id="qs-unit"></div>
+            <div id="qs-brinde-badge" style="display:none;margin-top:8px;padding:4px 12px;background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);border-radius:20px;font-size:11px;font-weight:700;color:#fbbf24"><i class="ti ti-gift"></i> BRINDE · Custo: <span id="qs-brinde-custo">R$ 0,00</span></div>
           </div>
 
           <!-- Breakdown de custos -->
@@ -9846,7 +9866,13 @@ function calcQuote() {
   // ── Desconto (%) aplicado após o preço final ──
   const descontoPct = parseFloat(document.getElementById('q-discount-pct')?.value) || 0;
   const descontoValor = finalPrice * (descontoPct / 100);
-  const finalComDesconto = finalPrice - descontoValor;
+  let finalComDesconto = finalPrice - descontoValor;
+
+  // ── BRINDE: zera o preço final mas mantém o custo registrado ──
+  const isBrinde = document.getElementById('q-brinde')?.checked || false;
+  if (isBrinde) {
+    finalComDesconto = 0;
+  }
 
   // ── Update summary cards ──
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -9865,10 +9891,83 @@ function calcQuote() {
   set('qs-desconto-valor', descontoPct > 0 ? '- ' + brlFmt(descontoValor) + ' (' + descontoPct + '%)' : brlFmt(0));
   set('qs-final-desconto', brlFmt(finalComDesconto));
 
+  // Badge de brinde
+  const brindeBadge = document.getElementById('qs-brinde-badge');
+  const priceLabel = document.getElementById('qs-price-label');
+  if (brindeBadge) {
+    if (isBrinde) {
+      brindeBadge.style.display = 'inline-block';
+      set('qs-brinde-custo', brlFmt(baseCost));
+      if (priceLabel) priceLabel.textContent = 'Cortesia';
+    } else {
+      brindeBadge.style.display = 'none';
+      if (priceLabel) priceLabel.textContent = 'Valor Final';
+    }
+  }
+
   return { qty, weight:w, hours:h, filRate, filCost, matTotal, laborTotal, opTotal,
     energy, wear, marketplace, otherOp, post:postTotal, pkg:pkgTotal, ship, shipPass,
     margin, discount, descontoPct, descontoValor, total:baseCost,
-    price:finalComDesconto, priceBeforeDiscount:finalPrice, profit };
+    price:finalComDesconto, priceBeforeDiscount:finalPrice, profit:(isBrinde? -baseCost : profit), isBrinde };
+}
+
+// ══ Configurações de precificação padrão (salvas no localStorage) ══
+const PRICING_DEFAULTS_KEY = 'anzos_pricing_defaults';
+
+function getPricingDefaults() {
+  try {
+    const d = JSON.parse(localStorage.getItem(PRICING_DEFAULTS_KEY) || '{}');
+    return {
+      pkg: d.pkg !== undefined ? d.pkg : 0,
+      margin: d.margin !== undefined ? d.margin : 40,
+      discountPct: d.discountPct !== undefined ? d.discountPct : 0,
+      discount: d.discount !== undefined ? d.discount : 0,
+      labModelR: d.labModelR !== undefined ? d.labModelR : 50,
+      labFinishR: d.labFinishR !== undefined ? d.labFinishR : 35,
+      labPaintR: d.labPaintR !== undefined ? d.labPaintR : 40,
+    };
+  } catch(e) {
+    return { pkg:0, margin:40, discountPct:0, discount:0, labModelR:50, labFinishR:35, labPaintR:40 };
+  }
+}
+
+function savePricingDefaults() {
+  const d = {
+    pkg: parseFloat(document.getElementById('q-pkg').value) || 0,
+    margin: parseFloat(document.getElementById('q-margin').value) || 0,
+    discountPct: parseFloat(document.getElementById('q-discount-pct').value) || 0,
+    discount: parseFloat(document.getElementById('q-discount').value) || 0,
+    labModelR: parseFloat(document.getElementById('q-lab-model-r').value) || 50,
+    labFinishR: parseFloat(document.getElementById('q-lab-finish-r').value) || 35,
+    labPaintR: parseFloat(document.getElementById('q-lab-paint-r').value) || 40,
+  };
+  localStorage.setItem(PRICING_DEFAULTS_KEY, JSON.stringify(d));
+  showToast('Configurações de precificação salvas como padrão!');
+}
+
+function applyPricingDefaults() {
+  const d = getPricingDefaults();
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  set('q-pkg', d.pkg);
+  set('q-margin', d.margin);
+  set('q-discount-pct', d.discountPct);
+  set('q-discount', d.discount);
+  set('q-lab-model-r', d.labModelR);
+  set('q-lab-finish-r', d.labFinishR);
+  set('q-lab-paint-r', d.labPaintR);
+}
+
+// Toggle do modo brinde
+function onBrindeToggle() {
+  const isBrinde = document.getElementById('q-brinde')?.checked || false;
+  const priceEl = document.getElementById('qs-price');
+  const finalEl = document.getElementById('qs-final-desconto');
+  // Feedback visual no card de valor final
+  const heroCard = document.querySelector('.qm-price-hero, .qm-value-card');
+  calcQuote();
+  if (isBrinde) {
+    showToast('🎁 Orçamento marcado como brinde — preço zerado, custo registrado.');
+  }
 }
 
 function resetCalculator() {
@@ -9878,9 +9977,11 @@ function resetCalculator() {
   document.getElementById('q-hours').value = 8;
   document.getElementById('q-fil-type').selectedIndex = 0;
   document.getElementById('q-post').selectedIndex = 0;
-  document.getElementById('q-pkg').value = 5;
-  document.getElementById('q-margin').value = 40;
-  document.getElementById('q-discount').value = 0;
+  const _d = getPricingDefaults();
+  document.getElementById('q-pkg').value = _d.pkg;
+  document.getElementById('q-margin').value = _d.margin;
+  document.getElementById('q-discount').value = _d.discount;
+  const _bq = document.getElementById('q-brinde'); if (_bq) _bq.checked = false;
   const dpct = document.getElementById('q-discount-pct'); if (dpct) dpct.value = 0;
   ['q-lab-model-h','q-lab-finish-h','q-lab-paint-h','q-op-marketplace','q-op-other'].forEach(id => document.getElementById(id).value = 0);
   document.getElementById('q-lab-model-r').value = 50;
@@ -10157,6 +10258,8 @@ async function saveCalculatorQuote() {
     desconto: round2(r.discount),
     desconto_pct: r.descontoPct || 0,
     preco_final: round2(r.price),
+    eh_brinde: r.isBrinde || false,
+    custo_brinde: r.isBrinde ? round2(r.total) : null,
     filamento_id: isUUID(selectedFilamentId) ? selectedFilamentId : null,
     filamento_tipo: document.getElementById('q-fil-type')?.value || null,
     filamento_marca: document.getElementById('q-fil-brand')?.value || null,
@@ -10239,6 +10342,9 @@ async function editQuoteDB(id) {
   document.getElementById('q-margin').value = q.margem_pct || 0;
   document.getElementById('q-discount').value = q.desconto || 0;
   const dpct = document.getElementById('q-discount-pct'); if (dpct) dpct.value = q.desconto_pct || 0;
+  // Restaura embalagem e brinde
+  const pkgEl = document.getElementById('q-pkg'); if (pkgEl) pkgEl.value = q.custo_embalagem || 0;
+  const brindeEl = document.getElementById('q-brinde'); if (brindeEl) brindeEl.checked = q.eh_brinde || false;
   // Restaura a seleção de filamento (tipo → marca → cor)
   await loadFilamentsForQuote();
   refreshQuoteFilamentTypes();
