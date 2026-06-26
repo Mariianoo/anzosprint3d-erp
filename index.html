@@ -1709,17 +1709,28 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 
   <!-- Filter bar -->
   <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-    <div class="search-input" style="min-width:200px"><i class="ti ti-search"></i><input id="fil-search" placeholder="Buscar por tipo, cor, marca..." oninput="renderFilaments()"></div>
+    <div class="search-input" style="min-width:180px;flex:1"><i class="ti ti-search"></i><input id="fil-search" placeholder="Buscar por tipo, cor, marca..." oninput="renderFilaments()"></div>
     <select class="filter" id="fil-type-filter" onchange="renderFilaments()">
       <option value="all">Todos os tipos</option>
       <option value="PLA">PLA</option><option value="PETG">PETG</option>
       <option value="ABS">ABS</option><option value="TPU">TPU</option><option value="ASA">ASA</option>
+    </select>
+    <select class="filter" id="fil-color-filter" onchange="renderFilaments()">
+      <option value="all">Todas as cores</option>
     </select>
     <select class="filter" id="fil-status-filter" onchange="renderFilaments()">
       <option value="all">Todos os níveis</option>
       <option value="Normal">Normal</option>
       <option value="Baixo">Baixo</option>
       <option value="Crítico">Crítico</option>
+    </select>
+    <select class="filter" id="fil-sort" onchange="renderFilaments()" title="Ordenar">
+      <option value="name">Ordenar: Nome (A-Z)</option>
+      <option value="name_desc">Nome (Z-A)</option>
+      <option value="price_asc">Preço (menor)</option>
+      <option value="price_desc">Preço (maior)</option>
+      <option value="stock_asc">Estoque (menor)</option>
+      <option value="stock_desc">Estoque (maior)</option>
     </select>
   </div>
 
@@ -6878,17 +6889,43 @@ function renderFilaments() {
   if (!grid) return;
   const search = (document.getElementById('fil-search')?.value || '').toLowerCase();
   const typeF = document.getElementById('fil-type-filter')?.value || 'all';
+  const colorF = document.getElementById('fil-color-filter')?.value || 'all';
   const statusF = document.getElementById('fil-status-filter')?.value || 'all';
+  const sortBy = document.getElementById('fil-sort')?.value || 'name';
+
+  // Popular filtro de cores dinamicamente (mantendo seleção)
+  const colorSel = document.getElementById('fil-color-filter');
+  if (colorSel) {
+    const coresUnicas = [...new Set(filamentsData.map(f => f.color).filter(Boolean))].sort();
+    const cur = colorSel.value;
+    colorSel.innerHTML = '<option value="all">Todas as cores</option>' +
+      coresUnicas.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (cur && (cur === 'all' || coresUnicas.includes(cur))) colorSel.value = cur;
+  }
+
+  // Ordenação
+  const sorted = [...filamentsData].sort((a, b) => {
+    switch (sortBy) {
+      case 'name_desc': return (b.type+b.color).localeCompare(a.type+a.color);
+      case 'price_asc': return (a.price||0) - (b.price||0);
+      case 'price_desc': return (b.price||0) - (a.price||0);
+      case 'stock_asc': return (a.current||0) - (b.current||0);
+      case 'stock_desc': return (b.current||0) - (a.current||0);
+      case 'name':
+      default: return (a.type+a.color).localeCompare(b.type+b.color);
+    }
+  });
 
   grid.innerHTML = '';
   let shown = 0;
-  filamentsData.forEach(f => {
+  sorted.forEach(f => {
     const pct = f.total > 0 ? Math.round((f.current / f.total) * 100) : 0;
     const st = filamentStatus(pct);
     const matchSearch = !search || f.type.toLowerCase().includes(search) || f.color.toLowerCase().includes(search) || f.brand.toLowerCase().includes(search) || f.supplier.toLowerCase().includes(search);
     const matchType = typeF === 'all' || f.type === typeF;
+    const matchColor = colorF === 'all' || f.color === colorF;
     const matchStatus = statusF === 'all' || st.label === statusF;
-    if (!matchSearch || !matchType || !matchStatus) return;
+    if (!matchSearch || !matchType || !matchColor || !matchStatus) return;
     shown++;
 
     const swatchStyle = f.swatch.toLowerCase() === '#f0f0f0' || f.swatch.toLowerCase() === '#ffffff'
