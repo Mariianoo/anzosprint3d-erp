@@ -2691,6 +2691,41 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <button class="btn btn-primary" onclick="saveSenderInfo()"><i class="ti ti-device-floppy"></i> Salvar Dados da Etiqueta</button>
     </div>
 
+    <!-- ══ CONFIGURAÇÕES DO ORÇAMENTO/PDF ══ -->
+    <div class="card">
+      <div class="cfg-card-title"><i class="ti ti-file-invoice"></i> Orçamento &amp; PDF</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:16px">Configure as formas de pagamento e o que aparece no PDF enviado ao cliente.</p>
+
+      <div class="form-group">
+        <label>Formas de pagamento aceitas</label>
+        <textarea id="cfg-formas-pagamento" rows="2" placeholder="Ex: PIX, Cartão de crédito (até 3x), Dinheiro, Boleto" style="resize:vertical"></textarea>
+        <span style="font-size:11px;color:var(--text3)">Aparece no rodapé do PDF do orçamento.</span>
+      </div>
+
+      <div class="form-group">
+        <label>Validade do orçamento (dias)</label>
+        <input type="number" id="cfg-validade-dias" value="7" min="1" max="90" style="max-width:120px">
+      </div>
+
+      <div style="margin-top:14px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:10px">Mostrar no PDF</div>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer">
+          <input type="checkbox" id="cfg-mostrar-imagem" checked style="width:17px;height:17px;accent-color:var(--blue)">
+          <div><div style="font-size:13px;font-weight:600"><i class="ti ti-photo" style="margin-right:5px;color:var(--blue)"></i>Imagem do produto</div><div style="font-size:11px;color:var(--text3)">Exibe a foto do modelo ao lado das informações.</div></div>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer">
+          <input type="checkbox" id="cfg-mostrar-filamento" checked style="width:17px;height:17px;accent-color:var(--blue)">
+          <div><div style="font-size:13px;font-weight:600"><i class="ti ti-cylinder" style="margin-right:5px;color:var(--blue)"></i>Filamento utilizado</div><div style="font-size:11px;color:var(--text3)">Mostra tipo/marca/cor do material.</div></div>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;cursor:pointer">
+          <input type="checkbox" id="cfg-mostrar-extras" checked style="width:17px;height:17px;accent-color:var(--blue)">
+          <div><div style="font-size:13px;font-weight:600"><i class="ti ti-list-details" style="margin-right:5px;color:var(--blue)"></i>Serviços e materiais extras</div><div style="font-size:11px;color:var(--text3)">Detalha mão de obra e materiais adicionais.</div></div>
+        </label>
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:16px" onclick="saveQuoteConfig()"><i class="ti ti-device-floppy"></i> Salvar Configurações do Orçamento</button>
+    </div>
+
     <!-- ══ PARÂMETROS DE CUSTO ══ -->
     <div class="card">
       <div class="cfg-card-title"><i class="ti ti-calculator"></i> Parâmetros de Custo</div>
@@ -4100,6 +4135,9 @@ async function afterLogin(user) {
   // Registra login na auditoria
   try { await sb.from('auditoria_logs').insert({ usuario_id: user.id, acao: 'login', modulo: 'auth' }); } catch(e){}
 
+  // Carrega config de orçamento (para o PDF usar mesmo sem abrir Configurações)
+  if (typeof loadQuoteConfig === 'function') loadQuoteConfig();
+
   // Mostra o app
   const ls = document.getElementById('login-screen');
   ls.style.transition = 'opacity 0.4s'; ls.style.opacity = '0';
@@ -5380,6 +5418,61 @@ async function lookupCepRemetente() {
   } catch(e){ if(st) st.textContent='❌ Erro'; }
 }
 
+// ══ Configurações de Orçamento/PDF ══
+let quoteConfigCache = {
+  formas_pagamento: 'PIX, Cartão de crédito, Dinheiro',
+  mostrar_imagem: true, mostrar_filamento: true, mostrar_extras: true,
+  validade_dias: 7
+};
+
+function saveQuoteConfig() {
+  const cfg = {
+    formas_pagamento: document.getElementById('cfg-formas-pagamento')?.value?.trim() || '',
+    validade_dias: parseInt(document.getElementById('cfg-validade-dias')?.value) || 7,
+    mostrar_imagem: document.getElementById('cfg-mostrar-imagem')?.checked ?? true,
+    mostrar_filamento: document.getElementById('cfg-mostrar-filamento')?.checked ?? true,
+    mostrar_extras: document.getElementById('cfg-mostrar-extras')?.checked ?? true,
+  };
+  quoteConfigCache = cfg;
+  localStorage.setItem('anzos_orcamento_config', JSON.stringify(cfg));
+  if (sb) {
+    sb.from('configuracoes_publicas').upsert(
+      { chave: 'orcamento_config', valor: JSON.stringify(cfg), updated_at: new Date().toISOString() },
+      { onConflict: 'chave' }
+    ).then(({ error }) => { if (error) console.warn('Sync orcamento_config:', error.message); });
+  }
+  showToast('Configurações do orçamento salvas!');
+}
+
+async function loadQuoteConfig() {
+  // Tenta localStorage primeiro (rápido), depois banco
+  try {
+    const local = JSON.parse(localStorage.getItem('anzos_orcamento_config') || 'null');
+    if (local) quoteConfigCache = { ...quoteConfigCache, ...local };
+  } catch(e){}
+  if (sb) {
+    try {
+      const { data } = await sb.from('configuracoes_publicas').select('valor').eq('chave', 'orcamento_config').limit(1);
+      if (data && data.length) {
+        const cfg = JSON.parse(data[0].valor || '{}');
+        quoteConfigCache = { ...quoteConfigCache, ...cfg };
+        localStorage.setItem('anzos_orcamento_config', JSON.stringify(quoteConfigCache));
+      }
+    } catch(e){}
+  }
+  applyQuoteConfigForm();
+}
+
+function applyQuoteConfigForm() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  const chk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
+  set('cfg-formas-pagamento', quoteConfigCache.formas_pagamento);
+  set('cfg-validade-dias', quoteConfigCache.validade_dias);
+  chk('cfg-mostrar-imagem', quoteConfigCache.mostrar_imagem);
+  chk('cfg-mostrar-filamento', quoteConfigCache.mostrar_filamento);
+  chk('cfg-mostrar-extras', quoteConfigCache.mostrar_extras);
+}
+
 function saveCompanyData() {
   const g = id => (document.getElementById(id)?.value||'').trim();
   // Validações
@@ -6249,7 +6342,7 @@ nav = function(page) {
   if (page === 'receivables') { loadReceivablesDB(); }
   if (page === 'payables')   { loadPayablesDB(); }
   if (page === 'gallery')    { loadGalleryDB(); }
-  if (page === 'settings')   { if (typeof loadSenderInfoForm === 'function') loadSenderInfoForm(); }
+  if (page === 'settings')   { if (typeof loadSenderInfoForm === 'function') loadSenderInfoForm(); if (typeof loadQuoteConfig === 'function') loadQuoteConfig(); }
 };
 
 // ══════════════════════════════════════════════
@@ -10281,6 +10374,7 @@ async function saveCalculatorQuote() {
   const header = {
     cliente_id: clienteId,
     descricao: desc,
+    quantidade: r.qty || 1,
     peso_g: r.weight,
     horas: r.hours,
     custo_filamento: round2(r.filCost),
@@ -10720,22 +10814,38 @@ function buildQuotePdf(data) {
   sectionTitle('Informações do Pedido', rx, y, colW);
   doc.setFillColor(...panelBg);
   doc.roundedRect(rx, y + 3, colW, cardH, 2, 2, 'F');
+
+  // Imagem do produto (se habilitada e disponível)
+  const cfgQuote = (typeof quoteConfigCache !== 'undefined') ? quoteConfigCache : {};
+  const mostrarImagem = cfgQuote.mostrar_imagem !== false;
+  const mostrarFil = cfgQuote.mostrar_filamento !== false;
+  let txtX = rx + 5;
+  let txtW = colW - 10;
+  if (mostrarImagem && data.imagemModelo) {
+    try {
+      const imgSize = cardH - 8;
+      doc.addImage(data.imagemModelo, 'JPEG', rx + 4, y + 7, imgSize, imgSize);
+      txtX = rx + imgSize + 8;
+      txtW = colW - imgSize - 14;
+    } catch(e) { /* imagem inválida, ignora */ }
+  }
+
   let oy = y + 3 + 8;
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(...navy);
-  // Nome do produto com quebra de linha se for longo
-  const prodLines = doc.splitTextToSize(productName, colW - 10);
-  doc.text(prodLines[0] + (prodLines.length > 1 ? '...' : ''), rx + 5, oy);
-  oy += 7;
+  const prodLines = doc.splitTextToSize(productName, txtW);
+  doc.text(prodLines[0] + (prodLines.length > 1 ? '...' : ''), txtX, oy);
+  oy += 6.5;
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(...slate);
-  doc.text('Quantidade: ' + quantity + ' un.  ·  Material: ' + (filType || '—'), rx + 5, oy);
+  doc.text('Qtd: ' + quantity + ' un.' + (mostrarFil ? '  ·  Material: ' + (filType || '—') : ''), txtX, oy);
   oy += 5;
-  doc.text('Tempo de producao: ' + tempoProducao + '  ·  Peso: ' + (weight||0) + ' g', rx + 5, oy);
+  doc.text('Producao: ' + tempoProducao + '  ·  ' + (weight||0) + ' g', txtX, oy);
   oy += 5;
-  doc.text('Acabamento: ' + (finishLabel.length > 42 ? finishLabel.substring(0,40)+'...' : finishLabel), rx + 5, oy);
+  const acabTxt = doc.splitTextToSize('Acabamento: ' + finishLabel, txtW);
+  doc.text(acabTxt[0], txtX, oy);
 
   // ════════════════════════════════════════════
   // PARTES MULTICOLOR (se houver)
@@ -10885,63 +10995,71 @@ function buildQuotePdf(data) {
   // ════════════════════════════════════════════
   // DIFERENCIAIS DA EMPRESA
   // ════════════════════════════════════════════
-  y += 18 + 12;
-  sectionTitle('Diferenciais ANZO\'S Print 3D', marginX, y, 60);
-  y += 7;
-
-  const diffs = [
-    'Impressão 3D de alta qualidade',
-    'Material premium',
-    'Atendimento personalizado',
-    'Produção sob demanda',
-  ];
-  const diffColW = contentW / 2;
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
-  diffs.forEach((txt, i) => {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const dx = marginX + col * diffColW;
-    const dy = y + row * 7;
-    doc.setFillColor(...greenBg);
-    doc.circle(dx + 2.5, dy - 1.3, 2.5, 'F');
-    doc.setTextColor(...greenTx);
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(8);
-    doc.text('+', dx + 1.7, dy - 0.4);
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...slate);
-    doc.text(txt, dx + 7, dy);
-  });
-  y += Math.ceil(diffs.length / 2) * 7 + 6;
+  // DIFERENCIAIS — só desenha se houver espaço antes do footer
+  y += 14;
+  const footerLimit = pageH - 34; // não ultrapassar essa linha
+  if (y < footerLimit - 16) {
+    sectionTitle('Diferenciais ANZO\'S Print 3D', marginX, y, 60);
+    y += 7;
+    const diffs = ['Alta qualidade', 'Material premium', 'Atendimento personalizado', 'Produção sob demanda'];
+    const diffColW = contentW / 2;
+    doc.setFontSize(8.5);
+    diffs.forEach((txt, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const dx = marginX + col * diffColW;
+      const dy = y + row * 6;
+      doc.setFillColor(...greenBg);
+      doc.circle(dx + 2.3, dy - 1.2, 2.3, 'F');
+      doc.setTextColor(...greenTx);
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(7.5);
+      doc.text('+', dx + 1.5, dy - 0.3);
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...slate);
+      doc.text(txt, dx + 6, dy);
+    });
+    y += Math.ceil(diffs.length / 2) * 6 + 4;
+  }
 
   // ════════════════════════════════════════════
   // OBSERVAÇÕES
   // ════════════════════════════════════════════
+  const formasPagamento = (typeof quoteConfigCache !== 'undefined' && quoteConfigCache.formas_pagamento)
+    ? quoteConfigCache.formas_pagamento : 'PIX, Cartão de crédito, Dinheiro';
   doc.setFillColor(...blueBg);
-  doc.roundedRect(marginX, y, contentW, 14, 2, 2, 'F');
+  doc.roundedRect(marginX, y, contentW, 20, 2, 2, 'F');
   doc.setFont(undefined, 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...blueDk);
-  doc.text('OBSERVAÇÕES', marginX + 4, y + 5.5);
+  doc.text('FORMAS DE PAGAMENTO', marginX + 4, y + 6);
   doc.setFont(undefined, 'normal');
   doc.setTextColor(...slate);
   doc.setFontSize(8.5);
-  doc.text('Peça personalizada conforme especificações combinadas com o cliente.', marginX + 4, y + 11);
+  const pagLines = doc.splitTextToSize(formasPagamento, contentW - 10);
+  doc.text(pagLines[0] || '', marginX + 4, y + 12);
+  doc.setFontSize(7.5);
+  doc.setTextColor(...slateLt);
+  doc.text('Peça personalizada conforme especificações combinadas com o cliente.', marginX + 4, y + 17);
+  y += 6;
 
   // ════════════════════════════════════════════
-  // FOOTER
+  // FOOTER (posição fixa no rodapé da página)
   // ════════════════════════════════════════════
-  const footY = pageH - 18;
+  const footY = pageH - 16;
+  // Fundo branco para limpar qualquer sobreposição
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, footY - 14, pageW, 30, 'F');
   doc.setDrawColor(...lineCl);
   doc.setLineWidth(0.3);
-  doc.line(marginX, footY - 12, pageW - marginX, footY - 12);
+  doc.line(marginX, footY - 11, pageW - marginX, footY - 11);
 
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(...navy);
-  doc.text('Orçamento válido por 7 dias  ·  Produção iniciada após confirmação do pagamento  ·  Produto fabricado sob encomenda', marginX, footY - 6);
+  const validadeDias = (typeof quoteConfigCache !== 'undefined' && quoteConfigCache.validade_dias) ? quoteConfigCache.validade_dias : 7;
+  doc.text('Válido por ' + validadeDias + ' dias  ·  Produção após confirmação do pagamento  ·  Fabricado sob encomenda', marginX, footY - 5);
 
   // Dados reais da empresa (do localStorage) no rodapé
   let empresaFooter = "ANZO'S Print 3D";
@@ -11005,34 +11123,50 @@ function generateQuotePdf() {
   showToast('PDF do orçamento gerado e baixado!');
 }
 
-// ── Table rows: generate PDF from existing quote row ──
-function generateRowQuotePdf(btn) {
+// ── Table rows: generate PDF from existing quote (busca dados completos do banco) ──
+async function generateRowQuotePdf(btn) {
   const row = btn.closest('tr');
   const quoteNum = row.querySelector('.td-name').textContent.trim();
-  const client = row.children[1].textContent.trim();
-  const desc = row.children[2].textContent.trim();
-  const weight = parseFloat(row.children[3].textContent) || 0;
-  const hours = parseFloat(row.children[4].textContent.replace(',', '.')) || 0;
-  const price = parseCurrency(row.children[5].textContent);
 
-  // Estimate cost breakdown from the final price (reverse-engineer using default 40% margin assumption)
-  const margin = 40;
-  const filRate = 0.05; // PLA default for historical quotes
-  const filCost = weight * filRate;
-  const energy = hours * 0.2 * 0.80;
-  const wear = hours * 0.50;
-  const pkg = 5;
-  const post = 0;
-  const total = price / (1 + margin / 100);
-  const filType = 'PLA';
+  // Busca o orçamento completo no banco pela numeração
+  let q = quotesDB.find(x => x.numero === quoteNum);
+  if (!q && sb) {
+    const { data } = await sb.from('orcamentos').select('*, clientes(nome)').eq('numero', quoteNum).is('deleted_at', null).limit(1);
+    if (data && data.length) q = data[0];
+  }
+  if (!q) { showToast('Orçamento não encontrado.'); return; }
+
+  // Nome do cliente
+  let client = q.clientes?.nome || 'Cliente não informado';
+  if (!q.clientes && q.cliente_id && sb) {
+    const { data: c } = await sb.from('clientes').select('nome').eq('id', q.cliente_id).limit(1);
+    if (c && c.length) client = c[0].nome;
+  }
+
+  const qty = q.quantidade || 1;
+  const price = q.preco_final || 0;
+  const filType = q.filamento_tipo || 'PLA';
   const postType = 'Nenhum';
 
+  // Partes multicolor
+  const partesMulti = (q.modo_impressao === 'multipartes' && Array.isArray(q.filamentos_multipartes))
+    ? q.filamentos_multipartes.map(p => ({ tipo: p.tipo, marca: p.marca, cor: p.cor, hex: p.hex || '#808080', gramas: p.gramas }))
+    : null;
+
   const doc = buildQuotePdf({
-    quoteNum, client, desc, weight, hours, filType, postType,
-    margin, filCost, energy, wear, post, pkg, total, price
+    quoteNum, client, desc: q.descricao || 'Item',
+    weight: q.peso_g || 0, hours: q.horas || 0, filType, postType,
+    margin: q.margem_pct || 40, filCost: q.custo_filamento || 0,
+    energy: 0, wear: 0, post: q.custo_pos_proc || 0, pkg: q.custo_embalagem || 0,
+    total: q.custo_total || 0, price,
+    qty, unitPrice: qty > 0 ? price / qty : price,
+    isBrinde: q.eh_brinde || false,
+    imagemModelo: q.imagem_modelo || null,
+    partesMulti
   });
 
-  doc.save(`Orcamento_${quoteNum}_${client.replace(/\s+/g,'_')}.pdf`);
+  const safeName = client.replace(/[^a-zA-Z0-9]/g,'_');
+  doc.save(`Orcamento_${quoteNum}_${safeName}.pdf`);
   showToast(`PDF do orçamento ${quoteNum} gerado e baixado!`);
 }
 
