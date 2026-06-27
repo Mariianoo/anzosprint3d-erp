@@ -11034,8 +11034,12 @@ function buildQuotePdf(data) {
   // ════════════════════════════════════════════
   const formasPagamento = (typeof quoteConfigCache !== 'undefined' && quoteConfigCache.formas_pagamento)
     ? quoteConfigCache.formas_pagamento : 'PIX, Cartão de crédito, Dinheiro';
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(8.5);
+  const pagLines = doc.splitTextToSize(formasPagamento, contentW - 10);
+  const pagBoxH = 9 + Math.min(pagLines.length, 3) * 4.5;
   doc.setFillColor(...blueBg);
-  doc.roundedRect(marginX, y, contentW, 20, 2, 2, 'F');
+  doc.roundedRect(marginX, y, contentW, pagBoxH, 2, 2, 'F');
   doc.setFont(undefined, 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...blueDk);
@@ -11043,12 +11047,9 @@ function buildQuotePdf(data) {
   doc.setFont(undefined, 'normal');
   doc.setTextColor(...slate);
   doc.setFontSize(8.5);
-  const pagLines = doc.splitTextToSize(formasPagamento, contentW - 10);
-  doc.text(pagLines[0] || '', marginX + 4, y + 12);
-  doc.setFontSize(7.5);
-  doc.setTextColor(...slateLt);
-  doc.text('Peça personalizada conforme especificações combinadas com o cliente.', marginX + 4, y + 17);
-  y += 6;
+  let pagY = y + 11;
+  pagLines.slice(0, 3).forEach(line => { doc.text(line, marginX + 4, pagY); pagY += 4.5; });
+  y += pagBoxH - 14;
 
   // ════════════════════════════════════════════
   // FOOTER (posição fixa no rodapé da página)
