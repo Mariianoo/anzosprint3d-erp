@@ -10610,6 +10610,9 @@ function saveCalculatorQuoteLegacy() {
 function buildQuotePdf(data) {
   const { quoteNum, client, desc, weight, hours, filType, postType, margin, filCost, energy, wear, post, pkg, total, price } = data;
   const today = new Date().toLocaleDateString('pt-BR');
+  // Quantidade e preço unitário vêm direto do cálculo (mais confiável que extrair da descrição)
+  const qtyData = data.qty || 1;
+  const unitPriceData = data.unitPrice !== undefined ? data.unitPrice : (qtyData > 0 ? price / qtyData : price);
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -10632,11 +10635,15 @@ function buildQuotePdf(data) {
   const greenTx = [21, 128, 61];
 
   // Derived client-facing fields (no internal cost data shown)
-  const quantityMatch = desc.match(/[×x]\s*(\d+)/i);
-  const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 1;
+  const quantity = qtyData;
   const productName = desc.replace(/\s*[×x]\s*\d+\s*$/i, '').trim() || desc;
-  const unitPrice = quantity > 0 ? price / quantity : price;
+  const unitPrice = unitPriceData;
   const finishLabel = (postType && postType !== 'Nenhum') ? postType : 'Acabamento padrão (sem pós-processamento)';
+  // Tempo de produção formatado
+  const hInt = Math.floor(hours || 0);
+  const mInt = Math.round(((hours||0) % 1) * 60);
+  const tempoProducao = mInt > 0 ? `${hInt}h ${mInt}min` : `${hInt}h`;
+  const isBrindePdf = data.isBrinde || false;
 
   // ════════════════════════════════════════════
   // HEADER
@@ -10679,7 +10686,7 @@ function buildQuotePdf(data) {
   let y = 54;
   const colGap = 6;
   const colW = (contentW - colGap) / 2;
-  const cardH = 30;
+  const cardH = 36;
 
   function sectionTitle(label, x, yy, width) {
     doc.setFont(undefined, 'bold');
@@ -10715,16 +10722,20 @@ function buildQuotePdf(data) {
   doc.roundedRect(rx, y + 3, colW, cardH, 2, 2, 'F');
   let oy = y + 3 + 8;
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(...navy);
-  doc.text(productName, rx + 5, oy);
+  // Nome do produto com quebra de linha se for longo
+  const prodLines = doc.splitTextToSize(productName, colW - 10);
+  doc.text(prodLines[0] + (prodLines.length > 1 ? '...' : ''), rx + 5, oy);
   oy += 7;
   doc.setFont(undefined, 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(...slate);
-  doc.text('Quantidade: ' + quantity + '   ·   Material: ' + (filType || 'Conforme especificação'), rx + 5, oy);
-  oy += 5.5;
-  doc.text('Acabamento: ' + finishLabel, rx + 5, oy);
+  doc.text('Quantidade: ' + quantity + ' un.  ·  Material: ' + (filType || '—'), rx + 5, oy);
+  oy += 5;
+  doc.text('Tempo de producao: ' + tempoProducao + '  ·  Peso: ' + (weight||0) + ' g', rx + 5, oy);
+  oy += 5;
+  doc.text('Acabamento: ' + (finishLabel.length > 42 ? finishLabel.substring(0,40)+'...' : finishLabel), rx + 5, oy);
 
   // ════════════════════════════════════════════
   // PARTES MULTICOLOR (se houver)
@@ -10789,16 +10800,17 @@ function buildQuotePdf(data) {
   doc.text('VALOR', pageW - marginX - 4, y + 6, { align: 'right' });
   y += 9;
 
-  // Table row: product
+  // Table row: product (mostra preço UNITÁRIO; total = unitário × qtd)
   const rowH = 10;
   doc.setFillColor(...panelBg);
   doc.rect(marginX, y, contentW, rowH, 'F');
   doc.setFont(undefined, 'normal');
   doc.setFontSize(9.5);
   doc.setTextColor(...navy);
-  doc.text(productName, marginX + 4, y + 6.5);
-  doc.text(String(quantity), marginX + contentW * 0.62, y + 6.5, { align: 'center' });
-  doc.text('R$ ' + price.toFixed(2).replace('.', ','), pageW - marginX - 4, y + 6.5, { align: 'right' });
+  const prodNameShort = doc.splitTextToSize(productName, contentW * 0.55)[0];
+  doc.text(prodNameShort, marginX + 4, y + 6.5);
+  doc.text(String(quantity) + ' un.', marginX + contentW * 0.62, y + 6.5, { align: 'center' });
+  doc.text('R$ ' + unitPrice.toFixed(2).replace('.', ',') + ' /un', pageW - marginX - 4, y + 6.5, { align: 'right' });
   y += rowH;
 
   doc.setDrawColor(...lineCl);
@@ -10880,10 +10892,8 @@ function buildQuotePdf(data) {
   const diffs = [
     'Impressão 3D de alta qualidade',
     'Material premium',
-    'Controle de qualidade',
-    'Produção sob demanda',
     'Atendimento personalizado',
-    'Embalagem segura',
+    'Produção sob demanda',
   ];
   const diffColW = contentW / 2;
   doc.setFont(undefined, 'normal');
@@ -10898,7 +10908,7 @@ function buildQuotePdf(data) {
     doc.setTextColor(...greenTx);
     doc.setFont(undefined, 'bold');
     doc.setFontSize(8);
-    doc.text('✓', dx + 1.4, dy - 0.6);
+    doc.text('+', dx + 1.7, dy - 0.4);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(9);
     doc.setTextColor(...slate);
@@ -10933,18 +10943,39 @@ function buildQuotePdf(data) {
   doc.setTextColor(...navy);
   doc.text('Orçamento válido por 7 dias  ·  Produção iniciada após confirmação do pagamento  ·  Produto fabricado sob encomenda', marginX, footY - 6);
 
+  // Dados reais da empresa (do localStorage) no rodapé
+  let empresaFooter = "ANZO'S Print 3D";
+  try {
+    const emp = JSON.parse(localStorage.getItem('anzos_empresa') || '{}');
+    const partes = [emp.nome || "ANZO'S Print 3D"];
+    const endereco = [emp.endereco, emp.numero].filter(Boolean).join(', ');
+    const cidade = [emp.cidade, emp.estado].filter(Boolean).join('-');
+    if (endereco || cidade) partes.push([endereco, cidade].filter(Boolean).join(' — '));
+    if (emp.email) partes.push(emp.email);
+    if (emp.telefone || emp.whatsapp) partes.push(emp.telefone || emp.whatsapp);
+    empresaFooter = partes.join('  ·  ');
+  } catch(e){}
+
   doc.setFont(undefined, 'normal');
   doc.setTextColor(...slateLt);
-  doc.setFontSize(8);
-  doc.text("ANZO'S Print 3D  ·  Rua das Impressoras, 42 — Mairinque, SP  ·  contato@anzos3d.com.br  ·  (15) 99876-5432", marginX, footY);
-  doc.text('Documento gerado em ' + new Date().toLocaleString('pt-BR'), pageW - marginX, footY, { align: 'right' });
+  doc.setFontSize(7.5);
+  // Quebra o rodapé se for muito longo
+  const footerLines = doc.splitTextToSize(empresaFooter, contentW - 50);
+  doc.text(footerLines[0], marginX, footY);
+  doc.setFontSize(7);
+  doc.text('Gerado em ' + new Date().toLocaleString('pt-BR'), pageW - marginX, footY, { align: 'right' });
 
   return doc;
 }
 
 // ── Calculator: generate PDF ──
 function generateQuotePdf() {
-  const client = document.getElementById('q-client').value;
+  // Pega o NOME do cliente (texto do option selecionado), não o UUID
+  const clientSel = document.getElementById('q-client');
+  let client = 'Cliente não informado';
+  if (clientSel && clientSel.selectedIndex > 0) {
+    client = clientSel.options[clientSel.selectedIndex].text.trim();
+  }
   let desc = document.getElementById('q-desc').value.trim();
   if (!desc) desc = 'Item sem descrição';
   const r = calcQuote();
@@ -10964,10 +10995,13 @@ function generateQuotePdf() {
     quoteNum, client, desc, weight: r.weight, hours: r.hours, filType, postType,
     margin: r.margin, filCost: r.filCost, energy: r.energy, wear: r.wear,
     post: r.post, pkg: r.pkg, total: r.total, price: r.price,
+    qty: r.qty, unitPrice: r.qty > 0 ? r.price / r.qty : r.price,
+    isBrinde: r.isBrinde,
     partesMulti
   });
 
-  doc.save(`Orcamento_${quoteNum}_${client.replace(/\s+/g,'_')}.pdf`);
+  const safeName = client.replace(/[^a-zA-Z0-9]/g,'_');
+  doc.save(`Orcamento_${quoteNum}_${safeName}.pdf`);
   showToast('PDF do orçamento gerado e baixado!');
 }
 
