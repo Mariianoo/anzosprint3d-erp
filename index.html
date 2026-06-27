@@ -10703,11 +10703,16 @@ function saveCalculatorQuoteLegacy() {
 
 // ── Calculator: generate PDF ──
 function buildQuotePdf(data) {
-  // Garante que as configs de orçamento estejam disponíveis (carrega do localStorage se necessário)
+  // SEMPRE recarrega as configs do localStorage no momento da geração (fonte da verdade mais recente)
+  let pdfCfg = { formas_pagamento: 'PIX, Cartão de crédito, Dinheiro', validade_dias: 7, mostrar_imagem: true, mostrar_filamento: true, mostrar_extras: true };
   try {
     const localCfg = JSON.parse(localStorage.getItem('anzos_orcamento_config') || 'null');
-    if (localCfg) quoteConfigCache = Object.assign({}, quoteConfigCache, localCfg);
+    if (localCfg) pdfCfg = Object.assign(pdfCfg, localCfg);
   } catch(e){}
+  // Mescla também com o cache em memória (caso localStorage esteja vazio mas o cache tenha)
+  if (typeof quoteConfigCache !== 'undefined' && quoteConfigCache && quoteConfigCache.formas_pagamento) {
+    if (!localStorage.getItem('anzos_orcamento_config')) pdfCfg = Object.assign(pdfCfg, quoteConfigCache);
+  }
   const { quoteNum, client, desc, weight, hours, filType, postType, margin, filCost, energy, wear, post, pkg, total, price } = data;
   const today = new Date().toLocaleDateString('pt-BR');
   // Quantidade e preço unitário vêm direto do cálculo (mais confiável que extrair da descrição)
@@ -10822,9 +10827,8 @@ function buildQuotePdf(data) {
   doc.roundedRect(rx, y + 3, colW, cardH, 2, 2, 'F');
 
   // Imagem do produto (se habilitada e disponível)
-  const cfgQuote = (typeof quoteConfigCache !== 'undefined') ? quoteConfigCache : {};
-  const mostrarImagem = cfgQuote.mostrar_imagem !== false;
-  const mostrarFil = cfgQuote.mostrar_filamento !== false;
+  const mostrarImagem = pdfCfg.mostrar_imagem !== false;
+  const mostrarFil = pdfCfg.mostrar_filamento !== false;
   let txtX = rx + 5;
   let txtW = colW - 10;
   if (mostrarImagem && data.imagemModelo) {
@@ -10899,9 +10903,24 @@ function buildQuotePdf(data) {
   }
 
   // ════════════════════════════════════════════
-  // FINANCIAL SUMMARY TABLE
+  // FILAMENTO UTILIZADO (modo simples, se habilitado)
   // ════════════════════════════════════════════
   y += cardH + 14 + extraY;
+  if (mostrarFil && !data.partesMulti && data.filInfo) {
+    sectionTitle('Filamento Utilizado', marginX, y, 50);
+    y += 7;
+    doc.setFillColor(...blueBg);
+    doc.roundedRect(marginX, y, contentW, 14, 2, 2, 'F');
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...navy);
+    doc.text(data.filInfo, marginX + 5, y + 9);
+    y += 14 + 8;
+  }
+
+  // ════════════════════════════════════════════
+  // FINANCIAL SUMMARY TABLE
+  // ════════════════════════════════════════════
   sectionTitle('Resumo Financeiro', marginX, y, 50);
   y += 7;
 
@@ -10977,79 +10996,45 @@ function buildQuotePdf(data) {
   // ════════════════════════════════════════════
   // PRAZOS
   // ════════════════════════════════════════════
-  y += boxH + 12;
+  y += boxH + 10;
   sectionTitle('Prazos', marginX, y, 30);
   y += 7;
   const prazoColW = (contentW - colGap) / 2;
   doc.setFillColor(...panelBg);
-  doc.roundedRect(marginX, y, prazoColW, 18, 2, 2, 'F');
-  doc.roundedRect(marginX + prazoColW + colGap, y, prazoColW, 18, 2, 2, 'F');
+  doc.roundedRect(marginX, y, prazoColW, 16, 2, 2, 'F');
+  doc.roundedRect(marginX + prazoColW + colGap, y, prazoColW, 16, 2, 2, 'F');
 
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(...slateLt);
-  doc.text('PRAZO DE FABRICAÇÃO', marginX + 5, y + 7);
-  doc.text('PRAZO ESTIMADO DE ENTREGA', marginX + prazoColW + colGap + 5, y + 7);
+  doc.text('PRAZO DE FABRICAÇÃO', marginX + 5, y + 6);
+  doc.text('PRAZO ESTIMADO DE ENTREGA', marginX + prazoColW + colGap + 5, y + 6);
 
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(...navy);
   const fabDays = Math.max(2, Math.ceil((hours || 8) / 8) + 1);
-  doc.text(fabDays + ' a ' + (fabDays + 2) + ' dias úteis', marginX + 5, y + 14);
-  doc.text((fabDays + 2) + ' a ' + (fabDays + 5) + ' dias úteis', marginX + prazoColW + colGap + 5, y + 14);
+  doc.text(fabDays + ' a ' + (fabDays + 2) + ' dias úteis', marginX + 5, y + 12);
+  doc.text((fabDays + 2) + ' a ' + (fabDays + 5) + ' dias úteis', marginX + prazoColW + colGap + 5, y + 12);
+  y += 16 + 10;
 
   // ════════════════════════════════════════════
-  // DIFERENCIAIS DA EMPRESA
+  // FORMAS DE PAGAMENTO (destaque)
   // ════════════════════════════════════════════
-  // DIFERENCIAIS — só desenha se houver espaço antes do footer
-  y += 14;
-  const footerLimit = pageH - 34; // não ultrapassar essa linha
-  if (y < footerLimit - 16) {
-    sectionTitle('Diferenciais ANZO\'S Print 3D', marginX, y, 60);
-    y += 7;
-    const diffs = ['Alta qualidade', 'Material premium', 'Atendimento personalizado', 'Produção sob demanda'];
-    const diffColW = contentW / 2;
-    doc.setFontSize(8.5);
-    diffs.forEach((txt, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const dx = marginX + col * diffColW;
-      const dy = y + row * 6;
-      doc.setFillColor(...greenBg);
-      doc.circle(dx + 2.3, dy - 1.2, 2.3, 'F');
-      doc.setTextColor(...greenTx);
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(7.5);
-      doc.text('+', dx + 1.5, dy - 0.3);
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...slate);
-      doc.text(txt, dx + 6, dy);
-    });
-    y += Math.ceil(diffs.length / 2) * 6 + 4;
-  }
-
-  // ════════════════════════════════════════════
-  // OBSERVAÇÕES
-  // ════════════════════════════════════════════
-  const formasPagamento = (typeof quoteConfigCache !== 'undefined' && quoteConfigCache.formas_pagamento)
-    ? quoteConfigCache.formas_pagamento : 'PIX, Cartão de crédito, Dinheiro';
+  const formasPagamento = pdfCfg.formas_pagamento || 'PIX, Cartão de crédito, Dinheiro';
+  sectionTitle('Formas de Pagamento', marginX, y, 45);
+  y += 7;
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(8.5);
-  const pagLines = doc.splitTextToSize(formasPagamento, contentW - 10);
-  const pagBoxH = 9 + Math.min(pagLines.length, 3) * 4.5;
+  doc.setFontSize(9);
+  const pagLines = doc.splitTextToSize(formasPagamento, contentW - 12);
+  const pagBoxH = 8 + Math.min(pagLines.length, 4) * 5;
   doc.setFillColor(...blueBg);
   doc.roundedRect(marginX, y, contentW, pagBoxH, 2, 2, 'F');
-  doc.setFont(undefined, 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...blueDk);
-  doc.text('FORMAS DE PAGAMENTO', marginX + 4, y + 6);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...slate);
-  doc.setFontSize(8.5);
-  let pagY = y + 11;
-  pagLines.slice(0, 3).forEach(line => { doc.text(line, marginX + 4, pagY); pagY += 4.5; });
-  y += pagBoxH - 14;
+  doc.setTextColor(...navy);
+  doc.setFontSize(9);
+  let pagY = y + 6;
+  pagLines.slice(0, 4).forEach(line => { doc.text(line, marginX + 5, pagY); pagY += 5; });
+  y += pagBoxH + 4;
 
   // ════════════════════════════════════════════
   // FOOTER (posição fixa no rodapé da página)
@@ -11065,7 +11050,7 @@ function buildQuotePdf(data) {
   doc.setFont(undefined, 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(...navy);
-  const validadeDias = (typeof quoteConfigCache !== 'undefined' && quoteConfigCache.validade_dias) ? quoteConfigCache.validade_dias : 7;
+  const validadeDias = pdfCfg.validade_dias || 7;
   doc.text('Válido por ' + validadeDias + ' dias  ·  Produção após confirmação do pagamento  ·  Fabricado sob encomenda', marginX, footY - 5);
 
   // Dados reais da empresa (do localStorage) no rodapé
@@ -11116,12 +11101,23 @@ function generateQuotePdf() {
     gramas: p.gramas
   })) : null;
 
+  // Info do filamento (modo simples)
+  let filInfo = null;
+  if (quoteMode !== 'multipartes') {
+    const fBrand = document.getElementById('q-fil-brand')?.value || '';
+    const fColor = document.getElementById('q-fil-color')?.value || '';
+    const partes = [filType];
+    if (fBrand) partes.push(fBrand);
+    if (fColor) partes.push(fColor);
+    filInfo = partes.join(' · ') + '  ·  ' + (r.weight||0) + ' g';
+  }
+
   const doc = buildQuotePdf({
     quoteNum, client, desc, weight: r.weight, hours: r.hours, filType, postType,
     margin: r.margin, filCost: r.filCost, energy: r.energy, wear: r.wear,
     post: r.post, pkg: r.pkg, total: r.total, price: r.price,
     qty: r.qty, unitPrice: r.qty > 0 ? r.price / r.qty : r.price,
-    isBrinde: r.isBrinde,
+    isBrinde: r.isBrinde, filInfo,
     partesMulti
   });
 
@@ -11169,6 +11165,9 @@ async function generateRowQuotePdf(btn) {
     qty, unitPrice: qty > 0 ? price / qty : price,
     isBrinde: q.eh_brinde || false,
     imagemModelo: q.imagem_modelo || null,
+    filInfo: (q.modo_impressao !== 'multipartes')
+      ? [q.filamento_tipo || 'PLA', q.filamento_marca, q.filamento_cor].filter(Boolean).join(' · ') + '  ·  ' + (q.peso_g||0) + ' g'
+      : null,
     partesMulti
   });
 
