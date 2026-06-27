@@ -10468,6 +10468,7 @@ async function editQuoteDB(id) {
   refreshQuoteClientOptions();
   if (q.cliente_id) document.getElementById('q-client').value = q.cliente_id;
   document.getElementById('q-desc').value = q.descricao || '';
+  const qtyEl = document.getElementById('q-qty'); if (qtyEl) qtyEl.value = q.quantidade || 1;
   document.getElementById('q-weight').value = q.peso_g || 0;
   document.getElementById('q-hours').value = q.horas || 0;
   document.getElementById('q-margin').value = q.margem_pct || 0;
@@ -10702,6 +10703,11 @@ function saveCalculatorQuoteLegacy() {
 
 // ── Calculator: generate PDF ──
 function buildQuotePdf(data) {
+  // Garante que as configs de orçamento estejam disponíveis (carrega do localStorage se necessário)
+  try {
+    const localCfg = JSON.parse(localStorage.getItem('anzos_orcamento_config') || 'null');
+    if (localCfg) quoteConfigCache = Object.assign({}, quoteConfigCache, localCfg);
+  } catch(e){}
   const { quoteNum, client, desc, weight, hours, filType, postType, margin, filCost, energy, wear, post, pkg, total, price } = data;
   const today = new Date().toLocaleDateString('pt-BR');
   // Quantidade e preço unitário vêm direto do cálculo (mais confiável que extrair da descrição)
