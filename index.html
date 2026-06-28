@@ -5375,12 +5375,30 @@ function saveSenderInfo() {
     servico: g('set-rem-servico') || 'PAC',
   };
   localStorage.setItem('anzos_remetente', JSON.stringify(data));
-  showToast('Dados da etiqueta salvos!');
+  if (sb) {
+    sb.from('configuracoes_publicas').upsert({
+      chave: 'remetente', valor: JSON.stringify(data), updated_at: new Date().toISOString()
+    }, { onConflict: 'chave' }).then(({ error }) => {
+      if (error) showToast('Salvo localmente, erro ao sincronizar: ' + error.message);
+      else showToast('Dados da etiqueta salvos e sincronizados!');
+    });
+  } else {
+    showToast('Dados da etiqueta salvos localmente.');
+  }
 }
 
 // Preenche o formulário de etiqueta nas Configurações com os valores salvos
-function loadSenderInfoForm() {
-  const s = getSenderInfo();
+async function loadSenderInfoForm() {
+  let s = getSenderInfo();
+  if (sb) {
+    try {
+      const { data } = await sb.from('configuracoes_publicas').select('valor').eq('chave', 'remetente').limit(1);
+      if (data && data.length) {
+        s = Object.assign({}, s, JSON.parse(data[0].valor || '{}'));
+        localStorage.setItem('anzos_remetente', JSON.stringify(s));
+      }
+    } catch(e){}
+  }
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
   set('set-rem-nome', s.nome); set('set-rem-endereco', s.endereco); set('set-rem-numero', s.numero);
   set('set-rem-bairro', s.bairro); set('set-rem-complemento', s.complemento); set('set-rem-cidade', s.cidade);
@@ -5511,7 +5529,7 @@ function applyQuoteConfigForm() {
   chk('cfg-mostrar-extras', quoteConfigCache.mostrar_extras);
 }
 
-function saveCompanyData() {
+async function saveCompanyData() {
   const g = id => (document.getElementById(id)?.value||'').trim();
   // Validações
   const emailOk = validateEmailField(document.getElementById('set-emp-email'));
@@ -5529,39 +5547,54 @@ function saveCompanyData() {
     whatsapp: g('set-emp-whatsapp'), youtube: g('set-emp-youtube'),
   };
   localStorage.setItem('anzos_empresa', JSON.stringify(data));
-  // Sincronizar dados públicos com o banco (para a vitrine ler sem login)
+
+  // Sincronizar com o banco — salva TODOS os campos (persistente entre dispositivos)
   if (sb) {
-    const campos_publicos = {
-      nome: data.nome, telefone: data.telefone, whatsapp: data.whatsapp,
-      email: data.email, site: data.site, instagram: data.instagram,
-      facebook: data.facebook, tiktok: data.tiktok, youtube: data.youtube,
-      cidade: data.cidade, estado: data.estado,
-    };
-    sb.from('configuracoes_publicas').upsert({
-      chave: 'empresa',
-      valor: JSON.stringify(campos_publicos),
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'chave' }).then(({ error }) => {
-      if (error) console.warn('Erro ao sync empresa no banco:', error.message);
-    });
-    // Logo: salvo separadamente (base64 pode ser grande)
-    const logo = localStorage.getItem('anzos_logo');
-    if (logo) {
-      sb.from('configuracoes_publicas').upsert({
-        chave: 'logo',
-        valor: logo,
+    try {
+      const { error } = await sb.from('configuracoes_publicas').upsert({
+        chave: 'empresa',
+        valor: JSON.stringify(data),
         updated_at: new Date().toISOString()
-      }, { onConflict: 'chave' }).then(({ error }) => {
-        if (error) console.warn('Erro ao sync logo no banco:', error.message);
-      });
+      }, { onConflict: 'chave' });
+      if (error) {
+        console.error('Erro ao salvar empresa no banco:', error.message);
+        showToast('Salvo localmente, mas houve erro ao sincronizar: ' + error.message);
+        return;
+      }
+      // Logo: salvo separadamente (base64 pode ser grande)
+      const logo = localStorage.getItem('anzos_logo');
+      if (logo) {
+        await sb.from('configuracoes_publicas').upsert({
+          chave: 'logo', valor: logo, updated_at: new Date().toISOString()
+        }, { onConflict: 'chave' });
+      }
+      showToast('Dados da empresa salvos e sincronizados!');
+    } catch(e) {
+      console.error('Exceção ao salvar empresa:', e);
+      showToast('Salvo localmente. Erro ao sincronizar com o servidor.');
     }
+  } else {
+    showToast('Dados salvos localmente (offline).');
   }
-  showToast('Dados da empresa salvos!');
 }
 
-function loadCompanyDataForm() {
-  const d = getCompanyData();
-  const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+async function loadCompanyDataForm() {
+  // 1) Carrega do localStorage primeiro (rápido)
+  let d = getCompanyData();
+  // 2) Carrega do banco (fonte da verdade, persistente entre dispositivos)
+  if (sb) {
+    try {
+      const { data } = await sb.from('configuracoes_publicas').select('valor').eq('chave', 'empresa').limit(1);
+      if (data && data.length) {
+        const dbData = JSON.parse(data[0].valor || '{}');
+        // Mescla: banco tem prioridade, mas mantém campos locais que não estão no banco (cnpj, endereço completo)
+        d = Object.assign({}, d, dbData);
+        // Atualiza o localStorage com o que veio do banco
+        localStorage.setItem('anzos_empresa', JSON.stringify(d));
+      }
+    } catch(e) { console.warn('Erro ao carregar empresa do banco:', e); }
+  }
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
   set('set-emp-nome', d.nome); set('set-emp-cnpj', d.cnpj);
   set('set-emp-telefone', d.telefone); set('set-emp-email', d.email);
   set('set-emp-cep', d.cep); set('set-emp-endereco', d.endereco);
@@ -5600,17 +5633,37 @@ function updateCostPreview() {
   if(enEx) enEx.textContent = 'R$ '+en.toFixed(2).replace('.',',');
 }
 
-function saveCostParams() {
+async function saveCostParams() {
   const g = id => parseFloat(document.getElementById(id)?.value) || 0;
   const data = {
     kwh: g('set-cost-kwh'), pla: g('set-cost-pla'), petg: g('set-cost-petg'), abs: g('set-cost-abs'),
     margem: g('set-cost-margem'), watts: g('set-cost-watts'), wear: g('set-cost-wear'),
   };
   localStorage.setItem('anzos_custos', JSON.stringify(data));
-  showToast('Parâmetros de custo atualizados!');
+  if (sb) {
+    try {
+      const { error } = await sb.from('configuracoes_publicas').upsert({
+        chave: 'custos', valor: JSON.stringify(data), updated_at: new Date().toISOString()
+      }, { onConflict: 'chave' });
+      if (error) { showToast('Salvo localmente, erro ao sincronizar: ' + error.message); return; }
+      showToast('Parâmetros de custo salvos e sincronizados!');
+    } catch(e) { showToast('Salvo localmente. Erro ao sincronizar.'); }
+  } else {
+    showToast('Parâmetros de custo salvos localmente.');
+  }
 }
-function loadCostParamsForm() {
-  const d = getCostParams();
+async function loadCostParamsForm() {
+  let d = getCostParams();
+  // Carrega do banco (persistente entre dispositivos)
+  if (sb) {
+    try {
+      const { data } = await sb.from('configuracoes_publicas').select('valor').eq('chave', 'custos').limit(1);
+      if (data && data.length) {
+        d = Object.assign({}, d, JSON.parse(data[0].valor || '{}'));
+        localStorage.setItem('anzos_custos', JSON.stringify(d));
+      }
+    } catch(e){}
+  }
   const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
   set('set-cost-kwh', d.kwh); set('set-cost-pla', d.pla); set('set-cost-petg', d.petg); set('set-cost-abs', d.abs);
   set('set-cost-margem', d.margem); set('set-cost-watts', d.watts); set('set-cost-wear', d.wear);
@@ -11134,6 +11187,8 @@ function buildQuotePdf(data) {
 
 // ── Calculator: generate PDF ──
 async function generateQuotePdf() {
+  // Garante configs atualizadas do banco antes de gerar
+  if (typeof loadQuoteConfig === 'function') { try { await loadQuoteConfig(); } catch(e){} }
   // Pega o NOME do cliente (texto do option selecionado), não o UUID
   const clientSel = document.getElementById('q-client');
   let client = 'Cliente não informado';
@@ -11200,6 +11255,8 @@ async function generateQuotePdf() {
 
 // ── Table rows: generate PDF from existing quote (busca dados completos do banco) ──
 async function generateRowQuotePdf(btn) {
+  // Garante configs atualizadas do banco antes de gerar
+  if (typeof loadQuoteConfig === 'function') { try { await loadQuoteConfig(); } catch(e){} }
   const row = btn.closest('tr');
   const quoteNum = row.querySelector('.td-name').textContent.trim();
 
