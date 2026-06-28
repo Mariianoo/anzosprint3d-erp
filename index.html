@@ -10891,7 +10891,7 @@ function buildQuotePdf(data) {
   let y = 54;
   const colGap = 6;
   const colW = (contentW - colGap) / 2;
-  const cardH = 36;
+  const cardH = 40;
 
   function sectionTitle(label, x, yy, width) {
     doc.setFont(undefined, 'bold');
@@ -10947,20 +10947,25 @@ function buildQuotePdf(data) {
     } catch(e) { console.warn('Erro ao adicionar imagem ao PDF:', e); }
   }
 
-  let oy = y + 3 + 8;
+  let oy = y + 3 + 7;
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(...navy);
+  // Nome do produto: até 2 linhas (não corta nomes longos)
   const prodLines = doc.splitTextToSize(productName, txtW);
-  doc.text(prodLines[0] + (prodLines.length > 1 ? '...' : ''), txtX, oy);
-  oy += 6.5;
+  doc.text(prodLines[0], txtX, oy);
+  if (prodLines.length > 1) {
+    oy += 4.5;
+    doc.text(prodLines[1] + (prodLines.length > 2 ? '...' : ''), txtX, oy);
+  }
+  oy += 6;
   doc.setFont(undefined, 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...slate);
   doc.text('Qtd: ' + quantity + ' un.' + (mostrarFil ? '  ·  Material: ' + (filType || '—') : ''), txtX, oy);
-  oy += 5;
+  oy += 4.8;
   doc.text('Producao: ' + tempoProducao + '  ·  ' + (weight||0) + ' g', txtX, oy);
-  oy += 5;
+  oy += 4.8;
   const acabTxt = doc.splitTextToSize('Acabamento: ' + finishLabel, txtW);
   doc.text(acabTxt[0], txtX, oy);
 
@@ -11101,66 +11106,59 @@ function buildQuotePdf(data) {
   doc.text('R$ ' + price.toFixed(2).replace('.', ','), pageW - marginX - 8, y + 16, { align: 'right' });
 
   // ════════════════════════════════════════════
-  // PRAZOS
-  // ════════════════════════════════════════════
-  y += boxH + 10;
-  sectionTitle('Prazos', marginX, y, 30);
-  y += 7;
-  const prazoColW = (contentW - colGap) / 2;
-  doc.setFillColor(...panelBg);
-  doc.roundedRect(marginX, y, prazoColW, 16, 2, 2, 'F');
-  doc.roundedRect(marginX + prazoColW + colGap, y, prazoColW, 16, 2, 2, 'F');
-
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...slateLt);
-  doc.text('PRAZO DE FABRICAÇÃO', marginX + 5, y + 6);
-  doc.text('PRAZO ESTIMADO DE ENTREGA', marginX + prazoColW + colGap + 5, y + 6);
-
-  doc.setFont(undefined, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...navy);
-  const fabDays = Math.max(2, Math.ceil((hours || 8) / 8) + 1);
-  doc.text(fabDays + ' a ' + (fabDays + 2) + ' dias úteis', marginX + 5, y + 12);
-  doc.text((fabDays + 2) + ' a ' + (fabDays + 5) + ' dias úteis', marginX + prazoColW + colGap + 5, y + 12);
-  y += 16 + 10;
-
-  // ════════════════════════════════════════════
-  // FORMAS DE PAGAMENTO (posição fixa acima do footer — nunca colide)
+  // BLOCO FINAL: Prazos + Formas de Pagamento + Footer
+  // Calculado de BAIXO para CIMA para nunca colidir
   // ════════════════════════════════════════════
   const formasPagamento = pdfCfg.formas_pagamento || 'PIX, Cartão de crédito, Dinheiro';
   doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   const pagLines = doc.splitTextToSize(formasPagamento, contentW - 12);
-  const pagBoxH = 8 + Math.min(pagLines.length, 4) * 5;
-  // Posição fixa: ancorada acima do rodapé, garantindo que sempre apareça inteira
-  const footerTop = pageH - 24;            // onde começa a área do rodapé
-  const pagTitleY = footerTop - pagBoxH - 9;
-  let pagBoxY = footerTop - pagBoxH - 2;
-  // Se o conteúdo acumulado (y) ainda não chegou nessa altura, mantém o fluxo natural
-  if (y + 7 + pagBoxH < pagTitleY) {
-    // há espaço — desenha logo após o conteúdo anterior
-    sectionTitle('Formas de Pagamento', marginX, y, 45);
-    y += 7;
-    pagBoxY = y;
-  } else {
-    // pouco espaço — fixa acima do rodapé
-    sectionTitle('Formas de Pagamento', marginX, pagTitleY, 45);
-  }
+  const pagBoxH = 7 + Math.min(pagLines.length, 4) * 4.5;
+
+  // Âncoras fixas a partir do rodapé
+  const footY = pageH - 11;                          // linha do rodapé (empresa)
+  const pagBoxBottom = footY - 13;                   // base da caixa de pagamento
+  const pagBoxY = pagBoxBottom - pagBoxH;            // topo da caixa de pagamento
+  const pagTitleY = pagBoxY - 3;                     // título "Formas de Pagamento"
+  const prazoBoxH = 15;
+  const prazoBoxBottom = pagTitleY - 8;              // base das caixas de prazo
+  const prazoBoxY = prazoBoxBottom - prazoBoxH;      // topo das caixas de prazo
+  const prazoTitleY = prazoBoxY - 3;                 // título "Prazos"
+
+  // — PRAZOS —
+  sectionTitle('Prazos', marginX, prazoTitleY, 30);
+  const prazoColW = (contentW - colGap) / 2;
+  doc.setFillColor(...panelBg);
+  doc.roundedRect(marginX, prazoBoxY, prazoColW, prazoBoxH, 2, 2, 'F');
+  doc.roundedRect(marginX + prazoColW + colGap, prazoBoxY, prazoColW, prazoBoxH, 2, 2, 'F');
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...slateLt);
+  doc.text('PRAZO DE FABRICAÇÃO', marginX + 5, prazoBoxY + 5);
+  doc.text('PRAZO ESTIMADO DE ENTREGA', marginX + prazoColW + colGap + 5, prazoBoxY + 5);
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...navy);
+  const fabDays = Math.max(2, Math.ceil((hours || 8) / 8) + 1);
+  doc.text(fabDays + ' a ' + (fabDays + 2) + ' dias úteis', marginX + 5, prazoBoxY + 11);
+  doc.text((fabDays + 2) + ' a ' + (fabDays + 5) + ' dias úteis', marginX + prazoColW + colGap + 5, prazoBoxY + 11);
+
+  // — FORMAS DE PAGAMENTO —
+  sectionTitle('Formas de Pagamento', marginX, pagTitleY, 45);
   doc.setFillColor(...blueBg);
   doc.roundedRect(marginX, pagBoxY, contentW, pagBoxH, 2, 2, 'F');
+  doc.setFont(undefined, 'normal');
   doc.setTextColor(...navy);
-  doc.setFontSize(9);
-  let pagY = pagBoxY + 6;
-  pagLines.slice(0, 4).forEach(line => { doc.text(line, marginX + 5, pagY); pagY += 5; });
+  doc.setFontSize(8.5);
+  let pagY = pagBoxY + 5.5;
+  pagLines.slice(0, 4).forEach(line => { doc.text(line, marginX + 5, pagY); pagY += 4.5; });
 
   // ════════════════════════════════════════════
-  // FOOTER (posição fixa no rodapé da página)
+  // FOOTER
   // ════════════════════════════════════════════
-  const footY = pageH - 12;
   doc.setDrawColor(...lineCl);
   doc.setLineWidth(0.3);
-  doc.line(marginX, footY - 9, pageW - marginX, footY - 9);
+  doc.line(marginX, footY - 8, pageW - marginX, footY - 8);
 
   doc.setFont(undefined, 'bold');
   doc.setFontSize(7.5);
@@ -11292,6 +11290,19 @@ async function generateRowQuotePdf(btn) {
   const filType = q.filamento_tipo || 'PLA';
   const postType = 'Nenhum';
 
+  // Imagem: usa a salva, ou tenta achar o modelo pela descrição (orçamentos antigos sem imagem)
+  let imagemFinal = q.imagem_modelo || null;
+  if (!imagemFinal && q.descricao) {
+    // Extrai o nome base do modelo (antes do "—")
+    const nomeBase = q.descricao.split('—')[0].trim().toLowerCase();
+    const mEncontrado = modelsData.find(m =>
+      m.name && nomeBase.includes(m.name.toLowerCase()) || (m.name && m.name.toLowerCase().includes(nomeBase))
+    );
+    if (mEncontrado && mEncontrado.images && mEncontrado.images.length) {
+      imagemFinal = mEncontrado.images[0];
+    }
+  }
+
   // Partes multicolor
   const partesMulti = (q.modo_impressao === 'multipartes' && Array.isArray(q.filamentos_multipartes))
     ? q.filamentos_multipartes.map(p => ({ tipo: p.tipo, marca: p.marca, cor: p.cor, hex: p.hex || '#808080', gramas: p.gramas }))
@@ -11305,7 +11316,7 @@ async function generateRowQuotePdf(btn) {
     total: q.custo_total || 0, price,
     qty, unitPrice: qty > 0 ? price / qty : price,
     isBrinde: q.eh_brinde || false,
-    imagemModelo: q.imagem_modelo || null,
+    imagemModelo: imagemFinal,
     clientPhone, clientEmail, clientWhats,
     filInfo: (q.modo_impressao !== 'multipartes')
       ? [q.filamento_tipo || 'PLA', q.filamento_marca, q.filamento_cor].filter(Boolean).join(' · ') + '  ·  ' + (q.peso_g||0) + ' g'
