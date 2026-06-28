@@ -17,53 +17,85 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // ══ CONFIGURAÇÃO SUPABASE ══
-  // Cole sua anon key do painel: Settings → API → "anon public"
   const SUPABASE_URL = 'https://rjvhwffqmirpnjgmambw.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdmh3ZmZxbWlycG5qZ21hbWJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDM0MzIsImV4cCI6MjA5NzI3OTQzMn0.iFTzQOVKiI0gE89GuctJUjv6mLi8Fonm_bUe0JiRd30';
   let sb = null;
+  let _supaLoadAttempt = 0;
 
-  // Inicializa o cliente Supabase (chamado após a biblioteca carregar)
+  // Lista de CDNs alternativos para a biblioteca Supabase
+  const SUPA_CDNS = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+    'https://unpkg.com/@supabase/supabase-js@2',
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+    'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js'
+  ];
+
   function initSupabaseClient() {
-    if (sb) return true; // já inicializado
+    if (sb) return true;
     try {
-      if (typeof supabase !== 'undefined' && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'COLE_SUA_ANON_KEY_AQUI') {
+      if (typeof supabase !== 'undefined' && supabase.createClient) {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         return true;
       }
-    } catch (e) { console.warn('Supabase não inicializado:', e); }
+    } catch (e) { console.warn('Supabase init falhou:', e); }
     return false;
   }
   initSupabaseClient();
 
-  // Se a biblioteca não carregou (internet oscilando), tenta CDN alternativo
-  function loadSupabaseFallback(attempt) {
-    attempt = attempt || 0;
-    if (typeof supabase !== 'undefined') { initSupabaseClient(); return; }
-    if (attempt >= 2) {
-      console.error('Falha ao carregar biblioteca Supabase após várias tentativas.');
+  // Carrega a biblioteca tentando CDNs em sequência
+  function loadSupabaseFallback() {
+    if (typeof supabase !== 'undefined') { initSupabaseClient(); afterSupaReady(); return; }
+    if (_supaLoadAttempt >= SUPA_CDNS.length) {
+      console.error('Falha ao carregar Supabase de todos os CDNs.');
+      showSupaError();
       return;
     }
-    const cdns = [
-      'https://unpkg.com/@supabase/supabase-js@2',
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
-    ];
+    const url = SUPA_CDNS[_supaLoadAttempt++];
+    console.log('Tentando carregar Supabase de:', url);
     const s = document.createElement('script');
-    s.src = cdns[attempt];
+    s.src = url;
     s.onload = function() {
       if (initSupabaseClient()) {
-        console.log('Supabase carregado via CDN alternativo.');
-        // Reprocessa a sessão agora que o cliente existe
-        if (typeof checkExistingSession === 'function') checkExistingSession();
+        console.log('Supabase carregado com sucesso!');
+        afterSupaReady();
+      } else {
+        loadSupabaseFallback();
       }
     };
-    s.onerror = function() { loadSupabaseFallback(attempt + 1); };
+    s.onerror = function() {
+      console.warn('Falhou:', url);
+      loadSupabaseFallback();
+    };
     document.head.appendChild(s);
   }
 
-  // Após o carregamento da página, verifica se o Supabase está disponível
+  // Quando o Supabase fica pronto, revalida a sessão e esconde erros
+  function afterSupaReady() {
+    const w = document.getElementById('login-config-warning');
+    if (w) w.style.display = 'none';
+    const msg = document.getElementById('login-msg');
+    if (msg && msg.textContent.indexOf('carregar') >= 0) msg.textContent = '';
+    if (typeof checkExistingSession === 'function') {
+      try { checkExistingSession(); } catch(e){}
+    }
+  }
+
+  // Mostra erro com botão de tentar novamente
+  function showSupaError() {
+    const w = document.getElementById('login-config-warning');
+    if (w) {
+      w.style.display = 'block';
+      w.innerHTML = '<i class="ti ti-wifi-off"></i> Não foi possível carregar o sistema. ' +
+        '<a href="#" onclick="_supaLoadAttempt=0;loadSupabaseFallback();return false;" style="color:#1d4ed8;font-weight:700;text-decoration:underline">Tentar novamente</a> ' +
+        'ou recarregue com Ctrl+F5.';
+    }
+  }
+
+  // Verifica disponibilidade após o load da página
   window.addEventListener('load', function() {
     if (typeof supabase === 'undefined' || !sb) {
-      loadSupabaseFallback(0);
+      _supaLoadAttempt = 0;
+      loadSupabaseFallback();
     }
   });
 </script>
@@ -4054,17 +4086,23 @@ function setLoginMsg(msg, type='info') {
 
 async function doAuth() {
   if (!sb) {
-    // Tenta inicializar de novo (caso a biblioteca tenha carregado tarde por internet lenta)
+    // Tenta inicializar de novo (caso a biblioteca tenha carregado tarde)
     if (typeof initSupabaseClient === 'function') initSupabaseClient();
-    if (!sb) {
-      if (typeof supabase === 'undefined') {
-        setLoginMsg('Falha ao carregar o sistema. Verifique sua conexão e recarregue a página (F5).', 'error');
-        if (typeof loadSupabaseFallback === 'function') loadSupabaseFallback(0);
-      } else {
-        setLoginMsg('Erro de configuração. Recarregue a página (F5).', 'error');
+    if (!sb && typeof supabase === 'undefined') {
+      // Biblioteca não carregou — tenta recarregar e aguarda até 5 segundos
+      setLoginMsg('Carregando o sistema, aguarde...', 'info');
+      if (typeof loadSupabaseFallback === 'function') { _supaLoadAttempt = 0; loadSupabaseFallback(); }
+      // Aguarda a biblioteca aparecer (poll de 250ms por até 5s)
+      for (let i = 0; i < 20 && typeof supabase === 'undefined'; i++) {
+        await new Promise(r => setTimeout(r, 250));
       }
+      initSupabaseClient();
+    }
+    if (!sb) {
+      setLoginMsg('Não foi possível conectar. Verifique sua internet e recarregue (Ctrl+F5).', 'error');
       return;
     }
+    setLoginMsg('');
   }
   const email = document.getElementById('li-email').value.trim();
   const pass = document.getElementById('li-pass').value;
