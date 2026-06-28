@@ -11126,33 +11126,41 @@ function buildQuotePdf(data) {
   y += 16 + 10;
 
   // ════════════════════════════════════════════
-  // FORMAS DE PAGAMENTO (destaque)
+  // FORMAS DE PAGAMENTO (posição fixa acima do footer — nunca colide)
   // ════════════════════════════════════════════
   const formasPagamento = pdfCfg.formas_pagamento || 'PIX, Cartão de crédito, Dinheiro';
-  sectionTitle('Formas de Pagamento', marginX, y, 45);
-  y += 7;
   doc.setFont(undefined, 'normal');
   doc.setFontSize(9);
   const pagLines = doc.splitTextToSize(formasPagamento, contentW - 12);
   const pagBoxH = 8 + Math.min(pagLines.length, 4) * 5;
+  // Posição fixa: ancorada acima do rodapé, garantindo que sempre apareça inteira
+  const footerTop = pageH - 24;            // onde começa a área do rodapé
+  const pagTitleY = footerTop - pagBoxH - 9;
+  let pagBoxY = footerTop - pagBoxH - 2;
+  // Se o conteúdo acumulado (y) ainda não chegou nessa altura, mantém o fluxo natural
+  if (y + 7 + pagBoxH < pagTitleY) {
+    // há espaço — desenha logo após o conteúdo anterior
+    sectionTitle('Formas de Pagamento', marginX, y, 45);
+    y += 7;
+    pagBoxY = y;
+  } else {
+    // pouco espaço — fixa acima do rodapé
+    sectionTitle('Formas de Pagamento', marginX, pagTitleY, 45);
+  }
   doc.setFillColor(...blueBg);
-  doc.roundedRect(marginX, y, contentW, pagBoxH, 2, 2, 'F');
+  doc.roundedRect(marginX, pagBoxY, contentW, pagBoxH, 2, 2, 'F');
   doc.setTextColor(...navy);
   doc.setFontSize(9);
-  let pagY = y + 6;
+  let pagY = pagBoxY + 6;
   pagLines.slice(0, 4).forEach(line => { doc.text(line, marginX + 5, pagY); pagY += 5; });
-  y += pagBoxH + 4;
 
   // ════════════════════════════════════════════
   // FOOTER (posição fixa no rodapé da página)
   // ════════════════════════════════════════════
-  const footY = pageH - 16;
-  // Fundo branco para limpar qualquer sobreposição
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, footY - 14, pageW, 30, 'F');
+  const footY = pageH - 12;
   doc.setDrawColor(...lineCl);
   doc.setLineWidth(0.3);
-  doc.line(marginX, footY - 11, pageW - marginX, footY - 11);
+  doc.line(marginX, footY - 9, pageW - marginX, footY - 9);
 
   doc.setFont(undefined, 'bold');
   doc.setFontSize(7.5);
