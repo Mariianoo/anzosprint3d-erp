@@ -10332,6 +10332,7 @@ function quoteRowActions(q) {
   if (q.status === 'convertido') {
     btns += `<button class="btn btn-secondary btn-sm" onclick="cancelQuoteConversion('${q.id}')" title="Cancelar conversão (desfazer pedido)"><i class="ti ti-arrow-back-up"></i></button>`;
   }
+  btns += `<button class="btn btn-sm" style="background:#dc2626;color:#fff;border:none" onclick="downloadQuotePdfById('${q.id}')" title="Baixar PDF"><i class="ti ti-file-type-pdf"></i></button>`;
   btns += `<button class="btn btn-secondary btn-sm" onclick="editQuoteDB('${q.id}')" title="Editar"><i class="ti ti-edit"></i></button>`;
   btns += `<button class="btn btn-danger btn-sm" onclick="deleteQuoteDB('${q.id}')" title="Excluir"><i class="ti ti-trash"></i></button>`;
   return `<div style="display:flex;gap:4px;flex-wrap:wrap">${btns}</div>`;
@@ -10370,7 +10371,7 @@ function generateSavedQuotePdfDoc(q) {
 async function uploadQuotePdfAndGetLink(q) {
   if (!sb) return null;
   try {
-    const doc = generateSavedQuotePdfDoc(q);
+    const doc = await buildSavedQuotePdfDocAsync(q);
     const blob = doc.output('blob');
     const path = `orc-${q.id}/${q.numero}.pdf`;
     const { error: upErr } = await sb.storage.from('orcamentos').upload(path, blob, { contentType: 'application/pdf', upsert: true });
@@ -11260,57 +11261,45 @@ async function generateQuotePdf() {
 }
 
 // ── Table rows: generate PDF from existing quote (busca dados completos do banco) ──
-async function generateRowQuotePdf(btn) {
-  // Garante configs atualizadas do banco antes de gerar
+// Monta o documento PDF completo a partir de um orçamento salvo (q) — usado por download, WhatsApp e e-mail
+async function buildSavedQuotePdfDocAsync(q) {
+  // Garante configs atualizadas do banco
   if (typeof loadQuoteConfig === 'function') { try { await loadQuoteConfig(); } catch(e){} }
-  const row = btn.closest('tr');
-  const quoteNum = row.querySelector('.td-name').textContent.trim();
-
-  // Busca o orçamento completo no banco pela numeração
-  let q = quotesDB.find(x => x.numero === quoteNum);
-  if (!q && sb) {
-    const { data } = await sb.from('orcamentos').select('*, clientes(nome)').eq('numero', quoteNum).is('deleted_at', null).limit(1);
-    if (data && data.length) q = data[0];
-  }
-  if (!q) { showToast('Orçamento não encontrado.'); return; }
 
   // Nome e dados de contato do cliente
-  let client = q.clientes?.nome || 'Cliente não informado';
+  let client = q.clientes?.nome || clienteNomeById(q.cliente_id) || 'Cliente não informado';
   let clientPhone = '', clientEmail = '', clientWhats = '';
   if (q.cliente_id && sb) {
-    const { data: c } = await sb.from('clientes').select('nome,telefone,email,whatsapp').eq('id', q.cliente_id).limit(1);
-    if (c && c.length) {
-      client = c[0].nome || client;
-      clientPhone = c[0].telefone || ''; clientEmail = c[0].email || ''; clientWhats = c[0].whatsapp || '';
-    }
+    try {
+      const { data: c } = await sb.from('clientes').select('nome,telefone,email,whatsapp').eq('id', q.cliente_id).limit(1);
+      if (c && c.length) {
+        client = c[0].nome || client;
+        clientPhone = c[0].telefone || ''; clientEmail = c[0].email || ''; clientWhats = c[0].whatsapp || '';
+      }
+    } catch(e){}
   }
 
   const qty = q.quantidade || 1;
   const price = q.preco_final || 0;
   const filType = q.filamento_tipo || 'PLA';
-  const postType = 'Nenhum';
 
-  // Imagem: usa a salva, ou tenta achar o modelo pela descrição (orçamentos antigos sem imagem)
+  // Imagem: usa a salva, ou busca o modelo pela descrição (orçamentos antigos)
   let imagemFinal = q.imagem_modelo || null;
   if (!imagemFinal && q.descricao) {
-    // Extrai o nome base do modelo (antes do "—")
     const nomeBase = q.descricao.split('—')[0].trim().toLowerCase();
-    const mEncontrado = modelsData.find(m =>
-      m.name && nomeBase.includes(m.name.toLowerCase()) || (m.name && m.name.toLowerCase().includes(nomeBase))
+    const mEncontrado = (modelsData||[]).find(m =>
+      (m.name && nomeBase.includes(m.name.toLowerCase())) || (m.name && m.name.toLowerCase().includes(nomeBase))
     );
-    if (mEncontrado && mEncontrado.images && mEncontrado.images.length) {
-      imagemFinal = mEncontrado.images[0];
-    }
+    if (mEncontrado && mEncontrado.images && mEncontrado.images.length) imagemFinal = mEncontrado.images[0];
   }
 
-  // Partes multicolor
   const partesMulti = (q.modo_impressao === 'multipartes' && Array.isArray(q.filamentos_multipartes))
     ? q.filamentos_multipartes.map(p => ({ tipo: p.tipo, marca: p.marca, cor: p.cor, hex: p.hex || '#808080', gramas: p.gramas }))
     : null;
 
-  const doc = buildQuotePdf({
-    quoteNum, client, desc: q.descricao || 'Item',
-    weight: q.peso_g || 0, hours: q.horas || 0, filType, postType,
+  return buildQuotePdf({
+    quoteNum: q.numero, client, desc: q.descricao || 'Item',
+    weight: q.peso_g || 0, hours: q.horas || 0, filType, postType: 'Nenhum',
     margin: q.margem_pct || 40, filCost: q.custo_filamento || 0,
     energy: 0, wear: 0, post: q.custo_pos_proc || 0, pkg: q.custo_embalagem || 0,
     total: q.custo_total || 0, price,
@@ -11323,10 +11312,35 @@ async function generateRowQuotePdf(btn) {
       : null,
     partesMulti
   });
+}
 
+// Baixa o PDF de um orçamento pelo ID (botão PDF na lista de ações)
+async function downloadQuotePdfById(id) {
+  let q = quotesDB.find(x => x.id === id);
+  if (!q && sb) {
+    const { data } = await sb.from('orcamentos').select('*, clientes(nome)').eq('id', id).is('deleted_at', null).limit(1);
+    if (data && data.length) q = data[0];
+  }
+  if (!q) { showToast('Orçamento não encontrado.'); return; }
+  showToast('Gerando PDF...');
+  const doc = await buildSavedQuotePdfDocAsync(q);
+  const client = q.clientes?.nome || clienteNomeById(q.cliente_id) || 'cliente';
   const safeName = client.replace(/[^a-zA-Z0-9]/g,'_');
-  doc.save(`Orcamento_${quoteNum}_${safeName}.pdf`);
-  showToast(`PDF do orçamento ${quoteNum} gerado e baixado!`);
+  doc.save(`Orcamento_${q.numero}_${safeName}.pdf`);
+  showToast(`PDF do orçamento ${q.numero} baixado!`);
+}
+
+// Compatibilidade: gera PDF a partir do botão da linha
+async function generateRowQuotePdf(btn) {
+  const row = btn.closest('tr');
+  const quoteNum = row.querySelector('.td-name').textContent.trim();
+  let q = quotesDB.find(x => x.numero === quoteNum);
+  if (!q && sb) {
+    const { data } = await sb.from('orcamentos').select('*, clientes(nome)').eq('numero', quoteNum).is('deleted_at', null).limit(1);
+    if (data && data.length) q = data[0];
+  }
+  if (!q) { showToast('Orçamento não encontrado.'); return; }
+  await downloadQuotePdfById(q.id);
 }
 
 // ══════════════════════════════════════════════════════════
