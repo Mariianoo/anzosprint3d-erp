@@ -11105,6 +11105,31 @@ function buildQuotePdf(data) {
   doc.setFontSize(22);
   doc.setTextColor(255, 255, 255);
   doc.text('R$ ' + price.toFixed(2).replace('.', ','), pageW - marginX - 8, y + 16, { align: 'right' });
+  y += boxH;
+
+  // ════════════════════════════════════════════
+  // QUEBRA DE PÁGINA se o bloco final não couber com folga
+  // Bloco final precisa de ~70mm (prazos + pagamento + footer)
+  // ════════════════════════════════════════════
+  const espacoNecessario = 75;
+  if (y > pageH - espacoNecessario) {
+    doc.addPage();
+    // Cabeçalho compacto na 2ª página
+    doc.setFillColor(...navy);
+    doc.rect(0, 0, pageW, 22, 'F');
+    doc.setFillColor(...orange);
+    doc.rect(0, 22, pageW, 1, 'F');
+    try { doc.addImage((localStorage.getItem('anzos_logo') || DEFAULT_LOGO), 'PNG', marginX, 4, 14, 14); } catch(e){}
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(12);
+    doc.text("ANZO'S Print 3D", marginX + 20, 10);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(203, 213, 225);
+    doc.text('Orçamento ' + quoteNum + ' — continuação', marginX + 20, 16);
+    y = 32;
+  }
 
   // ════════════════════════════════════════════
   // BLOCO FINAL: Prazos + Formas de Pagamento + Footer
@@ -11287,10 +11312,22 @@ async function buildSavedQuotePdfDocAsync(q) {
   let imagemFinal = q.imagem_modelo || null;
   if (!imagemFinal && q.descricao) {
     const nomeBase = q.descricao.split('—')[0].trim().toLowerCase();
-    const mEncontrado = (modelsData||[]).find(m =>
+    // 1) tenta na memória
+    let mEncontrado = (modelsData||[]).find(m =>
       (m.name && nomeBase.includes(m.name.toLowerCase())) || (m.name && m.name.toLowerCase().includes(nomeBase))
     );
-    if (mEncontrado && mEncontrado.images && mEncontrado.images.length) imagemFinal = mEncontrado.images[0];
+    if (mEncontrado && mEncontrado.images && mEncontrado.images.length) {
+      imagemFinal = mEncontrado.images[0];
+    } else if (sb) {
+      // 2) busca direto no banco pela capa do modelo
+      try {
+        const { data: mods } = await sb.from('modelos_3d').select('nome,capa_base64').is('deleted_at', null);
+        if (mods && mods.length) {
+          const m = mods.find(x => x.nome && (nomeBase.includes(x.nome.toLowerCase()) || x.nome.toLowerCase().includes(nomeBase)));
+          if (m && m.capa_base64) imagemFinal = m.capa_base64;
+        }
+      } catch(e){ console.warn('Busca de capa falhou:', e); }
+    }
   }
 
   const partesMulti = (q.modo_impressao === 'multipartes' && Array.isArray(q.filamentos_multipartes))
