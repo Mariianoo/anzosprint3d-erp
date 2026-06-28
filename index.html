@@ -10371,10 +10371,19 @@ async function saveCalculatorQuote() {
   const r = calcQuote();
   if (!r.weight || !r.hours) { showToast('Informe o peso e o tempo de impressão.'); return; }
 
+  // Captura a imagem do modelo selecionado (para o PDF)
+  let imagemModeloSave = null;
+  const modelSelSave = document.getElementById('q-model');
+  if (modelSelSave && modelSelSave.value) {
+    const mSave = modelsData.find(x => x.id === modelSelSave.value);
+    if (mSave && mSave.images && mSave.images.length) imagemModeloSave = mSave.images[0];
+  }
+
   const header = {
     cliente_id: clienteId,
     descricao: desc,
     quantidade: r.qty || 1,
+    imagem_modelo: imagemModeloSave,
     peso_g: r.weight,
     horas: r.hours,
     custo_filamento: round2(r.filCost),
@@ -10816,9 +10825,11 @@ function buildQuotePdf(data) {
   doc.setFont(undefined, 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(...slate);
-  doc.text('Telefone: a confirmar com o cliente', marginX + 5, cy);
+  const telCli = data.clientPhone || data.clientWhats || 'a confirmar com o cliente';
+  const emailCli = data.clientEmail || 'a confirmar com o cliente';
+  doc.text('Telefone: ' + telCli, marginX + 5, cy);
   cy += 5.5;
-  doc.text('E-mail: a confirmar com o cliente', marginX + 5, cy);
+  doc.text('E-mail: ' + emailCli, marginX + 5, cy);
 
   // Order info card
   const rx = marginX + colW + colGap;
@@ -10834,10 +10845,15 @@ function buildQuotePdf(data) {
   if (mostrarImagem && data.imagemModelo) {
     try {
       const imgSize = cardH - 8;
-      doc.addImage(data.imagemModelo, 'JPEG', rx + 4, y + 7, imgSize, imgSize);
+      // Detecta o formato da imagem do data URL
+      let imgFmt = 'JPEG';
+      const imgStr = String(data.imagemModelo);
+      if (imgStr.indexOf('image/png') >= 0) imgFmt = 'PNG';
+      else if (imgStr.indexOf('image/webp') >= 0) imgFmt = 'WEBP';
+      doc.addImage(data.imagemModelo, imgFmt, rx + 4, y + 7, imgSize, imgSize, undefined, 'FAST');
       txtX = rx + imgSize + 8;
       txtW = colW - imgSize - 14;
-    } catch(e) { /* imagem inválida, ignora */ }
+    } catch(e) { console.warn('Erro ao adicionar imagem ao PDF:', e); }
   }
 
   let oy = y + 3 + 8;
@@ -11079,12 +11095,29 @@ function buildQuotePdf(data) {
 }
 
 // ── Calculator: generate PDF ──
-function generateQuotePdf() {
+async function generateQuotePdf() {
   // Pega o NOME do cliente (texto do option selecionado), não o UUID
   const clientSel = document.getElementById('q-client');
   let client = 'Cliente não informado';
+  let clientId = null;
   if (clientSel && clientSel.selectedIndex > 0) {
     client = clientSel.options[clientSel.selectedIndex].text.trim();
+    clientId = clientSel.value || null;
+  }
+  // Busca dados completos do cliente (telefone, email)
+  let clientPhone = '', clientEmail = '', clientWhats = '';
+  if (clientId && sb) {
+    try {
+      const { data: cli } = await sb.from('clientes').select('telefone,email,whatsapp').eq('id', clientId).limit(1);
+      if (cli && cli.length) { clientPhone = cli[0].telefone || ''; clientEmail = cli[0].email || ''; clientWhats = cli[0].whatsapp || ''; }
+    } catch(e){}
+  }
+  // Busca a imagem do modelo selecionado (se houver)
+  let imagemModelo = null;
+  const modelSel = document.getElementById('q-model');
+  if (modelSel && modelSel.value) {
+    const m = modelsData.find(x => x.id === modelSel.value);
+    if (m && m.images && m.images.length) imagemModelo = m.images[0];
   }
   let desc = document.getElementById('q-desc').value.trim();
   if (!desc) desc = 'Item sem descrição';
@@ -11118,6 +11151,7 @@ function generateQuotePdf() {
     post: r.post, pkg: r.pkg, total: r.total, price: r.price,
     qty: r.qty, unitPrice: r.qty > 0 ? r.price / r.qty : r.price,
     isBrinde: r.isBrinde, filInfo,
+    clientPhone, clientEmail, clientWhats, imagemModelo,
     partesMulti
   });
 
@@ -11139,11 +11173,15 @@ async function generateRowQuotePdf(btn) {
   }
   if (!q) { showToast('Orçamento não encontrado.'); return; }
 
-  // Nome do cliente
+  // Nome e dados de contato do cliente
   let client = q.clientes?.nome || 'Cliente não informado';
-  if (!q.clientes && q.cliente_id && sb) {
-    const { data: c } = await sb.from('clientes').select('nome').eq('id', q.cliente_id).limit(1);
-    if (c && c.length) client = c[0].nome;
+  let clientPhone = '', clientEmail = '', clientWhats = '';
+  if (q.cliente_id && sb) {
+    const { data: c } = await sb.from('clientes').select('nome,telefone,email,whatsapp').eq('id', q.cliente_id).limit(1);
+    if (c && c.length) {
+      client = c[0].nome || client;
+      clientPhone = c[0].telefone || ''; clientEmail = c[0].email || ''; clientWhats = c[0].whatsapp || '';
+    }
   }
 
   const qty = q.quantidade || 1;
@@ -11165,6 +11203,7 @@ async function generateRowQuotePdf(btn) {
     qty, unitPrice: qty > 0 ? price / qty : price,
     isBrinde: q.eh_brinde || false,
     imagemModelo: q.imagem_modelo || null,
+    clientPhone, clientEmail, clientWhats,
     filInfo: (q.modo_impressao !== 'multipartes')
       ? [q.filamento_tipo || 'PLA', q.filamento_marca, q.filamento_cor].filter(Boolean).join(' · ') + '  ·  ' + (q.peso_g||0) + ' g'
       : null,
