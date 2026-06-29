@@ -11046,44 +11046,51 @@ function buildQuotePdf(data) {
   // ════════════════════════════════════════════
   let extraY = 0;
   if (data.partesMulti && data.partesMulti.length) {
+    // Agrupa cores repetidas (soma o peso) — deixa a tabela mais limpa e compacta
+    const agrupado = {};
+    data.partesMulti.forEach(p => {
+      const chave = (p.cor || '—') + '|' + (p.tipo || 'PLA') + '|' + (p.hex || '');
+      if (!agrupado[chave]) agrupado[chave] = { cor: p.cor || '—', tipo: p.tipo || 'PLA', hex: p.hex || '#808080', gramas: 0 };
+      agrupado[chave].gramas += (p.gramas || 0);
+    });
+    const partesAgrupadas = Object.values(agrupado);
+
     let py = y + cardH + 14;
     sectionTitle('Impressão Multicolor', marginX, py, 50);
-    py += 7;
-    // Cabeçalho
-    doc.setFillColor(...blueBg);
-    doc.roundedRect(marginX, py, contentW, 8 + data.partesMulti.length * 7 + 2, 2, 2, 'F');
     py += 6;
+    const rowH = 5.8;
+    doc.setFillColor(...blueBg);
+    doc.roundedRect(marginX, py, contentW, 7 + partesAgrupadas.length * rowH + 2, 2, 2, 'F');
+    py += 5.5;
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...slate);
     doc.text('COR', marginX + 12, py);
     doc.text('MATERIAL', marginX + 70, py);
     doc.text('PESO', pageW - marginX - 10, py, { align: 'right' });
-    py += 5;
+    py += 4.5;
     doc.setFont(undefined, 'normal');
-    doc.setTextColor(...navy);
-    data.partesMulti.forEach((p, i) => {
-      // Bolinha de cor
+    partesAgrupadas.forEach((p) => {
       try {
         const hex = (p.hex || '#808080').replace('#','');
         const rr = parseInt(hex.substring(0,2),16) || 128;
         const gg = parseInt(hex.substring(2,4),16) || 128;
         const bb = parseInt(hex.substring(4,6),16) || 128;
         doc.setFillColor(rr, gg, bb);
-        doc.circle(marginX + 6, py - 1, 2, 'F');
+        doc.circle(marginX + 6, py - 1, 1.8, 'F');
         doc.setDrawColor(...slateLt);
         doc.setLineWidth(0.2);
-        doc.circle(marginX + 6, py - 1, 2, 'S');
+        doc.circle(marginX + 6, py - 1, 1.8, 'S');
       } catch(e){}
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setTextColor(...navy);
       doc.text(p.cor || '—', marginX + 12, py);
       doc.setTextColor(...slate);
-      doc.text((p.tipo || 'PLA') + (p.marca ? ' · ' + p.marca : ''), marginX + 70, py);
-      doc.text((p.gramas || 0) + ' g', pageW - marginX - 10, py, { align: 'right' });
-      py += 7;
+      doc.text(p.tipo || 'PLA', marginX + 70, py);
+      doc.text((Math.round(p.gramas*100)/100) + ' g', pageW - marginX - 10, py, { align: 'right' });
+      py += rowH;
     });
-    extraY = py - (y + cardH + 14) + 6;
+    extraY = py - (y + cardH + 14) + 5;
   }
 
   // ════════════════════════════════════════════
@@ -11179,13 +11186,18 @@ function buildQuotePdf(data) {
   y += boxH;
 
   // ════════════════════════════════════════════
-  // QUEBRA DE PÁGINA se o bloco final não couber com folga
-  // Bloco final precisa de ~70mm (prazos + pagamento + footer)
+  // QUEBRA DE PÁGINA só se realmente não couber (raro, com a multicolor compacta)
   // ════════════════════════════════════════════
-  const espacoNecessario = 75;
-  if (y > pageH - espacoNecessario) {
+  const formasPagamento = pdfCfg.formas_pagamento || 'PIX, Cartão de crédito, Dinheiro';
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(8.5);
+  const pagLines = doc.splitTextToSize(formasPagamento, contentW - 12);
+  const pagBoxH = 7 + Math.min(pagLines.length, 4) * 4.5;
+  const blocoFinalH = 15 + 8 + pagBoxH + 3 + 3 + 8 + 16; // prazos + pagamento + footer
+
+  let quebrou = false;
+  if (y + blocoFinalH > pageH - 8) {
     doc.addPage();
-    // Cabeçalho compacto na 2ª página
     doc.setFillColor(...navy);
     doc.rect(0, 0, pageW, 22, 'F');
     doc.setFillColor(...orange);
@@ -11200,27 +11212,33 @@ function buildQuotePdf(data) {
     doc.setTextColor(203, 213, 225);
     doc.text('Orçamento ' + quoteNum + ' — continuação', marginX + 20, 16);
     y = 32;
+    quebrou = true;
   }
 
   // ════════════════════════════════════════════
   // BLOCO FINAL: Prazos + Formas de Pagamento + Footer
-  // Calculado de BAIXO para CIMA para nunca colidir
   // ════════════════════════════════════════════
-  const formasPagamento = pdfCfg.formas_pagamento || 'PIX, Cartão de crédito, Dinheiro';
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(8.5);
-  const pagLines = doc.splitTextToSize(formasPagamento, contentW - 12);
-  const pagBoxH = 7 + Math.min(pagLines.length, 4) * 4.5;
-
-  // Âncoras fixas a partir do rodapé
-  const footY = pageH - 11;                          // linha do rodapé (empresa)
-  const pagBoxBottom = footY - 13;                   // base da caixa de pagamento
-  const pagBoxY = pagBoxBottom - pagBoxH;            // topo da caixa de pagamento
-  const pagTitleY = pagBoxY - 3;                     // título "Formas de Pagamento"
+  let footY, pagBoxBottom, pagBoxY, pagTitleY, prazoBoxBottom, prazoBoxY, prazoTitleY;
   const prazoBoxH = 15;
-  const prazoBoxBottom = pagTitleY - 8;              // base das caixas de prazo
-  const prazoBoxY = prazoBoxBottom - prazoBoxH;      // topo das caixas de prazo
-  const prazoTitleY = prazoBoxY - 3;                 // título "Prazos"
+  if (quebrou) {
+    // Página 2: bloco final logo após o cabeçalho (sem espaço em branco)
+    prazoTitleY = y + 4;
+    prazoBoxY = prazoTitleY + 3;
+    prazoBoxBottom = prazoBoxY + prazoBoxH;
+    pagTitleY = prazoBoxBottom + 8;
+    pagBoxY = pagTitleY + 3;
+    pagBoxBottom = pagBoxY + pagBoxH;
+    footY = pageH - 11;  // rodapé continua no fim da página
+  } else {
+    // Página 1: bloco final ancorado no rodapé
+    footY = pageH - 11;
+    pagBoxBottom = footY - 13;
+    pagBoxY = pagBoxBottom - pagBoxH;
+    pagTitleY = pagBoxY - 3;
+    prazoBoxBottom = pagTitleY - 8;
+    prazoBoxY = prazoBoxBottom - prazoBoxH;
+    prazoTitleY = prazoBoxY - 3;
+  }
 
   // — PRAZOS —
   sectionTitle('Prazos', marginX, prazoTitleY, 30);
@@ -11377,7 +11395,12 @@ async function buildSavedQuotePdfDocAsync(q) {
 
   const qty = q.quantidade || 1;
   const price = q.preco_final || 0;
-  const filType = q.filamento_tipo || 'PLA';
+  // Material: em multipartes vem das partes (o filamento_tipo pode ter ficado com default errado)
+  let filType = q.filamento_tipo || 'PLA';
+  if (q.modo_impressao === 'multipartes' && Array.isArray(q.filamentos_multipartes) && q.filamentos_multipartes.length) {
+    const tiposPartes = [...new Set(q.filamentos_multipartes.map(p => p.tipo).filter(Boolean))];
+    if (tiposPartes.length) filType = tiposPartes.join(', ');  // ex: "PLA" ou "PLA, PETG"
+  }
 
   // Imagem: usa a salva, ou busca o modelo pela descrição (orçamentos antigos)
   let imagemFinal = q.imagem_modelo || null;
