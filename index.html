@@ -6834,9 +6834,10 @@ function syncOrderFromOP(op) {
 
 // Popula os dropdowns do modal Nova Ordem com dados reais do banco
 async function populateNewOpModal() {
-  // Garante pedidos e filamentos carregados
+  // Garante pedidos, filamentos e impressoras carregados
   if (!ordersData || ordersData.length === 0) { try { await loadOrdersDB(); } catch(e){} }
   await loadFilamentsForQuote();
+  if (!printersData || printersData.length === 0) { try { await loadPrintersDB(); } catch(e){} }
 
   // Dropdown de pedidos elegíveis (em aberto)
   const sel = document.getElementById('nop-order');
@@ -6848,19 +6849,55 @@ async function populateNewOpModal() {
       : '');
     if (!eligible.length) sel.innerHTML = '<option value="">Nenhum pedido ativo</option>';
   }
-  // Impressora: campo de texto livre (Impressoras ainda não conectada) — convertemos o select num texto
-  const printerSel = document.getElementById('nop-printer');
-  if (printerSel && printerSel.tagName === 'SELECT') {
-    const input = document.createElement('input');
-    input.type = 'text'; input.id = 'nop-printer'; input.placeholder = 'Nome da impressora';
-    printerSel.replaceWith(input);
+
+  // Impressora: dropdown com as impressoras cadastradas
+  let printerEl = document.getElementById('nop-printer');
+  // Se foi convertido em input numa versão anterior, recria como select
+  if (printerEl && printerEl.tagName !== 'SELECT') {
+    const newSel = document.createElement('select');
+    newSel.id = 'nop-printer';
+    printerEl.replaceWith(newSel);
+    printerEl = newSel;
   }
-  // Filamento: lista os filamentos reais cadastrados
+  if (printerEl) {
+    const printerOpts = (printersData||[])
+      .filter(p => p.status !== 'off' && p.status !== 'manutencao')  // só impressoras disponíveis
+      .map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}${p.modelo && p.modelo !== '—' ? ' (' + escapeHtml(p.modelo) + ')' : ''}</option>`).join('');
+    printerEl.innerHTML = '<option value="">— selecionar impressora —</option>' +
+      (printerOpts || '<option value="" disabled>Nenhuma impressora cadastrada</option>');
+  }
+
+  // Filamento: lista os filamentos reais cadastrados (com marca real, sem "Qualquer")
   const filSel = document.getElementById('nop-filament');
   if (filSel) {
     const opts = (filamentsData||[]).map(f =>
-      `<option value="${f.id}">${f.type} ${escapeHtml(f.color)} (${f.brand}) — ${f.current}g</option>`).join('');
+      `<option value="${f.id}" data-brand="${escapeHtml(f.brand||'')}">${f.type} ${escapeHtml(f.color)} (${escapeHtml(f.brand||'sem marca')}) — ${f.current}g</option>`).join('');
     filSel.innerHTML = '<option value="">— selecionar filamento —</option>' + opts;
+  }
+
+  // Operador: preenche automaticamente com o usuário logado
+  const opEl = document.getElementById('nop-operator');
+  if (opEl) {
+    let nomeOperador = '';
+    if (typeof currentProfile !== 'undefined' && currentProfile && currentProfile.nome) {
+      nomeOperador = currentProfile.nome;
+    } else {
+      const nameEl = document.querySelector('.user-name');
+      if (nameEl) nomeOperador = nameEl.textContent.trim();
+    }
+    opEl.value = nomeOperador;
+    opEl.readOnly = true;  // operador é sempre o usuário logado
+    opEl.style.background = 'var(--surface3, #0f172a)';
+    opEl.style.cursor = 'not-allowed';
+  }
+
+  // Hora de início: preenche com a hora atual (editável)
+  const timeEl = document.getElementById('nop-start-time');
+  if (timeEl && !timeEl.value) {
+    const agora = new Date();
+    const hh = String(agora.getHours()).padStart(2,'0');
+    const mm = String(agora.getMinutes()).padStart(2,'0');
+    timeEl.value = `${hh}:${mm}`;
   }
 }
 
@@ -6883,7 +6920,15 @@ async function onNopOrderChange() {
           if (primeira) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = primeira.filamento_id; }
           if (orc.peso_g) { const w = document.getElementById('nop-total-weight'); if (w) w.value = orc.peso_g; }
           const nP = orc.filamentos_multipartes.length;
-          if (hint) hint.textContent = `Orçamento multipartes (${nP} cor${nP>1?'es':''}) — ${orc.peso_g||0}g total. Baixa proporcional a cada filamento ao concluir a OP.`;
+          const semMarca = orc.filamentos_multipartes.filter(p => !p.marca || !p.marca.trim());
+          if (hint) {
+            if (semMarca.length) {
+              hint.innerHTML = `<span style="color:var(--red)"><i class="ti ti-alert-triangle"></i> ${semMarca.length} parte(s) com marca "Qualquer" — defina a marca real no orçamento antes de produzir.</span>`;
+            } else {
+              hint.textContent = `Orçamento multipartes (${nP} cor${nP>1?'es':''}) — ${orc.peso_g||0}g total. Baixa proporcional a cada filamento ao concluir.`;
+              hint.style.color = 'var(--text3)';
+            }
+          }
         } else {
           if (orc.filamento_id) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = orc.filamento_id; }
           if (orc.peso_g) { const w = document.getElementById('nop-total-weight'); if (w) w.value = orc.peso_g; }
@@ -6917,9 +6962,35 @@ async function saveNewProductionOrder() {
   const obs      = document.getElementById('nop-obs').value.trim();
 
   if (!pedidoUuid) { showToast('Selecione o pedido.'); return; }
+  if (!printer) { showToast('Selecione a impressora.'); return; }
+  if (!filamentoId) { showToast('Selecione o filamento que será usado na produção.'); return; }
   if (!totalG) { showToast('Informe o peso total a imprimir.'); return; }
   if (!sb) { showToast('Supabase não configurado.'); return; }
   if (!navigator.onLine) { showToast('Você está offline. Conecte-se para salvar.'); return; }
+
+  // ── VALIDAÇÃO: bloquear produção se o orçamento tem partes sem marca definida ("Qualquer") ──
+  // "Qualquer" serve só para orçar; para produzir é preciso definir a marca real (que existe em estoque)
+  try {
+    const { data: ped } = await sb.from('pedidos').select('orcamento_id').eq('id', pedidoUuid).single();
+    if (ped && ped.orcamento_id) {
+      const { data: orc } = await sb.from('orcamentos')
+        .select('modo_impressao, filamentos_multipartes').eq('id', ped.orcamento_id).single();
+      if (orc && orc.modo_impressao === 'multipartes' && Array.isArray(orc.filamentos_multipartes)) {
+        const semMarca = orc.filamentos_multipartes.filter(p => !p.marca || !p.marca.trim());
+        if (semMarca.length) {
+          const cores = semMarca.map(p => p.cor || p.tipo || 'parte').join(', ');
+          await confirmAction({
+            title: 'Marca não definida — produção bloqueada',
+            message: `Este orçamento tem ${semMarca.length} parte(s) com marca "Qualquer" (${cores}). "Qualquer" serve apenas para orçar; para produzir é preciso definir a marca real do filamento em estoque. Edite o orçamento e selecione a marca de cada parte antes de iniciar a produção.`,
+            confirmLabel: 'Entendi',
+            danger: true,
+            icon: 'ti-alert-triangle'
+          });
+          return;
+        }
+      }
+    }
+  } catch(e) { console.warn('Validação de marca:', e); }
 
   // Monta o horário de início
   let inicio = new Date();
