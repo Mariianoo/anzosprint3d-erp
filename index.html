@@ -10414,15 +10414,28 @@ function buildQuoteMessage(q, linkPdf) {
   const cli = (clientesDB || []).find(c => c.id === q.cliente_id);
   const nome = cli ? (cli.nome || '').split(' ')[0] : '';
   const valor = brlFmt(q.preco_final || 0);
-  const saud = nome ? `Olá, ${nome}! ` : 'Olá! ';
-  let msg = `${saud}Segue seu orçamento da ANZO'S Print 3D:\n\n`;
-  msg += `*Orçamento ${q.numero}*\n`;
-  if (q.descricao) msg += `Item: ${q.descricao}\n`;
-  if (q.peso_g) msg += `Peso: ${q.peso_g} g\n`;
-  if (q.horas) msg += `Tempo de impressão: ${q.horas} h\n`;
-  msg += `\n*Valor total: ${valor}*\n`;
-  if (linkPdf) msg += `\n📄 PDF do orçamento: ${linkPdf}\n`;
-  msg += `\nQualquer dúvida, estou à disposição!`;
+  const qtd = q.quantidade || 1;
+  const saud = nome ? `Olá, ${nome}! 😊` : 'Olá! 😊';
+
+  // Tempo formatado em h/min
+  let tempoStr = '';
+  if (q.horas) {
+    const h = Math.floor(q.horas), m = Math.round((q.horas % 1) * 60);
+    tempoStr = m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  let msg = `${saud}\n\nSegue seu orçamento da *ANZO'S Print 3D* 🖨️\n\n`;
+  msg += `━━━━━━━━━━━━━━━\n`;
+  msg += `📋 *Orçamento ${q.numero}*\n`;
+  if (q.descricao) msg += `\n🎨 ${q.descricao}\n`;
+  msg += `\n`;
+  if (qtd > 1) msg += `📦 Quantidade: ${qtd} un.\n`;
+  if (q.peso_g) msg += `⚖️ Peso: ${q.peso_g} g\n`;
+  if (tempoStr) msg += `⏱️ Produção: ${tempoStr}\n`;
+  msg += `━━━━━━━━━━━━━━━\n`;
+  msg += `\n💰 *Valor total: ${valor}*\n`;
+  if (linkPdf) msg += `\n📄 Orçamento completo em PDF:\n${linkPdf}\n`;
+  msg += `\nQualquer dúvida, estou à disposição! 🙌`;
   return msg;
 }
 
@@ -10438,7 +10451,19 @@ function generateSavedQuotePdfDoc(q) {
   });
 }
 
-// Gera o PDF, sobe ao storage e devolve um link temporário (30 dias)
+// Encurta uma URL longa usando o TinyURL (gratuito, sem chave). Se falhar, retorna a original.
+async function shortenUrl(longUrl) {
+  try {
+    const resp = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
+    if (resp.ok) {
+      const short = (await resp.text()).trim();
+      if (short.startsWith('http')) return short;
+    }
+  } catch(e) { console.warn('Encurtador falhou, usando link original:', e); }
+  return longUrl;
+}
+
+// Gera o PDF, sobe ao storage e devolve um link temporário encurtado
 async function uploadQuotePdfAndGetLink(q) {
   if (!sb) return null;
   try {
@@ -10447,9 +10472,11 @@ async function uploadQuotePdfAndGetLink(q) {
     const path = `orc-${q.id}/${q.numero}.pdf`;
     const { error: upErr } = await sb.storage.from('orcamentos').upload(path, blob, { contentType: 'application/pdf', upsert: true });
     if (upErr) throw upErr;
-    const { data, error: urlErr } = await sb.storage.from('orcamentos').createSignedUrl(path, 60 * 60 * 24 * 7); // 7 dias
+    const { data, error: urlErr } = await sb.storage.from('orcamentos').createSignedUrl(path, 60 * 60 * 24 * 30); // 30 dias
     if (urlErr) throw urlErr;
-    return data.signedUrl;
+    // Encurta o link para ficar limpo na mensagem
+    const shortLink = await shortenUrl(data.signedUrl);
+    return shortLink;
   } catch (e) {
     console.warn('Falha ao gerar/subir PDF:', e);
     return null;
