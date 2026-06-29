@@ -10415,7 +10415,7 @@ function buildQuoteMessage(q, linkPdf) {
   const nome = cli ? (cli.nome || '').split(' ')[0] : '';
   const valor = brlFmt(q.preco_final || 0);
   const qtd = q.quantidade || 1;
-  const saud = nome ? `Olá, ${nome}! 😊` : 'Olá! 😊';
+  const saud = nome ? `Olá, ${nome}!` : 'Olá!';
 
   // Tempo formatado em h/min
   let tempoStr = '';
@@ -10424,18 +10424,18 @@ function buildQuoteMessage(q, linkPdf) {
     tempoStr = m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
-  let msg = `${saud}\n\nSegue seu orçamento da *ANZO'S Print 3D* 🖨️\n\n`;
-  msg += `━━━━━━━━━━━━━━━\n`;
-  msg += `📋 *Orçamento ${q.numero}*\n`;
-  if (q.descricao) msg += `\n🎨 ${q.descricao}\n`;
+  let msg = `${saud}\n\nSegue seu orçamento da *ANZO'S Print 3D* \u{1F680}\n\n`;
+  msg += `\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n`;
+  msg += `\u{1F4CB} *Orçamento ${q.numero}*\n`;
+  if (q.descricao) msg += `\n\u{1F3A8} ${q.descricao}\n`;
   msg += `\n`;
-  if (qtd > 1) msg += `📦 Quantidade: ${qtd} un.\n`;
-  if (q.peso_g) msg += `⚖️ Peso: ${q.peso_g} g\n`;
-  if (tempoStr) msg += `⏱️ Produção: ${tempoStr}\n`;
-  msg += `━━━━━━━━━━━━━━━\n`;
-  msg += `\n💰 *Valor total: ${valor}*\n`;
-  if (linkPdf) msg += `\n📄 Orçamento completo em PDF:\n${linkPdf}\n`;
-  msg += `\nQualquer dúvida, estou à disposição! 🙌`;
+  if (qtd > 1) msg += `\u{1F4E6} Quantidade: ${qtd} un.\n`;
+  if (q.peso_g) msg += `\u{2696} Peso: ${q.peso_g} g\n`;
+  if (tempoStr) msg += `\u{1F551} Produção: ${tempoStr}\n`;
+  msg += `\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n`;
+  msg += `\n\u{1F4B0} *Valor total: ${valor}*\n`;
+  if (linkPdf) msg += `\n\u{1F4C4} Orçamento completo em PDF:\n${linkPdf}\n`;
+  msg += `\nQualquer dúvida, estou à disposição!`;
   return msg;
 }
 
