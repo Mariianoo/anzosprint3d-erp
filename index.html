@@ -3333,9 +3333,26 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
         <input type="text" id="nop-operator" placeholder="Nome do operador">
       </div>
     </div>
+
+    <!-- Card com as cores/filamentos do modelo — ajuda o operador a preparar a impressora -->
+    <div id="nop-cores-card" style="display:none;margin:4px 0 14px;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px"><i class="ti ti-palette" style="margin-right:4px;color:var(--blue)"></i>Cores para preparar na impressora</div>
+      <div id="nop-cores-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
     <div class="form-row">
       <div class="form-group"><label>Peso total a imprimir (g) *</label><input type="number" id="nop-total-weight" value="200" min="1"></div>
-      <div class="form-group"><label>Hora de início</label><input type="time" id="nop-start-time"></div>
+      <div class="form-group"><label>Hora de início</label><input type="time" id="nop-start-time" onchange="recalcNopPrevisao()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tempo previsto (h) <span class="help-ico">?<span class="help-bubble">Vem do tempo de impressão do orçamento/modelo. Usado para calcular a previsão de término e detectar atrasos.</span></span></label>
+        <input type="number" id="nop-tempo-previsto" step="0.1" min="0" oninput="recalcNopPrevisao()">
+      </div>
+      <div class="form-group">
+        <label>Previsão de término</label>
+        <input type="text" id="nop-previsao-fim" readonly style="background:var(--surface3,#0f172a);color:var(--text2)">
+      </div>
     </div>
     <div class="form-group"><label>Observações</label><textarea id="nop-obs" rows="2" placeholder="Configurações especiais, temperatura, velocidade..."></textarea></div>
     <div class="modal-footer">
@@ -3386,6 +3403,13 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
     <div style="background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:14px">
       <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Observações</div>
       <div id="opd-obs" style="font-size:13px">—</div>
+    </div>
+
+    <!-- Motivo do atraso (só aparece se houve atraso) -->
+    <div id="opd-atraso-card" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius);padding:10px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--red);font-weight:700;text-transform:uppercase;margin-bottom:4px"><i class="ti ti-clock-exclamation"></i> Atraso registrado</div>
+      <div id="opd-atraso-info" style="font-size:12px;color:var(--text2);margin-bottom:4px"></div>
+      <div id="opd-atraso-motivo" style="font-size:13px"></div>
     </div>
 
     <!-- Status change -->
@@ -6519,6 +6543,8 @@ async function loadProductionDB() {
     end: fmtDateTime(p.fim),
     _inicio: p.inicio,
     _fim: p.fim,
+    _previsaoFim: p.previsao_fim,
+    motivoAtraso: p.motivo_atraso || '',
     consumedG: p.consumido_g || 0,
     totalG: p.total_g || 0,
     status: PROD_STATUS_FROM_DB[p.status] || 'Imprimindo',
@@ -6563,10 +6589,27 @@ async function completeProduction(opUuidOrId) {
     }
   }
 
+  // ── Detecta atraso: compara o horário real de conclusão com a previsão ──
+  let motivoAtraso = null;
+  const agoraFim = new Date();
+  if (op._previsaoFim) {
+    const previsao = new Date(op._previsaoFim);
+    if (agoraFim > previsao) {
+      const atrasoMin = Math.round((agoraFim - previsao) / 60000);
+      const atrasoStr = atrasoMin >= 60 ? `${Math.floor(atrasoMin/60)}h ${atrasoMin%60}min` : `${atrasoMin}min`;
+      motivoAtraso = prompt(
+        `Esta OP atrasou ${atrasoStr} em relação à previsão (${previsao.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}).\n\nQual foi o motivo do atraso? (opcional, ajuda a identificar padrões)`,
+        ''
+      );
+      if (motivoAtraso === null) motivoAtraso = ''; // cancelou o prompt, segue sem motivo
+    }
+  }
+
   try {
     // Atualiza a produção
     await sb.from('producao').update({
-      status: 'concluido', consumido_g: gramas, fim: new Date().toISOString()
+      status: 'concluido', consumido_g: gramas, fim: agoraFim.toISOString(),
+      motivo_atraso: motivoAtraso || null
     }).eq('id', op._uuid);
 
     // Baixa o estoque do(s) filamento(s) (atômico via função do banco)
@@ -6655,6 +6698,26 @@ function renderProductionTable() {
       : `<div style="font-size:12px;margin-bottom:4px">${op.consumedG} g / ${op.totalG} g</div>
          <div class="progress-bar" style="width:130px"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>`;
 
+    // Coluna Previsão: mostra a previsão de término calculada, com aviso visual se atrasada
+    let previsaoHtml = '—';
+    if (op._previsaoFim) {
+      const prev = new Date(op._previsaoFim);
+      const prevStr = prev.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+      const ativa = op.status === 'Imprimindo' || op.status === 'Aguardando inspeção';
+      const atrasada = ativa && new Date() > prev;
+      if (op.status === 'Concluído' && op._fim) {
+        const fimReal = new Date(op._fim);
+        const atrasou = fimReal > prev;
+        previsaoHtml = atrasou
+          ? `<span style="color:var(--red)" title="Atrasou">${prevStr} <i class="ti ti-clock-exclamation"></i></span>`
+          : `<span style="color:var(--green)" title="No prazo">${prevStr} <i class="ti ti-check"></i></span>`;
+      } else {
+        previsaoHtml = atrasada
+          ? `<span style="color:var(--red);font-weight:600" title="Previsão ultrapassada">${prevStr} <i class="ti ti-alert-triangle"></i></span>`
+          : `<span style="color:var(--text2)">${prevStr}</span>`;
+      }
+    }
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-name">${op.id}</td>
@@ -6663,7 +6726,7 @@ function renderProductionTable() {
       <td>${escapeHtml(op.filament)}</td>
       <td>${op.operator}</td>
       <td>${op.start}</td>
-      <td>${op.end}</td>
+      <td>${previsaoHtml}</td>
       <td>${progressHtml}</td>
       <td><span class="badge ${badgeCls}">${op.status}</span></td>
       <td><div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -6734,6 +6797,24 @@ function openOPDetail(id) {
 
   const inp = document.getElementById('opd-consumed-input');
   if (inp) inp.value = op.consumedG;
+
+  // Card de atraso (só mostra se houve atraso registrado)
+  const atrasoCard = document.getElementById('opd-atraso-card');
+  if (atrasoCard) {
+    if (op.motivoAtraso && op._previsaoFim && op._fim) {
+      const prev = new Date(op._previsaoFim);
+      const fimReal = new Date(op._fim);
+      const atrasoMin = Math.round((fimReal - prev) / 60000);
+      const atrasoStr = atrasoMin >= 60 ? `${Math.floor(atrasoMin/60)}h ${atrasoMin%60}min` : `${atrasoMin}min`;
+      const infoEl = document.getElementById('opd-atraso-info');
+      const motivoEl = document.getElementById('opd-atraso-motivo');
+      if (infoEl) infoEl.textContent = `Previsto: ${prev.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · Real: ${fimReal.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · Atraso de ${atrasoStr}`;
+      if (motivoEl) motivoEl.textContent = op.motivoAtraso;
+      atrasoCard.style.display = 'block';
+    } else {
+      atrasoCard.style.display = 'none';
+    }
+  }
 
   openModal('modal-op-detail');
 }
@@ -6843,11 +6924,20 @@ async function populateNewOpModal() {
   const sel = document.getElementById('nop-order');
   if (sel) {
     const ativos = ['Aguardando','Produção','Atrasado','Pós-proc.'];
-    const eligible = (ordersData||[]).filter(o => ativos.includes(o.status));
+    let eligible = (ordersData||[]).filter(o => ativos.includes(o.status));
+    // ── Exclui pedidos que já têm uma OP ativa em andamento (evita duplicar produção) ──
+    if (sb) {
+      try {
+        const { data: opsAtivas } = await sb.from('producao')
+          .select('pedido_id').is('deleted_at', null).in('status', ['imprimindo','pausada','aguardando_inspecao']);
+        const pedidosComOpAtiva = new Set((opsAtivas||[]).map(o => o.pedido_id));
+        eligible = eligible.filter(o => !pedidosComOpAtiva.has(o._uuid || o.id));
+      } catch(e) { console.warn('Erro ao checar OPs ativas:', e); }
+    }
     sel.innerHTML = '<option value="">— selecionar pedido —</option>' + (eligible.length
       ? eligible.map(o => `<option value="${o._uuid || o.id}">${o.id} — ${escapeHtml(o.client)} (${o.status})</option>`).join('')
       : '');
-    if (!eligible.length) sel.innerHTML = '<option value="">Nenhum pedido ativo</option>';
+    if (!eligible.length) sel.innerHTML = '<option value="">Nenhum pedido disponível (sem OP ativa)</option>';
   }
 
   // Impressora: dropdown com as impressoras cadastradas
@@ -6899,22 +6989,35 @@ async function populateNewOpModal() {
     const mm = String(agora.getMinutes()).padStart(2,'0');
     timeEl.value = `${hh}:${mm}`;
   }
+  // Reseta campos de previsão/cores ao abrir o modal
+  const tempoEl = document.getElementById('nop-tempo-previsto');
+  if (tempoEl) tempoEl.value = '';
+  const coresCard = document.getElementById('nop-cores-card');
+  if (coresCard) coresCard.style.display = 'none';
+  recalcNopPrevisao();
 }
 
 // Ao escolher o pedido, pré-preenche filamento e peso a partir do orçamento ligado
 async function onNopOrderChange() {
   const sel = document.getElementById('nop-order');
+  const coresCard = document.getElementById('nop-cores-card');
+  const coresList = document.getElementById('nop-cores-list');
+  if (coresCard) coresCard.style.display = 'none';
   if (!sel || !sel.value || !sb) return;
   const pedidoUuid = sel.value;
   try {
-    // Busca o pedido → orçamento ligado → filamento/peso estimado
+    // Busca o pedido → orçamento ligado → filamento/peso/tempo estimado
     const { data: ped } = await sb.from('pedidos').select('orcamento_id').eq('id', pedidoUuid).single();
     if (ped && ped.orcamento_id) {
       const { data: orc } = await sb.from('orcamentos')
-        .select('filamento_id, peso_g, modo_impressao, filamentos_multipartes')
+        .select('filamento_id, filamento_tipo, filamento_marca, filamento_cor, peso_g, horas, modo_impressao, filamentos_multipartes')
         .eq('id', ped.orcamento_id).single();
       if (orc) {
         const hint = document.getElementById('nop-fil-hint');
+        // Tempo previsto a partir do orçamento
+        const tempoEl = document.getElementById('nop-tempo-previsto');
+        if (tempoEl && orc.horas) { tempoEl.value = orc.horas; }
+
         if (orc.modo_impressao === 'multipartes' && Array.isArray(orc.filamentos_multipartes) && orc.filamentos_multipartes.length) {
           const primeira = orc.filamentos_multipartes.find(p => p.filamento_id);
           if (primeira) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = primeira.filamento_id; }
@@ -6929,14 +7032,55 @@ async function onNopOrderChange() {
               hint.style.color = 'var(--text3)';
             }
           }
+          // Card de cores: lista cada parte com bolinha colorida + marca + peso, para o operador preparar a máquina
+          if (coresCard && coresList) {
+            coresList.innerHTML = orc.filamentos_multipartes.map(p => {
+              const hex = p.hex || '#808080';
+              return `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)">
+                <span style="width:14px;height:14px;border-radius:50%;background:${escapeHtml(hex)};border:1px solid var(--border2);flex-shrink:0"></span>
+                <span style="font-weight:600">${escapeHtml(p.cor||p.tipo||'—')}</span>
+                <span style="color:var(--text3)">${escapeHtml(p.tipo||'PLA')}${p.marca?' · '+escapeHtml(p.marca):''}</span>
+                <span style="margin-left:auto;color:var(--text2)">${p.gramas||0} g</span>
+              </div>`;
+            }).join('');
+            coresCard.style.display = 'block';
+          }
         } else {
           if (orc.filamento_id) { const fs = document.getElementById('nop-filament'); if (fs) fs.value = orc.filamento_id; }
           if (orc.peso_g) { const w = document.getElementById('nop-total-weight'); if (w) w.value = orc.peso_g; }
           if (hint) hint.textContent = 'Filamento e peso sugeridos a partir do orçamento.';
+          // Card de cor única (modo simples)
+          if (coresCard && coresList && (orc.filamento_cor || orc.filamento_tipo)) {
+            coresList.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)">
+              <span style="width:14px;height:14px;border-radius:50%;background:#808080;border:1px solid var(--border2);flex-shrink:0"></span>
+              <span style="font-weight:600">${escapeHtml(orc.filamento_cor||'—')}</span>
+              <span style="color:var(--text3)">${escapeHtml(orc.filamento_tipo||'PLA')}${orc.filamento_marca?' · '+escapeHtml(orc.filamento_marca):''}</span>
+              <span style="margin-left:auto;color:var(--text2)">${orc.peso_g||0} g</span>
+            </div>`;
+            coresCard.style.display = 'block';
+          }
         }
+        recalcNopPrevisao();
       }
     }
   } catch(e){}
+}
+
+// Calcula a previsão de término = início + tempo previsto
+function recalcNopPrevisao() {
+  const startRaw = document.getElementById('nop-start-time')?.value;
+  const horas = parseFloat(document.getElementById('nop-tempo-previsto')?.value) || 0;
+  const out = document.getElementById('nop-previsao-fim');
+  if (!out) return;
+  if (!startRaw || !horas) { out.value = ''; return; }
+  const [hh, mm] = startRaw.split(':');
+  const inicio = new Date();
+  inicio.setHours(+hh, +mm, 0, 0);
+  const fim = new Date(inicio.getTime() + horas * 3600000);
+  const fimHH = String(fim.getHours()).padStart(2,'0');
+  const fimMM = String(fim.getMinutes()).padStart(2,'0');
+  const diasDepois = fim.getDate() !== inicio.getDate() ? ' (+1 dia)' : '';
+  out.value = `${fimHH}:${fimMM}${diasDepois}`;
 }
 
 // Próximo número OP-XXXX do banco
@@ -6968,6 +7112,17 @@ async function saveNewProductionOrder() {
   if (!sb) { showToast('Supabase não configurado.'); return; }
   if (!navigator.onLine) { showToast('Você está offline. Conecte-se para salvar.'); return; }
 
+  // ── VALIDAÇÃO: garante que o pedido não tem outra OP ativa (evita duplicar produção) ──
+  try {
+    const { data: opExistente } = await sb.from('producao')
+      .select('numero').eq('pedido_id', pedidoUuid).is('deleted_at', null)
+      .in('status', ['imprimindo','pausada','aguardando_inspecao']).limit(1);
+    if (opExistente && opExistente.length) {
+      showToast(`Este pedido já tem a ordem ${opExistente[0].numero} em andamento. Conclua-a antes de iniciar outra.`);
+      return;
+    }
+  } catch(e) { console.warn('Validação de OP duplicada:', e); }
+
   // ── VALIDAÇÃO: bloquear produção se o orçamento tem partes sem marca definida ("Qualquer") ──
   // "Qualquer" serve só para orçar; para produzir é preciso definir a marca real (que existe em estoque)
   try {
@@ -6992,15 +7147,21 @@ async function saveNewProductionOrder() {
     }
   } catch(e) { console.warn('Validação de marca:', e); }
 
-  // Monta o horário de início
+  // Monta o horário de início e a previsão de término (início + tempo previsto)
   let inicio = new Date();
   if (startRaw) { const [hh,mm] = startRaw.split(':'); inicio.setHours(+hh, +mm, 0, 0); }
+  const tempoPrevisto = parseFloat(document.getElementById('nop-tempo-previsto')?.value) || 0;
+  let previsaoFim = null;
+  if (tempoPrevisto > 0) {
+    previsaoFim = new Date(inicio.getTime() + tempoPrevisto * 3600000);
+  }
 
   try {
     const numero = await nextOPNumber();
     const payload = {
       numero, pedido_id: pedidoUuid, filamento_id: filamentoId,
       operador: operator || null, inicio: inicio.toISOString(),
+      previsao_fim: previsaoFim ? previsaoFim.toISOString() : null,
       consumido_g: 0, total_g: totalG, status: 'imprimindo',
       observacoes: (printer ? `Impressora: ${printer}. ` : '') + obs,
       created_by: currentUser ? currentUser.id : null,
