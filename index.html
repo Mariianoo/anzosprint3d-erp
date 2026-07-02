@@ -3334,6 +3334,12 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
         <select id="nop-printer"></select>
       </div>
     </div>
+    <!-- Card com as cores/filamentos do modelo — aparece ao selecionar pedido -->
+    <div id="nop-cores-card" style="display:none;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px"><i class="ti ti-palette" style="margin-right:4px;color:var(--blue)"></i>Cores para preparar na impressora</div>
+      <div id="nop-cores-list" style="display:flex;flex-direction:column;gap:5px"></div>
+    </div>
+
     <div class="form-row">
       <div class="form-group"><label>Filamento *</label>
         <select id="nop-filament"><option value="">— selecionar —</option></select>
@@ -3342,12 +3348,6 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <div class="form-group"><label>Operador *</label>
         <input type="text" id="nop-operator" placeholder="Nome do operador">
       </div>
-    </div>
-
-    <!-- Card com as cores/filamentos do modelo — ajuda o operador a preparar a impressora -->
-    <div id="nop-cores-card" style="display:none;margin:4px 0 14px;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
-      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px"><i class="ti ti-palette" style="margin-right:4px;color:var(--blue)"></i>Cores para preparar na impressora</div>
-      <div id="nop-cores-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
     <div class="form-row">
@@ -4409,10 +4409,17 @@ function openModal(id) {
     document.getElementById('nf-modal-title').textContent = 'Cadastrar Filamento';
     document.getElementById('nf-save-label').textContent = 'Cadastrar';
     updateFilamentBrandOptions();
-    ['nf-color','nf-price','nf-current','nf-lote'].forEach(fid => { const el = document.getElementById(fid); if (el) el.value = ''; });
+    ['nf-color','nf-price','nf-current'].forEach(fid => { const el = document.getElementById(fid); if (el) el.value = ''; });
+    // Gera código de lote automático: ANZO-DDMMYYYY (ex: ANZO-02072026)
+    const _hoje = new Date();
+    const _dd = String(_hoje.getDate()).padStart(2,'0');
+    const _mm = String(_hoje.getMonth()+1).padStart(2,'0');
+    const _yyyy = _hoje.getFullYear();
+    const nfLoteEl = document.getElementById('nf-lote');
+    if (nfLoteEl) nfLoteEl.value = `ANZO-${_dd}${_mm}${_yyyy}`;
     // Preenche a data de hoje como padrão de entrada no estoque
     const nfData = document.getElementById('nf-data-cadastro');
-    if (nfData) nfData.value = new Date().toISOString().split('T')[0];
+    if (nfData) nfData.value = `${_yyyy}-${_mm}-${_dd}`;
     document.getElementById('nf-type').selectedIndex = 0;
     document.getElementById('nf-swatch').value = '#808080';
     document.getElementById('nf-diameter').selectedIndex = 0;
@@ -7073,8 +7080,24 @@ async function populateNewOpModal() {
   // Filamento: lista os filamentos reais cadastrados (com marca real, sem "Qualquer")
   const filSel = document.getElementById('nop-filament');
   if (filSel) {
-    const opts = (filamentsData||[]).map(f =>
-      `<option value="${f.id}" data-brand="${escapeHtml(f.brand||'')}">${f.type} ${escapeHtml(f.color)} (${escapeHtml(f.brand||'sem marca')}) — ${f.current}g</option>`).join('');
+    // Ordena pelo mais antigo (FIFO) para o mais novo
+    const filsOrdenados = [...(filamentsData||[])].sort((a, b) => {
+      const da = a.dataCadastro || '0000-00-00';
+      const db = b.dataCadastro || '0000-00-00';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    const opts = filsOrdenados.map((f, i) => {
+      // Identifica se é o mais antigo de cada tipo+cor (candidato FIFO)
+      const maisAntigoDoTipo = !filsOrdenados.slice(0, i).some(
+        x => x.type === f.type && x.color === f.color && x.brand === f.brand
+      );
+      const fifoLabel = maisAntigoDoTipo ? ' ★FIFO' : '';
+      const loteLabel = f.lote ? ` [${escapeHtml(f.lote)}]` : '';
+      const dataLabel = f.dataCadastro ? ` ${new Date(f.dataCadastro+'T12:00:00').toLocaleDateString('pt-BR')}` : '';
+      return `<option value="${f.id}" data-brand="${escapeHtml(f.brand||'')}">` +
+        `${f.type} ${escapeHtml(f.color)} (${escapeHtml(f.brand||'sem marca')})` +
+        `${loteLabel}${dataLabel} — ${f.current}g${fifoLabel}</option>`;
+    }).join('');
     filSel.innerHTML = '<option value="">— selecionar filamento —</option>' + opts;
   }
 
@@ -7139,9 +7162,19 @@ async function onNopOrderChange() {
           const semMarca = orc.filamentos_multipartes.filter(p => !p.marca || !p.marca.trim());
           if (hint) {
             if (semMarca.length) {
-              hint.innerHTML = `<span style="color:var(--red)"><i class="ti ti-alert-triangle"></i> ${semMarca.length} parte(s) com marca "Qualquer" — defina a marca real no orçamento antes de produzir.</span>`;
+              // Verifica se o filamento existe no estoque por tipo+cor mesmo sem marca
+              const semEstoque = semMarca.filter(p => {
+                const existe = (filamentsData||[]).some(f => f.type === p.tipo && (!p.cor || f.color === p.cor));
+                return !existe;
+              });
+              if (semEstoque.length) {
+                hint.innerHTML = `<span style="color:var(--red)"><i class="ti ti-alert-triangle"></i> ${semEstoque.length} parte(s) sem filamento correspondente no estoque (${semEstoque.map(p=>p.cor||p.tipo).join(', ')}). Edite o orçamento e vincule os filamentos.</span>`;
+              } else {
+                // Tem filamento no estoque, aviso é menor (baixa por FIFO via tipo+cor)
+                hint.innerHTML = `<span style="color:var(--amber,#f59e0b)"><i class="ti ti-info-circle"></i> ${semMarca.length} parte(s) sem marca definida — a baixa usará FIFO por tipo+cor. <a href="#" onclick="this.parentElement.parentElement.style.display='none';return false" style="color:var(--blue);font-weight:600">Ignorar aviso</a></span>`;
+              }
             } else {
-              hint.textContent = `Orçamento multipartes (${nP} cor${nP>1?'es':''}) — ${orc.peso_g||0}g total. Baixa proporcional a cada filamento ao concluir.`;
+              hint.textContent = `Multipartes (${nP} cor${nP>1?'es':''}) — ${orc.peso_g||0}g. Baixa proporcional ao concluir.`;
               hint.style.color = 'var(--text3)';
             }
           }
@@ -7246,15 +7279,27 @@ async function saveNewProductionOrder() {
       if (orc && orc.modo_impressao === 'multipartes' && Array.isArray(orc.filamentos_multipartes)) {
         const semMarca = orc.filamentos_multipartes.filter(p => !p.marca || !p.marca.trim());
         if (semMarca.length) {
-          const cores = semMarca.map(p => p.cor || p.tipo || 'parte').join(', ');
-          await confirmAction({
-            title: 'Marca não definida — produção bloqueada',
-            message: `Este orçamento tem ${semMarca.length} parte(s) com marca "Qualquer" (${cores}). "Qualquer" serve apenas para orçar; para produzir é preciso definir a marca real do filamento em estoque. Edite o orçamento e selecione a marca de cada parte antes de iniciar a produção.`,
-            confirmLabel: 'Entendi',
-            danger: true,
-            icon: 'ti-alert-triangle'
+          // Verifica se existem filamentos no estoque por tipo+cor (FIFO consegue baixar)
+          const semEstoque = semMarca.filter(p => {
+            return !(filamentsData||[]).some(f => f.type === p.tipo && (!p.cor || f.color === p.cor) && f.current > 0);
           });
-          return;
+          if (semEstoque.length) {
+            // Sem estoque correspondente: bloqueia
+            const cores = semEstoque.map(p => p.cor || p.tipo || 'parte').join(', ');
+            await showAlertPopup('Estoque não encontrado',
+              `${semEstoque.length} parte(s) sem filamento disponível no estoque: ${cores}. Cadastre os filamentos correspondentes ou edite o orçamento antes de produzir.`);
+            return;
+          }
+          // Tem estoque, só avisa que usará FIFO
+          const cores = semMarca.map(p => p.cor || p.tipo).join(', ');
+          const continua = await confirmAction({
+            title: 'Marca não definida — baixa por FIFO',
+            message: `${semMarca.length} parte(s) sem marca definida (${cores}). A baixa de estoque usará o filamento mais antigo disponível por tipo e cor (FIFO). Deseja continuar?`,
+            confirmLabel: 'Continuar',
+            danger: false,
+            icon: 'ti-info-circle'
+          });
+          if (!continua) return;
         }
       }
     }
