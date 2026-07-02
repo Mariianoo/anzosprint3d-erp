@@ -1528,7 +1528,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <textarea id="confirm-reason" rows="2" placeholder="Descreva o motivo..." style="width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px;outline:none;resize:vertical"></textarea>
     </div>
     <div style="display:flex;gap:10px;justify-content:center">
-      <button class="btn btn-secondary" style="min-width:110px" onclick="resolveConfirm(false)">Cancelar</button>
+      <button class="btn btn-secondary" id="confirm-cancel-btn" style="min-width:110px" onclick="resolveConfirm(false)">Cancelar</button>
       <button class="btn btn-danger" id="confirm-ok-btn" style="min-width:110px" onclick="confirmSubmit()">Excluir</button>
     </div>
   </div>
@@ -3375,7 +3375,17 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 
     <!-- Details grid -->
     <div class="card-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px;gap:10px">
-      <div style="background:var(--surface2);border-radius:var(--radius);padding:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px">Impressora</div><div id="opd-printer" style="font-size:13px;font-weight:600">—</div></div>
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase">Impressora</div>
+          <i class="ti ti-edit" style="font-size:13px;color:var(--blue);cursor:pointer" onclick="toggleEditOPPrinter()" title="Editar impressora"></i>
+        </div>
+        <div id="opd-printer" style="font-size:13px;font-weight:600">—</div>
+        <div id="opd-printer-edit" style="display:none;margin-top:4px">
+          <select id="opd-printer-select" style="width:100%;padding:5px 6px;font-size:12px;background:var(--surface);border:1px solid var(--border2);border-radius:6px;color:var(--text)"></select>
+          <button class="btn btn-primary btn-sm" style="margin-top:5px;width:100%" onclick="saveOPPrinter()"><i class="ti ti-check"></i> Salvar</button>
+        </div>
+      </div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px">Filamento</div><div id="opd-filament" style="font-size:13px;font-weight:600">—</div></div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px">Operador</div><div id="opd-operator" style="font-size:13px;font-weight:600">—</div></div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px">Início</div><div id="opd-start" style="font-size:13px;font-weight:600">—</div></div>
@@ -4480,6 +4490,7 @@ function confirmAction(opts = {}) {
     icon = 'ti-alert-triangle',
     reason = false,          // mostra campo de motivo
     reasonRequired = false,  // exige preencher o motivo
+    hideCancel = false,      // esconde o botão Cancelar (uso como alerta simples)
   } = opts;
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-msg').textContent = message;
@@ -4487,6 +4498,8 @@ function confirmAction(opts = {}) {
   okBtn.textContent = confirmLabel;
   okBtn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
   okBtn.style.minWidth = '110px';
+  const cancelBtn = document.getElementById('confirm-cancel-btn');
+  if (cancelBtn) cancelBtn.style.display = hideCancel ? 'none' : 'inline-flex';
   const iconWrap = document.getElementById('confirm-icon');
   const iconEl = iconWrap.querySelector('i');
   iconEl.className = 'ti ' + icon;
@@ -4506,6 +4519,18 @@ function confirmAction(opts = {}) {
   return new Promise(resolve => { _confirmResolver = resolve; });
 }
 // Chamado pelo botão de confirmar: valida o motivo se for obrigatório
+// Popup de alerta simples (só OK) — usado para validações importantes que não devem
+// passar despercebidas como um toast (ex.: campo obrigatório faltando).
+async function showAlertPopup(title, message, opts = {}) {
+  return confirmAction({
+    title, message,
+    confirmLabel: opts.confirmLabel || 'Entendi',
+    danger: opts.danger !== undefined ? opts.danger : true,
+    icon: opts.icon || 'ti-alert-triangle',
+    hideCancel: true,
+  });
+}
+
 function confirmSubmit() {
   if (_confirmNeedsReason && _confirmReasonRequired) {
     const val = document.getElementById('confirm-reason').value.trim();
@@ -6773,6 +6798,46 @@ function updateProductionKPIs() {
   setEl('prod-kpi-success', baseSucesso > 0 ? successPct + '%' : '—');
 }
 
+// Alterna entre exibir o nome da impressora e mostrar o seletor para editar
+async function toggleEditOPPrinter() {
+  const view = document.getElementById('opd-printer');
+  const edit = document.getElementById('opd-printer-edit');
+  const sel = document.getElementById('opd-printer-select');
+  if (!view || !edit || !sel) return;
+  const abrindo = edit.style.display === 'none';
+  if (abrindo) {
+    if (!printersData || !printersData.length) { try { await loadPrintersDB(); } catch(e){} }
+    const op = productionData.find(x => x.id === currentOPId);
+    sel.innerHTML = '<option value="">— selecionar —</option>' +
+      (printersData||[]).map(p => `<option value="${p._uuid||p.id}" ${op && op.impressora_id===(p._uuid||p.id)?'selected':''}>${escapeHtml(p.name||p.nome||'—')}</option>`).join('');
+    view.style.display = 'none';
+    edit.style.display = 'block';
+  } else {
+    view.style.display = 'block';
+    edit.style.display = 'none';
+  }
+}
+
+// Salva a impressora escolhida na OP atual
+async function saveOPPrinter() {
+  const sel = document.getElementById('opd-printer-select');
+  const printerId = sel?.value || null;
+  if (!printerId) { await showAlertPopup('Selecione uma impressora', 'Escolha a impressora na lista antes de salvar.'); return; }
+  const op = productionData.find(x => x.id === currentOPId);
+  if (!op || !sb) return;
+  try {
+    const { error } = await sb.from('producao').update({ impressora_id: printerId }).eq('id', op._uuid);
+    if (error) throw error;
+    op.impressora_id = printerId;
+    op.printer = printerNomeById(printerId);
+    document.getElementById('opd-printer').textContent = op.printer;
+    document.getElementById('opd-printer-edit').style.display = 'none';
+    document.getElementById('opd-printer').style.display = 'block';
+    renderProductionTable();
+    showToast('Impressora atualizada!');
+  } catch(e) { showToast('Erro ao salvar: ' + (e.message||e)); }
+}
+
 function openOPDetail(id) {
   const op = productionData.find(x => x.id === id);
   if (!op) return;
@@ -6781,6 +6846,11 @@ function openOPDetail(id) {
   set('opd-num', op.id);
   set('opd-order', op.order);
   set('opd-printer', op.printer);
+  // Reseta o modo de edição da impressora ao abrir
+  const opdPrinterEdit = document.getElementById('opd-printer-edit');
+  const opdPrinterView = document.getElementById('opd-printer');
+  if (opdPrinterEdit) opdPrinterEdit.style.display = 'none';
+  if (opdPrinterView) opdPrinterView.style.display = 'block';
   set('opd-filament', op.filament);
   set('opd-operator', op.operator);
   set('opd-start', op.start);
@@ -7105,10 +7175,10 @@ async function saveNewProductionOrder() {
   const startRaw = document.getElementById('nop-start-time').value;
   const obs      = document.getElementById('nop-obs').value.trim();
 
-  if (!pedidoUuid) { showToast('Selecione o pedido.'); return; }
-  if (!printer) { showToast('Selecione a impressora.'); return; }
-  if (!filamentoId) { showToast('Selecione o filamento que será usado na produção.'); return; }
-  if (!totalG) { showToast('Informe o peso total a imprimir.'); return; }
+  if (!pedidoUuid) { await showAlertPopup('Campo obrigatório', 'Selecione o pedido para iniciar a ordem de produção.'); return; }
+  if (!printer) { await showAlertPopup('Campo obrigatório', 'Selecione a impressora que será usada nesta produção. É essencial para o controle de uso e manutenção de cada máquina.'); return; }
+  if (!filamentoId) { await showAlertPopup('Campo obrigatório', 'Selecione o filamento que será usado na produção, para que o estoque seja baixado corretamente ao concluir.'); return; }
+  if (!totalG) { await showAlertPopup('Campo obrigatório', 'Informe o peso total a imprimir (em gramas).'); return; }
   if (!sb) { showToast('Supabase não configurado.'); return; }
   if (!navigator.onLine) { showToast('Você está offline. Conecte-se para salvar.'); return; }
 
@@ -7118,7 +7188,7 @@ async function saveNewProductionOrder() {
       .select('numero').eq('pedido_id', pedidoUuid).is('deleted_at', null)
       .in('status', ['imprimindo','pausada','aguardando_inspecao']).limit(1);
     if (opExistente && opExistente.length) {
-      showToast(`Este pedido já tem a ordem ${opExistente[0].numero} em andamento. Conclua-a antes de iniciar outra.`);
+      await showAlertPopup('Produção duplicada', `Este pedido já tem a ordem ${opExistente[0].numero} em andamento. Conclua-a antes de iniciar outra para o mesmo pedido.`);
       return;
     }
   } catch(e) { console.warn('Validação de OP duplicada:', e); }
@@ -10618,14 +10688,16 @@ function generateSavedQuotePdfDoc(q) {
 }
 
 // Encurta uma URL longa usando o TinyURL (gratuito, sem chave). Se falhar, retorna a original.
+// Encurta a URL usando is.gd (redireciona direto, sem páginas de anúncio/preview).
+// O TinyURL foi removido pois exibia uma página de propaganda (interstitial) antes do PDF.
 async function shortenUrl(longUrl) {
   try {
-    const resp = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
+    const resp = await fetch('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(longUrl));
     if (resp.ok) {
       const short = (await resp.text()).trim();
       if (short.startsWith('http')) return short;
     }
-  } catch(e) { console.warn('Encurtador falhou, usando link original:', e); }
+  } catch(e) { console.warn('is.gd falhou, usando link original:', e); }
   return longUrl;
 }
 
