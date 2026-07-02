@@ -7035,6 +7035,18 @@ function syncOrderFromOP(op) {
 
 // Popula os dropdowns do modal Nova Ordem com dados reais do banco
 async function populateNewOpModal() {
+  // ── Reset completo do estado anterior ao abrir o modal ──
+  const _hint = document.getElementById('nop-fil-hint');
+  if (_hint) { _hint.innerHTML = ''; _hint.textContent = ''; }
+  const _coresCard = document.getElementById('nop-cores-card');
+  if (_coresCard) _coresCard.style.display = 'none';
+  const _coresList = document.getElementById('nop-cores-list');
+  if (_coresList) _coresList.innerHTML = '';
+  const _filSel = document.getElementById('nop-filament');
+  if (_filSel) _filSel.selectedIndex = 0;
+  const _orderSel = document.getElementById('nop-order');
+  if (_orderSel) _orderSel.selectedIndex = 0;
+
   // Garante pedidos, filamentos e impressoras carregados
   if (!ordersData || ordersData.length === 0) { try { await loadOrdersDB(); } catch(e){} }
   await loadFilamentsForQuote();
@@ -7163,8 +7175,17 @@ async function onNopOrderChange() {
           if (hint) {
             if (semMarca.length) {
               // Verifica se o filamento existe no estoque por tipo+cor mesmo sem marca
+              // Aceita match parcial no nome da cor (ex: "Verde Mate" → "Verde Claro High")
               const semEstoque = semMarca.filter(p => {
-                const existe = (filamentsData||[]).some(f => f.type === p.tipo && (!p.cor || f.color === p.cor));
+                const corLower = (p.cor||'').toLowerCase();
+                const existe = (filamentsData||[]).some(f => {
+                  if (f.type !== p.tipo) return false;
+                  if (!p.cor) return f.current > 0; // sem cor especificada: aceita qualquer
+                  if (f.color === p.cor) return true; // match exato
+                  // Match parcial: primeira palavra da cor (ex: "Verde" encontra "Verde Claro High")
+                  const primeiraPalavra = corLower.split(' ')[0];
+                  return f.color.toLowerCase().startsWith(primeiraPalavra);
+                });
                 return !existe;
               });
               if (semEstoque.length) {
@@ -7280,8 +7301,16 @@ async function saveNewProductionOrder() {
         const semMarca = orc.filamentos_multipartes.filter(p => !p.marca || !p.marca.trim());
         if (semMarca.length) {
           // Verifica se existem filamentos no estoque por tipo+cor (FIFO consegue baixar)
+          // Tolerância de nome: "Verde Mate" encontra "Verde Claro High", etc.
           const semEstoque = semMarca.filter(p => {
-            return !(filamentsData||[]).some(f => f.type === p.tipo && (!p.cor || f.color === p.cor) && f.current > 0);
+            const corLower = (p.cor||'').toLowerCase();
+            const primeiraPalavra = corLower.split(' ')[0];
+            return !(filamentsData||[]).some(f => {
+              if (f.type !== p.tipo || f.current <= 0) return false;
+              if (!p.cor) return true;
+              if (f.color === p.cor) return true;
+              return f.color.toLowerCase().startsWith(primeiraPalavra);
+            });
           });
           if (semEstoque.length) {
             // Sem estoque correspondente: bloqueia
