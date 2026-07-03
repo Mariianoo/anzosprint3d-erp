@@ -2175,6 +2175,64 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 </div>
 
 <!-- ═══ MODAL: NOVO LANÇAMENTO A RECEBER ═══ -->
+<!-- ═══ MODAL: CONFIRMAR RECEBIMENTO ═══ -->
+<div id="modal-confirm-received" class="modal-overlay" style="display:none;z-index:300" onclick="if(event.target===this)closeModal('modal-confirm-received')">
+  <div class="modal" style="width:480px;max-width:95vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-circle-check" style="margin-right:6px;color:var(--green)"></i>Confirmar Recebimento</h3>
+      <button class="modal-close" onclick="closeModal('modal-confirm-received')"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="cr-resumo" style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:14px">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:2px">Cliente</div>
+      <div id="cr-client-name" style="font-size:15px;font-weight:700;color:var(--text)"></div>
+      <div id="cr-desc-info" style="font-size:12px;color:var(--text2);margin-top:2px"></div>
+      <div style="margin-top:8px;display:flex;gap:16px">
+        <div><div style="font-size:11px;color:var(--text3)">Valor</div><div id="cr-value-info" style="font-size:16px;font-weight:700;color:var(--green)"></div></div>
+        <div><div style="font-size:11px;color:var(--text3)">Vencimento</div><div id="cr-due-info" style="font-size:14px;font-weight:600;color:var(--text)"></div></div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Data do recebimento *</label>
+        <input type="date" id="cr-date">
+      </div>
+      <div class="form-group">
+        <label>Hora</label>
+        <input type="time" id="cr-time">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Forma de pagamento recebida *</label>
+      <select id="cr-payment">
+        <option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option>
+        <option>Cartão de crédito</option><option>Transferência</option><option>Boleto</option><option>Cheque</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Observação <span style="color:var(--text3);font-weight:400">(opcional)</span></label>
+      <input type="text" id="cr-obs" placeholder="Ex: Pix recebido às 14h, comprovante nº 123...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-confirm-received')">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmReceivablePayment()"><i class="ti ti-circle-check"></i> Confirmar Recebimento</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: DETALHES DO LANÇAMENTO A RECEBER ═══ -->
+<div id="modal-receivable-detail" class="modal-overlay" style="display:none;z-index:300" onclick="if(event.target===this)closeModal('modal-receivable-detail')">
+  <div class="modal" style="width:460px;max-width:95vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-receipt" style="margin-right:6px;color:var(--blue)"></i>Detalhes do Lançamento</h3>
+      <button class="modal-close" onclick="closeModal('modal-receivable-detail')"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="rd-body" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-receivable-detail')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-receivable" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-receivable')">
   <div class="modal" style="width:520px">
     <div class="modal-header">
@@ -2183,9 +2241,18 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
     </div>
     <div class="form-row">
       <div class="form-group"><label>Cliente *</label>
-        <select id="rc-client"></select>
+        <select id="rc-client" onchange="onRcClientChange()"></select>
       </div>
-      <div class="form-group"><label>Pedido</label><input type="text" id="rc-order" placeholder="Ex: PED-0048"></div>
+      <div class="form-group"><label>Pedido</label>
+        <select id="rc-order" onchange="onRcOrderChange()">
+          <option value="">— selecionar pedido (opcional) —</option>
+        </select>
+      </div>
+    </div>
+    <!-- Descrição do modelo (preenchida automaticamente ao selecionar pedido) -->
+    <div id="rc-desc-group" style="display:none" class="form-group">
+      <label>Produto / Modelo</label>
+      <input type="text" id="rc-desc" readonly style="background:var(--surface3,#0f172a);color:var(--text2);cursor:default" placeholder="Preenchido automaticamente">
     </div>
     <div class="form-row">
       <div class="form-group"><label>Valor (R$) *</label><input type="number" id="rc-value" placeholder="0,00" step="0.01"></div>
@@ -4437,11 +4504,14 @@ function openModal(id) {
     document.getElementById('nt-date').value = new Date().toISOString().slice(0,10);
   }
   if (id === 'modal-receivable') {
-    document.getElementById('rc-order').value = '';
+    const rcOrder = document.getElementById('rc-order');
+    if (rcOrder) { rcOrder.innerHTML = '<option value="">— selecionar pedido (opcional) —</option>'; }
     document.getElementById('rc-value').value = '';
     document.getElementById('rc-due').value = new Date().toISOString().slice(0,10);
     document.getElementById('rc-client').selectedIndex = 0;
     document.getElementById('rc-payment').selectedIndex = 0;
+    const rcDesc = document.getElementById('rc-desc'); if (rcDesc) rcDesc.value = '';
+    const rcDescGroup = document.getElementById('rc-desc-group'); if (rcDescGroup) rcDescGroup.style.display = 'none';
   }
   if (id === 'modal-payable') {
     refreshPayableSupplierOptions();
@@ -12978,12 +13048,19 @@ async function loadReceivablesDB() {
     _uuid: r.id,
     id: r.id,
     cliente_id: r.cliente_id || null,
+    pedido_id: r.pedido_id || null,
     client: nomeCliente(r.cliente_id) || r.descricao || '—',
-    order: '',  // referência textual opcional
+    desc: r.descricao || '',
+    order: '',
     value: Number(r.valor) || 0,
     due: r.vencimento,
     payment: r.pagamento || '—',
     status: r.status === 'recebido' ? 'recebido' : 'pendente',
+    recebido_em: r.recebido_em || null,
+    recebido_obs: r.observacoes || '',
+    recebido_forma: r.pagamento_recebimento || r.pagamento || 'Pix',
+    created_by: r.created_by || null,
+    created_at: r.created_at || null,
   }));
   renderReceivables();
 }
@@ -13012,21 +13089,37 @@ function renderReceivables() {
     shown++;
     const dueFmt = r.due.split('-').reverse().join('/').slice(0,8);
     let actionBtn;
+    // Botão de ver detalhes — presente em todos os status
+    const detailBtn = `<button class="btn btn-secondary btn-sm" onclick="openReceivableDetail('${r.id}')" title="Ver detalhes"><i class="ti ti-eye"></i></button>`;
+
     if (r.status === 'recebido') {
-      actionBtn = `<span style="font-size:12px;color:var(--green)"><i class="ti ti-circle-check"></i> Recebido</span>`;
+      actionBtn = `<div style="display:flex;gap:4px;align-items:center">
+        ${detailBtn}
+        <button class="btn btn-secondary btn-sm" onclick="revertReceivable('${r.id}')" title="Estornar — voltar para Pendente" style="color:var(--amber)">
+          <i class="ti ti-arrow-back-up"></i>
+        </button>
+        <span style="font-size:12px;color:var(--green)"><i class="ti ti-circle-check"></i> Recebido</span>
+      </div>`;
     } else if (st.key === 'Vencido') {
       actionBtn = `<div style="display:flex;gap:4px">
+        ${detailBtn}
         <button class="btn btn-primary btn-sm" onclick="chargeReceivable('${r.id}')" title="Enviar cobrança"><i class="ti ti-send"></i> Cobrar</button>
         <button class="btn btn-success btn-sm" onclick="markReceived('${r.id}')" title="Marcar como recebido"><i class="ti ti-check"></i></button>
       </div>`;
     } else {
-      actionBtn = `<button class="btn btn-success btn-sm" onclick="markReceived('${r.id}')"><i class="ti ti-check"></i> Receber</button>`;
+      actionBtn = `<div style="display:flex;gap:4px">${detailBtn}<button class="btn btn-success btn-sm" onclick="markReceived('${r.id}')"><i class="ti ti-check"></i> Receber</button></div>`;
     }
     const tr = document.createElement('tr');
-    if (r.status === 'recebido') tr.style.opacity = '0.6';
+    if (r.status === 'recebido') tr.style.opacity = '0.7';
+    // Exibe o número do pedido vinculado (busca no ordersData)
+    let pedidoLabel = '—';
+    if (r.pedido_id) {
+      const ped = (ordersData||[]).find(o => o._uuid === r.pedido_id);
+      pedidoLabel = ped ? ped.id : '—';
+    }
     tr.innerHTML = `
       <td class="td-name">${escapeHtml(r.client)}</td>
-      <td>${r.order || '—'}</td>
+      <td>${pedidoLabel}</td>
       <td style="font-weight:600">R$ ${r.value.toFixed(2).replace('.',',')}</td>
       <td>${dueFmt}</td>
       <td>${escapeHtml(r.payment)}</td>
@@ -13059,12 +13152,163 @@ function filterReceivablesBy(status) {
   renderReceivables();
 }
 
-async function markReceived(id) {
+// Abre o modal de confirmação em vez de marcar diretamente
+let _receivableIdPending = null;
+function markReceived(id) {
+  const r = receivablesData.find(x => x.id === id);
+  if (!r) return;
+  _receivableIdPending = id;
+
+  // Preenche o resumo do lançamento
+  document.getElementById('cr-client-name').textContent = r.client;
+  const descInfo = document.getElementById('cr-desc-info');
+  if (descInfo) descInfo.textContent = r.desc && r.desc !== r.client ? r.desc : '';
+  document.getElementById('cr-value-info').textContent = 'R$ ' + r.value.toFixed(2).replace('.',',');
+  document.getElementById('cr-due-info').textContent = r.due ? new Date(r.due+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+
+  // Data e hora atual
+  const agora = new Date();
+  document.getElementById('cr-date').value = agora.toISOString().slice(0,10);
+  document.getElementById('cr-time').value = String(agora.getHours()).padStart(2,'0') + ':' + String(agora.getMinutes()).padStart(2,'0');
+  document.getElementById('cr-obs').value = '';
+
+  // Pré-seleciona a forma de pagamento combinada
+  const payEl = document.getElementById('cr-payment');
+  if (payEl && r.payment) {
+    for (const opt of payEl.options) {
+      if (opt.value.toLowerCase() === r.payment.toLowerCase() || opt.text.toLowerCase() === r.payment.toLowerCase()) {
+        payEl.value = opt.value; break;
+      }
+    }
+  }
+  document.getElementById('modal-confirm-received').style.display = 'flex';
+}
+
+async function confirmReceivablePayment() {
+  const r = receivablesData.find(x => x.id === _receivableIdPending);
+  if (!r || !sb) return;
+
+  const date = document.getElementById('cr-date').value;
+  const time = document.getElementById('cr-time').value;
+  const payment = document.getElementById('cr-payment').value;
+  const obs = document.getElementById('cr-obs').value.trim();
+  if (!date) { showToast('Informe a data do recebimento.'); return; }
+
+  const recebidoEm = time ? new Date(`${date}T${time}:00`).toISOString() : new Date(`${date}T12:00:00`).toISOString();
+
+  const { error } = await sb.from('contas_receber').update({
+    status: 'recebido',
+    recebido_em: recebidoEm,
+    pagamento_recebimento: payment,
+    observacoes: obs || null,
+    recebido_por: currentUser ? currentUser.id : null,
+  }).eq('id', r._uuid);
+  if (error) { showToast('Erro: ' + error.message); return; }
+
+  // Integra com o Financeiro
+  try {
+    await sb.from('transacoes').insert({
+      tipo: 'receita',
+      descricao: `Recebimento — ${r.client}` + (obs ? ` (${obs})` : ''),
+      categoria: 'Impressão 3D',
+      valor: r.value,
+      data: date,
+      created_by: currentUser ? currentUser.id : null,
+    });
+  } catch(e){}
+
+  closeModal('modal-confirm-received');
+  showToast(`✓ R$ ${r.value.toFixed(2).replace('.',',')} confirmado · ${payment} · lançado no Financeiro`);
+  await loadReceivablesDB();
+  if (typeof loadTransactionsDB === 'function') { try { await loadTransactionsDB(); } catch(e){} }
+}
+
+// Abre o modal de detalhes de um lançamento
+function openReceivableDetail(id) {
+  const r = receivablesData.find(x => x.id === id);
+  if (!r) return;
+  const st = recvStatus(r);
+  const body = document.getElementById('rd-body');
+  if (!body) return;
+
+  const row = (label, val, color) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:var(--radius)">
+      <span style="font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.3px">${label}</span>
+      <span style="font-size:13px;font-weight:600;color:${color||'var(--text)'}">${val}</span>
+    </div>`;
+
+  const statusColor = st.key==='Recebido'?'var(--green)':st.key==='Vencido'?'var(--red)':'var(--text)';
+  const recebidoData = r.recebido_em ? new Date(r.recebido_em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '—';
+
+  // Busca o nome do usuário que cadastrou
+  let criadoPor = '—';
+  if (r.created_by && typeof currentUser !== 'undefined' && currentUser && r.created_by === currentUser.id) {
+    criadoPor = (currentUser.user_metadata?.nome || currentUser.email || '—');
+  }
+
+  body.innerHTML = `
+    ${row('Cliente', r.client)}
+    ${r.desc && r.desc !== r.client ? row('Produto / Modelo', r.desc) : ''}
+    ${row('Valor', 'R$ ' + r.value.toFixed(2).replace('.',','), 'var(--green)')}
+    ${row('Vencimento', r.due ? new Date(r.due+'T12:00:00').toLocaleDateString('pt-BR') : '—')}
+    ${row('Forma de pgto. combinada', r.payment)}
+    ${row('Status', st.key, statusColor)}
+    ${r.status==='recebido' ? row('Recebido em', recebidoData, 'var(--green)') : ''}
+    ${r.recebido_forma && r.recebido_forma !== r.payment ? row('Pago via', r.recebido_forma) : ''}
+    ${r.recebido_obs ? row('Observação', r.recebido_obs) : ''}
+    ${row('Cadastrado por', criadoPor)}
+    ${r.created_at ? row('Data do lançamento', new Date(r.created_at).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})) : ''}
+  `;
+  document.getElementById('modal-receivable-detail').style.display = 'flex';
+}
+
+// Estorna um recebimento: volta para Pendente e remove a transação financeira
+async function revertReceivable(id) {
+  const r = receivablesData.find(x => x.id === id);
+  if (!r || !sb) return;
+
+  const ok = await confirmAction({
+    title: 'Estornar recebimento',
+    message: `Deseja estornar o recebimento de R$ ${r.value.toFixed(2).replace('.',',')} de ${r.client}? O lançamento voltará para "Pendente" e a receita será removida do Financeiro.`,
+    confirmLabel: 'Estornar',
+    danger: true,
+    icon: 'ti-arrow-back-up'
+  });
+  if (!ok) return;
+
+  // Reverte o status no banco
+  const { error } = await sb.from('contas_receber').update({
+    status: 'pendente',
+    recebido_em: null,
+    pagamento_recebimento: null,
+    observacoes: null,
+    recebido_por: null,
+  }).eq('id', r._uuid);
+  if (error) { showToast('Erro ao estornar: ' + error.message); return; }
+
+  // Remove a transação financeira correspondente (busca pela descrição e valor na data de recebimento)
+  try {
+    const dataRecebimento = r.recebido_em ? r.recebido_em.slice(0,10) : null;
+    if (dataRecebimento && typeof sb !== 'undefined') {
+      await sb.from('transacoes')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('tipo', 'receita')
+        .eq('valor', r.value)
+        .eq('data', dataRecebimento)
+        .is('deleted_at', null);
+    }
+  } catch(e) { console.warn('Não foi possível remover a transação:', e); }
+
+  showToast(`Recebimento estornado — ${r.client} voltou para Pendente.`);
+  await loadReceivablesDB();
+  if (typeof loadTransactionsDB === 'function') { try { await loadTransactionsDB(); } catch(e){} }
+}
+
+async function _legacyMarkReceived(id) {
   const r = receivablesData.find(x => x.id === id);
   if (!r || !sb) return;
   const { error } = await sb.from('contas_receber').update({ status: 'recebido', recebido_em: new Date().toISOString() }).eq('id', r._uuid);
   if (error) { showToast('Erro: ' + error.message); return; }
-  // Integra com o Financeiro: cria uma receita real
   try {
     await sb.from('transacoes').insert({
       tipo: 'receita',
@@ -13088,17 +13332,31 @@ function chargeReceivable(id) {
 
 async function saveReceivable() {
   const clientSel = document.getElementById('rc-client');
-  const clientName = clientSel ? clientSel.value : '';
-  const clientId = clientSel ? clientSel.options[clientSel.selectedIndex]?.dataset.uuid : null;
-  const order = document.getElementById('rc-order').value.trim();
+  const clientId = clientSel?.value || null;
+  const clientName = clientSel?.options[clientSel.selectedIndex]?.text || '';
+  const orderSel = document.getElementById('rc-order');
+  const orderUuid = orderSel?.value || null;
+  const orderText = orderSel?.options[orderSel.selectedIndex]?.text || '';
+  const descExtra = document.getElementById('rc-desc')?.value?.trim() || '';
   const value = parseFloat(document.getElementById('rc-value').value);
   const due = document.getElementById('rc-due').value;
   const payment = document.getElementById('rc-payment').value;
-  if (!value || !due) { showToast('Preencha valor e vencimento.'); return; }
+
+  if (!clientId) { await showAlertPopup('Campo obrigatório', 'Selecione o cliente.', {danger:false}); return; }
+  if (!value || !due) { await showAlertPopup('Campo obrigatório', 'Preencha o valor e a data de vencimento.', {danger:false}); return; }
   if (!sb) { showToast('Supabase não configurado.'); return; }
+
+  // Monta a descrição: modelo + pedido
+  let descricao = clientName;
+  if (orderText && orderText !== '— selecionar pedido (opcional) —') {
+    descricao = orderText.split(' — ')[0]; // pega só o PED-XXXX
+  }
+  if (descExtra) descricao += ` — ${descExtra}`;
+
   const { error } = await sb.from('contas_receber').insert({
-    cliente_id: clientId || null,
-    descricao: order ? `${clientName} — ${order}` : clientName,
+    cliente_id: clientId,
+    pedido_id: orderUuid || null,
+    descricao,
     valor: value, vencimento: due, pagamento: payment, status: 'pendente',
     created_by: currentUser ? currentUser.id : null,
   });
@@ -13112,15 +13370,70 @@ async function saveReceivable() {
 function refreshReceivableClientOptions() {
   const sel = document.getElementById('rc-client');
   if (!sel || typeof clientesDB === 'undefined') return;
-  sel.innerHTML = clientesDB.map(c => `<option data-uuid="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
+  sel.innerHTML = '<option value="">— selecionar cliente —</option>' +
+    clientesDB.map(c => `<option value="${c.id}" data-uuid="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
+}
+
+// Ao mudar o cliente: filtra os pedidos dele
+function onRcClientChange() {
+  const clientSel = document.getElementById('rc-client');
+  const clientId = clientSel?.value;
+  const orderSel = document.getElementById('rc-order');
+  const descGroup = document.getElementById('rc-desc-group');
+  const descEl = document.getElementById('rc-desc');
+  if (descGroup) descGroup.style.display = 'none';
+  if (descEl) descEl.value = '';
+  if (!orderSel) return;
+
+  // Filtra pedidos do cliente selecionado (compara pelo cliente_id)
+  const pedidosDoCliente = (ordersData||[]).filter(o => {
+    if (!clientId) return true;
+    return o.cliente_id === clientId;
+  });
+
+  orderSel.innerHTML = '<option value="">— selecionar pedido (opcional) —</option>' +
+    pedidosDoCliente.map(o => {
+      const val = o.value || 0;
+      const valFmt = val.toFixed(2).replace('.',',');
+      const statusLabel = o.status ? ` (${o.status})` : '';
+      return `<option value="${o._uuid}" data-valor="${val}" data-desc="${escapeHtml(o.desc||'')}">${o.id}${statusLabel} — R$ ${valFmt}</option>`;
+    }).join('') || '<option value="" disabled>Nenhum pedido encontrado para este cliente</option>';
+}
+
+// Ao selecionar o pedido: preenche valor e descrição automaticamente
+function onRcOrderChange() {
+  const orderSel = document.getElementById('rc-order');
+  const opt = orderSel?.options[orderSel.selectedIndex];
+  const descGroup = document.getElementById('rc-desc-group');
+  const descEl = document.getElementById('rc-desc');
+  const valueEl = document.getElementById('rc-value');
+  if (!opt || !opt.value) {
+    if (descGroup) descGroup.style.display = 'none';
+    return;
+  }
+  // Preenche valor do pedido
+  const valor = parseFloat(opt.dataset.valor) || 0;
+  if (valor && valueEl) valueEl.value = valor.toFixed(2);
+  // Preenche descrição
+  const desc = opt.dataset.desc || '';
+  if (descEl) descEl.value = desc;
+  if (descGroup) descGroup.style.display = desc ? 'block' : 'none';
 }
 
 async function openReceivableModal() {
-  // Garante clientes carregados antes de abrir
+  // Garante clientes e pedidos carregados antes de abrir
   if (typeof clientesDB === 'undefined' || !clientesDB.length) {
     if (typeof loadClientsDB === 'function') { try { await loadClientsDB(); } catch(e){} }
   }
+  if (!ordersData || !ordersData.length) {
+    if (typeof loadOrdersDB === 'function') { try { await loadOrdersDB(); } catch(e){} }
+  }
   refreshReceivableClientOptions();
+  // Reset do dropdown de pedidos
+  const orderSel = document.getElementById('rc-order');
+  if (orderSel) orderSel.innerHTML = '<option value="">— selecionar pedido (opcional) —</option>';
+  const descGroup = document.getElementById('rc-desc-group');
+  if (descGroup) descGroup.style.display = 'none';
   openModal('modal-receivable');
 }
 
