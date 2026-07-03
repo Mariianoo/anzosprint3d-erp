@@ -13093,7 +13093,13 @@ function renderReceivables() {
     const detailBtn = `<button class="btn btn-secondary btn-sm" onclick="openReceivableDetail('${r.id}')" title="Ver detalhes"><i class="ti ti-eye"></i></button>`;
 
     if (r.status === 'recebido') {
-      actionBtn = `<div style="display:flex;gap:4px;align-items:center">${detailBtn}<span style="font-size:12px;color:var(--green)"><i class="ti ti-circle-check"></i> Recebido</span></div>`;
+      actionBtn = `<div style="display:flex;gap:4px;align-items:center">
+        ${detailBtn}
+        <button class="btn btn-secondary btn-sm" onclick="revertReceivable('${r.id}')" title="Estornar — voltar para Pendente" style="color:var(--amber)">
+          <i class="ti ti-arrow-back-up"></i>
+        </button>
+        <span style="font-size:12px;color:var(--green)"><i class="ti ti-circle-check"></i> Recebido</span>
+      </div>`;
     } else if (st.key === 'Vencido') {
       actionBtn = `<div style="display:flex;gap:4px">
         ${detailBtn}
@@ -13254,6 +13260,48 @@ function openReceivableDetail(id) {
     ${r.created_at ? row('Data do lançamento', new Date(r.created_at).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})) : ''}
   `;
   document.getElementById('modal-receivable-detail').style.display = 'flex';
+}
+
+// Estorna um recebimento: volta para Pendente e remove a transação financeira
+async function revertReceivable(id) {
+  const r = receivablesData.find(x => x.id === id);
+  if (!r || !sb) return;
+
+  const ok = await confirmAction({
+    title: 'Estornar recebimento',
+    message: `Deseja estornar o recebimento de R$ ${r.value.toFixed(2).replace('.',',')} de ${r.client}? O lançamento voltará para "Pendente" e a receita será removida do Financeiro.`,
+    confirmLabel: 'Estornar',
+    danger: true,
+    icon: 'ti-arrow-back-up'
+  });
+  if (!ok) return;
+
+  // Reverte o status no banco
+  const { error } = await sb.from('contas_receber').update({
+    status: 'pendente',
+    recebido_em: null,
+    pagamento_recebimento: null,
+    observacoes: null,
+    recebido_por: null,
+  }).eq('id', r._uuid);
+  if (error) { showToast('Erro ao estornar: ' + error.message); return; }
+
+  // Remove a transação financeira correspondente (busca pela descrição e valor na data de recebimento)
+  try {
+    const dataRecebimento = r.recebido_em ? r.recebido_em.slice(0,10) : null;
+    if (dataRecebimento && typeof sb !== 'undefined') {
+      await sb.from('transacoes')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('tipo', 'receita')
+        .eq('valor', r.value)
+        .eq('data', dataRecebimento)
+        .is('deleted_at', null);
+    }
+  } catch(e) { console.warn('Não foi possível remover a transação:', e); }
+
+  showToast(`Recebimento estornado — ${r.client} voltou para Pendente.`);
+  await loadReceivablesDB();
+  if (typeof loadTransactionsDB === 'function') { try { await loadTransactionsDB(); } catch(e){} }
 }
 
 async function _legacyMarkReceived(id) {
