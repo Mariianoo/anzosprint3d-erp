@@ -11057,6 +11057,26 @@ async function saveCalculatorQuote() {
       if (error) throw error;
       quoteId = editingQuoteId;
       await sb.from('orcamento_itens').delete().eq('orcamento_id', quoteId);
+
+      // ── Sincroniza o novo valor em cascata: pedido → conta a receber pendente ──
+      if (header.preco_final != null) {
+        try {
+          // Atualiza o(s) pedido(s) ligados a este orçamento
+          const { data: pedidosLig } = await sb.from('pedidos')
+            .select('id').eq('orcamento_id', quoteId).is('deleted_at', null);
+          if (pedidosLig && pedidosLig.length) {
+            for (const ped of pedidosLig) {
+              await sb.from('pedidos').update({ valor: header.preco_final }).eq('id', ped.id);
+              // Atualiza contas a receber PENDENTES desse pedido (não mexe nas já recebidas)
+              await sb.from('contas_receber')
+                .update({ valor: header.preco_final })
+                .eq('pedido_id', ped.id)
+                .eq('status', 'pendente')
+                .is('deleted_at', null);
+            }
+          }
+        } catch(e) { console.warn('Erro ao sincronizar valor em cascata:', e); }
+      }
     } else {
       header.numero = await nextQuoteNumber();
       header.status = 'aguardando';
@@ -12121,8 +12141,8 @@ async function loadDashboardReal(period) {
         .select('id,numero,descricao,valor_final,created_at,status,clientes(nome)')
         .is('deleted_at',null).order('created_at',{ascending:false}),
       sb.from('transacoes')
-        .select('tipo,valor,created_at,descricao')
-        .gte('created_at',ini).lte('created_at',fim).is('deleted_at',null),
+        .select('tipo,valor,data,created_at,descricao')
+        .gte('data', ini.slice(0,10)).lte('data', fim.slice(0,10)).is('deleted_at',null),
       sb.from('transacoes')
         .select('tipo,valor,created_at').is('deleted_at',null),
       sb.from('producao')
@@ -12360,7 +12380,8 @@ function _buildRevenueChart(trans, period) {
   // Agrupa receitas e despesas por data simples
   const byDay = {};
   trans.forEach(t => {
-    const day = t.created_at.slice(0,10);
+    const day = (t.data || t.created_at || '').slice(0,10);
+    if (!day) return;
     if (!byDay[day]) byDay[day] = {r:0,d:0};
     if (t.tipo==='receita') byDay[day].r += Number(t.valor);
     else byDay[day].d += Number(t.valor);
