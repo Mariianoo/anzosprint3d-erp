@@ -12146,7 +12146,7 @@ async function loadDashboardReal(period) {
       sb.from('transacoes')
         .select('tipo,valor,created_at').is('deleted_at',null),
       sb.from('producao')
-        .select('status,filamento_id,peso_g,created_at').is('deleted_at',null),
+        .select('status,filamento_id,peso_g,created_at,inicio,fim,previsao_fim').is('deleted_at',null),
       sb.from('filamentos')
         .select('tipo,marca,cor,estoque_g,estoque_minimo_g').is('deleted_at',null),
       sb.from('impressoras')
@@ -12172,6 +12172,15 @@ async function loadDashboardReal(period) {
     const opsPeriodo = ops.filter(o => o.created_at >= ini && o.created_at <= fim);
     const gramTotal  = opsPeriodo.reduce((s,o) => s + (Number(o.peso_g)||0), 0);
     const kgStr      = gramTotal >= 1000 ? (gramTotal/1000).toFixed(1).replace('.',',') + ' kg' : gramTotal + ' g';
+    // Horas de impressão no período: soma da duração real (fim - início) das OPs concluídas
+    let horasImpressao = 0;
+    opsPeriodo.forEach(o => {
+      if (o.inicio && o.fim) {
+        const dur = (new Date(o.fim) - new Date(o.inicio)) / 3600000;
+        if (dur > 0 && dur < 720) horasImpressao += dur; // ignora durações absurdas
+      }
+    });
+    const horasStr = horasImpressao > 0 ? horasImpressao.toFixed(1).replace('.',',') + ' h' : '—';
 
     // ── Financeiro ──
     const receitas = trans.filter(t => t.tipo==='receita').reduce((s,t) => s+Number(t.valor),0);
@@ -12181,6 +12190,8 @@ async function loadDashboardReal(period) {
 
     // Receita total histórica para conquistas
     const receitaTotal = transAll.filter(t => t.tipo==='receita').reduce((s,t) => s+Number(t.valor),0);
+    // Vendas totais reais = número de recebimentos (transações de receita), métrica confiável de vendas concretizadas
+    const vendasTotais = transAll.filter(t => t.tipo==='receita').length;
 
     // ── Impressoras ──
     const prnAtivas = impressoras.filter(p => ['ativa','ativo','operacional'].includes((p.status||'ativa').toLowerCase())).length;
@@ -12193,7 +12204,7 @@ async function loadDashboardReal(period) {
     _set('kpi-revenue',     _brl0(receitas));
     _set('kpi-profit',      _brl0(lucro));
     _set('kpi-filament',    gramTotal > 0 ? kgStr : '0 g');
-    _set('kpi-hours',       '—');
+    _set('kpi-hours',       horasStr);
     _set('kpi-printers',    `${prnAtivas} / ${impressoras.length}`);
     _set('kpi-printers-sub', prnManut > 0 ? `${prnManut} em manutenção` : impressoras.length > 0 ? 'todas operacionais' : 'nenhuma cadastrada');
 
@@ -12258,7 +12269,8 @@ async function loadDashboardReal(period) {
     renderDashRecentOrders(pedidos.slice(0,5));
 
     // ── Conquistas com dados reais ──
-    updateAchievements([concluidos, pedTotalAll, receitaTotal, 0]);
+    // [vendasTotais, vendasTotais, receitaTotal] — vendas = recebimentos concretizados
+    updateAchievements([vendasTotais, vendasTotais, receitaTotal, 0]);
 
     // ── Atualiza análise de preços de fornecedores ──
     // Carrega filamentsData completo (com preço/fornecedor) se ainda não estiver
@@ -12559,21 +12571,23 @@ function updateAchievements(achData) {
   const [completed, orders, revenue, extra] = arr;
   const grid = document.getElementById('achievements-grid');
   if (!grid) return;
+  // Vendas usam sempre a mesma métrica (nº de recebimentos); receita usa o total acumulado
+  const vendas = orders;
   const unlockMap = {
-    first: orders >= 1,
-    '10':  orders >= 10,
-    '50':  completed >= 50,
-    '100': completed >= 100,
+    first: vendas >= 1,
+    '10':  vendas >= 10,
+    '50':  vendas >= 50,
+    '100': vendas >= 100,
     r1k:   revenue >= 1000,
     r5k:   revenue >= 5000,
     r10k:  revenue >= 10000,
     r50k:  revenue >= 50000,
   };
   const progressMap = {
-    first: [Math.min(orders,1), 1],
-    '10':  [Math.min(orders,10), 10],
-    '50':  [Math.min(completed,50), 50],
-    '100': [Math.min(completed,100), 100],
+    first: [Math.min(vendas,1), 1],
+    '10':  [Math.min(vendas,10), 10],
+    '50':  [Math.min(vendas,50), 50],
+    '100': [Math.min(vendas,100), 100],
     r1k:   [Math.min(revenue,1000), 1000],
     r5k:   [Math.min(revenue,5000), 5000],
     r10k:  [Math.min(revenue,10000), 10000],
