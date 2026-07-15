@@ -6635,6 +6635,9 @@ function fmtDateTime(iso) {
 
 // ── Carrega ordens de produção do banco ──
 async function loadProductionDB() {
+  // As impressoras precisam estar em memória ANTES de resolver os nomes,
+  // senão printerNomeById() devolve '—' e o traço fica gravado no dado.
+  if (!printersData || !printersData.length) { try { await loadPrintersDB(); } catch(e){} }
   if (!sb) { renderProductionTable(); return; }
   const tbody = document.getElementById('prod-tbody');
   if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px"><i class="ti ti-loader"></i> Carregando...</td></tr>';
@@ -6880,7 +6883,7 @@ function renderProductionTable() {
     tr.innerHTML = `
       <td class="td-name">${op.id}</td>
       <td>${op.order}</td>
-      <td>${op.printer}</td>
+      <td>${op.impressora_id ? escapeHtml(printerNomeById(op.impressora_id)) : '—'}</td>
       <td>${escapeHtml(op.filament)}</td>
       <td>${op.operator}</td>
       <td>${op.start}</td>
@@ -7027,7 +7030,7 @@ function openOPDetail(id) {
   const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.textContent = val; };
   set('opd-num', op.id);
   set('opd-order', op.order);
-  set('opd-printer', op.printer);
+  set('opd-printer', op.impressora_id ? printerNomeById(op.impressora_id) : '—');
   // Carrega cliente e imagem do produto (async, em paralelo)
   loadOPProductInfo(op);
   // Reseta o modo de edição da impressora ao abrir
@@ -7218,7 +7221,7 @@ async function populateNewOpModal() {
   if (printerEl) {
     const printerOpts = (printersData||[])
       .filter(p => p.status !== 'off' && p.status !== 'manutencao')  // só impressoras disponíveis
-      .map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}${p.modelo && p.modelo !== '—' ? ' (' + escapeHtml(p.modelo) + ')' : ''}</option>`).join('');
+      .map(p => `<option value="${p._uuid}">${escapeHtml(p.name)}${p.modelo && p.modelo !== '—' ? ' (' + escapeHtml(p.modelo) + ')' : ''}</option>`).join('');
     printerEl.innerHTML = '<option value="">— selecionar impressora —</option>' +
       (printerOpts || '<option value="" disabled>Nenhuma impressora cadastrada</option>');
   }
@@ -7507,12 +7510,15 @@ async function saveNewProductionOrder() {
 
   try {
     const numero = await nextOPNumber();
+    // 'printer' agora é o UUID da impressora selecionada
+    const printerNome = printerNomeById(printer);
     const payload = {
       numero, pedido_id: pedidoUuid, filamento_id: filamentoId,
+      impressora_id: printer || null,          // vínculo real (era o que faltava)
       operador: operator || null, inicio: inicio.toISOString(),
       previsao_fim: previsaoFim ? previsaoFim.toISOString() : null,
       consumido_g: 0, total_g: totalG, status: 'imprimindo',
-      observacoes: (printer ? `Impressora: ${printer}. ` : '') + obs,
+      observacoes: obs || null,
       created_by: currentUser ? currentUser.id : null,
     };
     const { error } = await sb.from('producao').insert(payload);
