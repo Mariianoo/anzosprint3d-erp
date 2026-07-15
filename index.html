@@ -6999,22 +6999,31 @@ async function loadOPProductInfo(op) {
     if (nomeEl) nomeEl.textContent = nomeCli;
     if (descEl) descEl.textContent = ped.descricao || '—';
 
-    // Imagem: busca do orçamento (imagem_modelo) ou do modelo pela descrição
+    // Imagem — mesma regra do PDF: o modelo é a fonte de verdade viva.
     let imagem = null;
+    let orcSnapshot = null;
     if (ped.orcamento_id) {
-      const { data: orc } = await sb.from('orcamentos').select('imagem_modelo, descricao').eq('id', ped.orcamento_id).single();
+      const { data: orc } = await sb.from('orcamentos')
+        .select('imagem_modelo, descricao, modelo_id').eq('id', ped.orcamento_id).single();
       if (orc) {
-        if (orc.imagem_modelo) imagem = orc.imagem_modelo;
         if (descEl && orc.descricao) descEl.textContent = orc.descricao;
+        orcSnapshot = orc.imagem_modelo || null;
+        // 1) Vínculo direto pelo modelo_id
+        if (orc.modelo_id) {
+          const { data: m } = await sb.from('modelos_3d').select('capa_base64').eq('id', orc.modelo_id).single();
+          if (m && m.capa_base64) imagem = m.capa_base64;
+        }
       }
     }
-    // Fallback: busca a capa do modelo pela descrição (match preciso)
+    // 2) Sem vínculo: casa pelo nome (match preciso)
     if (!imagem && ped.descricao) {
       const nomeBase = ped.descricao.split('—')[0].trim();
       const { data: mods } = await sb.from('modelos_3d').select('nome,capa_base64').is('deleted_at', null);
       const m = matchModeloPorNome(mods || [], nomeBase, 'nome');
       if (m && m.capa_base64) imagem = m.capa_base64;
     }
+    // 3) Fallback final: a cópia guardada no orçamento
+    if (!imagem) imagem = orcSnapshot;
     if (imagem && imgEl) {
       imgEl.src = imagem;
       imgEl.style.display = 'block';
@@ -11101,8 +11110,10 @@ async function saveCalculatorQuote() {
 
   // Captura a imagem do modelo selecionado (para o PDF)
   let imagemModeloSave = null;
+  let modeloIdSave = null;
   const modelSelSave = document.getElementById('q-model');
   if (modelSelSave && modelSelSave.value) {
+    modeloIdSave = modelSelSave.value;   // vínculo explícito (fonte de verdade)
     const mSave = modelsData.find(x => x.id === modelSelSave.value);
     if (mSave && mSave.images && mSave.images.length) imagemModeloSave = mSave.images[0];
   }
@@ -11112,6 +11123,7 @@ async function saveCalculatorQuote() {
     descricao: desc,
     quantidade: r.qty || 1,
     imagem_modelo: imagemModeloSave,
+    modelo_id: modeloIdSave,
     peso_g: r.weight,
     horas: r.hours,
     custo_filamento: round2(r.filCost),
@@ -11224,6 +11236,10 @@ async function editQuoteDB(id) {
   editingQuoteId = id;
   refreshQuoteClientOptions();
   if (q.cliente_id) document.getElementById('q-client').value = q.cliente_id;
+  // Restaura o modelo vinculado. CRÍTICO: sem isso o seletor mantém o modelo
+  // selecionado anteriormente e o save grava a imagem do modelo errado.
+  const modelSelEdit = document.getElementById('q-model');
+  if (modelSelEdit) modelSelEdit.value = q.modelo_id || '';
   document.getElementById('q-desc').value = q.descricao || '';
   const qtyEl = document.getElementById('q-qty'); if (qtyEl) qtyEl.value = q.quantidade || 1;
   document.getElementById('q-weight').value = q.peso_g || 0;
@@ -12022,25 +12038,27 @@ async function buildSavedQuotePdfDocAsync(q) {
   // O modelo é a fonte de verdade VIVA: se a capa do modelo mudou depois do orçamento,
   // o PDF deve refletir a imagem atual. A imagem salva no orçamento é só o fallback.
   let imagemFinal = null;
-  if (q.descricao) {
-    const nomeBase = q.descricao.split('—')[0].trim();
-    try {
-      // Busca sempre no banco (a capa pode ter sido atualizada agora há pouco)
-      let capa = null;
+  try {
+    // 1) Vínculo direto pelo modelo_id — caminho confiável, sem depender de nomes
+    if (q.modelo_id && sb) {
+      const { data: m } = await sb.from('modelos_3d').select('capa_base64').eq('id', q.modelo_id).single();
+      if (m && m.capa_base64) imagemFinal = m.capa_base64;
+    }
+    // 2) Orçamentos antigos sem vínculo: casa pelo nome (match preciso)
+    if (!imagemFinal && q.descricao) {
+      const nomeBase = q.descricao.split('—')[0].trim();
       if (sb) {
         const { data: mods } = await sb.from('modelos_3d').select('nome,capa_base64').is('deleted_at', null);
         const m = matchModeloPorNome(mods || [], nomeBase, 'nome');
-        if (m && m.capa_base64) capa = m.capa_base64;
+        if (m && m.capa_base64) imagemFinal = m.capa_base64;
       }
-      // Se o banco falhar, tenta o que está em memória
-      if (!capa) {
+      if (!imagemFinal) {
         const mm = matchModeloPorNome(modelsData || [], nomeBase, 'name');
-        if (mm && mm.images && mm.images.length) capa = mm.images[0];
+        if (mm && mm.images && mm.images.length) imagemFinal = mm.images[0];
       }
-      if (capa) imagemFinal = capa;
-    } catch(e){ console.warn('Busca de capa falhou:', e); }
-  }
-  // Fallback: imagem salva no orçamento (usada quando o modelo foi excluído/renomeado)
+    }
+  } catch(e){ console.warn('Busca de capa falhou:', e); }
+  // 3) Fallback final: imagem salva no orçamento (modelo excluído/renomeado)
   if (!imagemFinal) imagemFinal = q.imagem_modelo || null;
 
   const partesMulti = (q.modo_impressao === 'multipartes' && Array.isArray(q.filamentos_multipartes))
