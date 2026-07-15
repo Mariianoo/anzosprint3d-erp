@@ -7005,14 +7005,12 @@ async function loadOPProductInfo(op) {
         if (descEl && orc.descricao) descEl.textContent = orc.descricao;
       }
     }
-    // Fallback: busca a capa do modelo pela descrição
+    // Fallback: busca a capa do modelo pela descrição (match preciso)
     if (!imagem && ped.descricao) {
-      const nomeBase = ped.descricao.split('—')[0].trim().toLowerCase();
+      const nomeBase = ped.descricao.split('—')[0].trim();
       const { data: mods } = await sb.from('modelos_3d').select('nome,capa_base64').is('deleted_at', null);
-      if (mods) {
-        const m = mods.find(x => x.nome && (nomeBase.includes(x.nome.toLowerCase()) || x.nome.toLowerCase().includes(nomeBase)));
-        if (m && m.capa_base64) imagem = m.capa_base64;
-      }
+      const m = matchModeloPorNome(mods || [], nomeBase, 'nome');
+      if (m && m.capa_base64) imagem = m.capa_base64;
     }
     if (imagem && imgEl) {
       imgEl.src = imagem;
@@ -7291,12 +7289,40 @@ async function onNopOrderChange() {
   const pedidoUuid = sel.value;
   try {
     // Busca o pedido → orçamento ligado → filamento/peso/tempo estimado
-    const { data: ped } = await sb.from('pedidos').select('orcamento_id').eq('id', pedidoUuid).single();
+    const { data: ped } = await sb.from('pedidos').select('orcamento_id, descricao').eq('id', pedidoUuid).single();
     if (ped && ped.orcamento_id) {
       const { data: orc } = await sb.from('orcamentos')
-        .select('filamento_id, filamento_tipo, filamento_marca, filamento_cor, peso_g, horas, modo_impressao, filamentos_multipartes')
+        .select('filamento_id, filamento_tipo, filamento_marca, filamento_cor, peso_g, horas, modo_impressao, filamentos_multipartes, descricao')
         .eq('id', ped.orcamento_id).single();
       if (orc) {
+        // ── Prioriza as partes ATUALIZADAS do modelo (o modelo é a fonte de verdade viva) ──
+        // Se o orçamento foi salvo antes de você corrigir cores/marcas no modelo, usamos o modelo.
+        try {
+          const nomeBase = (orc.descricao || ped.descricao || '').split('—')[0].trim();
+          if (nomeBase) {
+            const { data: mods } = await sb.from('modelos_3d')
+              .select('nome, partes_impressao, modo_impressao').is('deleted_at', null);
+            const modelo = matchModeloPorNome(mods || [], nomeBase, 'nome');
+            if (modelo && modelo.modo_impressao === 'multipartes' && Array.isArray(modelo.partes_impressao) && modelo.partes_impressao.length) {
+              // Mescla: usa cor/marca/hex do modelo, mantendo gramas e filamento_id do orçamento quando existirem
+              const partesModelo = modelo.partes_impressao.map((pm, i) => {
+                const po = (orc.filamentos_multipartes||[])[i] || {};
+                // Resolve o filamento_id pelo tipo+cor+marca atualizados do modelo
+                let fid = po.filamento_id || null;
+                const fMatch = (filamentsData||[]).find(f =>
+                  f.type === pm.tipo && f.color === pm.cor && (!pm.marca || f.brand === pm.marca));
+                if (fMatch) fid = fMatch.id;
+                return {
+                  tipo: pm.tipo, cor: pm.cor, marca: pm.marca, hex: pm.hex,
+                  gramas: pm.gramas != null ? pm.gramas : po.gramas,
+                  filamento_id: fid,
+                };
+              });
+              orc.filamentos_multipartes = partesModelo;
+              orc.modo_impressao = 'multipartes';
+            }
+          }
+        } catch(e) { console.warn('Não foi possível sincronizar com o modelo:', e); }
         const hint = document.getElementById('nop-fil-hint');
         // Tempo previsto a partir do orçamento
         const tempoEl = document.getElementById('nop-tempo-previsto');
@@ -11223,6 +11249,7 @@ async function editQuoteDB(id) {
         _id: nextMultiPartId++,
         filamento_id: p.filamento_id || null,
         tipo: p.tipo || '', marca: p.marca || '', cor: p.cor || '',
+        hex: p.hex || '',
         gramas: Number(p.gramas) || 0,
         _rate: Number(p.custo_unit) || 0,
         _custo: Number(p.custo_total) || 0,
@@ -11929,6 +11956,36 @@ async function generateQuotePdf() {
 
 // ── Table rows: generate PDF from existing quote (busca dados completos do banco) ──
 // Monta o documento PDF completo a partir de um orçamento salvo (q) — usado por download, WhatsApp e e-mail
+// Encontra o modelo correspondente a um nome, de forma PRECISA.
+// Evita falsos positivos: um modelo "Solo Leveling" NÃO pode casar com
+// "Beru, the King's Shadow | Solo Leveling". Prioriza match exato e, na
+// ausência dele, o nome mais específico (mais longo) que realmente corresponde.
+function matchModeloPorNome(lista, nomeBase, campoNome) {
+  if (!lista || !lista.length || !nomeBase) return null;
+  const alvo = String(nomeBase).trim().toLowerCase();
+  if (!alvo) return null;
+
+  // 1) Match exato — o caso normal e mais confiável
+  const exato = lista.find(m => (m[campoNome] || '').trim().toLowerCase() === alvo);
+  if (exato) return exato;
+
+  // 2) Match parcial: só aceita nomes com boa sobreposição, e escolhe o mais específico
+  const candidatos = lista.filter(m => {
+    const nome = (m[campoNome] || '').trim().toLowerCase();
+    if (!nome || nome.length < 4) return false;               // nomes curtos geram falso positivo
+    if (nome === alvo) return true;
+    if (!alvo.includes(nome) && !nome.includes(alvo)) return false;
+    // exige que o nome cubra pelo menos 60% do alvo (evita casar por um sufixo genérico)
+    const menor = Math.min(nome.length, alvo.length);
+    const maior = Math.max(nome.length, alvo.length);
+    return (menor / maior) >= 0.6;
+  });
+  if (!candidatos.length) return null;
+  // O nome mais longo é o mais específico
+  candidatos.sort((a, b) => (b[campoNome] || '').length - (a[campoNome] || '').length);
+  return candidatos[0];
+}
+
 async function buildSavedQuotePdfDocAsync(q) {
   // Garante configs atualizadas do banco
   if (typeof loadQuoteConfig === 'function') { try { await loadQuoteConfig(); } catch(e){} }
@@ -11955,27 +12012,30 @@ async function buildSavedQuotePdfDocAsync(q) {
     if (tiposPartes.length) filType = tiposPartes.join(', ');  // ex: "PLA" ou "PLA, PETG"
   }
 
-  // Imagem: usa a salva, ou busca o modelo pela descrição (orçamentos antigos)
-  let imagemFinal = q.imagem_modelo || null;
-  if (!imagemFinal && q.descricao) {
-    const nomeBase = q.descricao.split('—')[0].trim().toLowerCase();
-    // 1) tenta na memória
-    let mEncontrado = (modelsData||[]).find(m =>
-      (m.name && nomeBase.includes(m.name.toLowerCase())) || (m.name && m.name.toLowerCase().includes(nomeBase))
-    );
-    if (mEncontrado && mEncontrado.images && mEncontrado.images.length) {
-      imagemFinal = mEncontrado.images[0];
-    } else if (sb) {
-      // 2) busca direto no banco pela capa do modelo
-      try {
+  // ── Imagem do produto ──
+  // O modelo é a fonte de verdade VIVA: se a capa do modelo mudou depois do orçamento,
+  // o PDF deve refletir a imagem atual. A imagem salva no orçamento é só o fallback.
+  let imagemFinal = null;
+  if (q.descricao) {
+    const nomeBase = q.descricao.split('—')[0].trim();
+    try {
+      // Busca sempre no banco (a capa pode ter sido atualizada agora há pouco)
+      let capa = null;
+      if (sb) {
         const { data: mods } = await sb.from('modelos_3d').select('nome,capa_base64').is('deleted_at', null);
-        if (mods && mods.length) {
-          const m = mods.find(x => x.nome && (nomeBase.includes(x.nome.toLowerCase()) || x.nome.toLowerCase().includes(nomeBase)));
-          if (m && m.capa_base64) imagemFinal = m.capa_base64;
-        }
-      } catch(e){ console.warn('Busca de capa falhou:', e); }
-    }
+        const m = matchModeloPorNome(mods || [], nomeBase, 'nome');
+        if (m && m.capa_base64) capa = m.capa_base64;
+      }
+      // Se o banco falhar, tenta o que está em memória
+      if (!capa) {
+        const mm = matchModeloPorNome(modelsData || [], nomeBase, 'name');
+        if (mm && mm.images && mm.images.length) capa = mm.images[0];
+      }
+      if (capa) imagemFinal = capa;
+    } catch(e){ console.warn('Busca de capa falhou:', e); }
   }
+  // Fallback: imagem salva no orçamento (usada quando o modelo foi excluído/renomeado)
+  if (!imagemFinal) imagemFinal = q.imagem_modelo || null;
 
   const partesMulti = (q.modo_impressao === 'multipartes' && Array.isArray(q.filamentos_multipartes))
     ? q.filamentos_multipartes.map(p => ({ tipo: p.tipo, marca: p.marca, cor: p.cor, hex: p.hex || '#808080', gramas: p.gramas }))
