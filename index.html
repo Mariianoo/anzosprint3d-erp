@@ -2000,7 +2000,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       </div>
 
       <div class="form-row">
-        <div class="form-group"><label>Peso total (g) * <span style="font-size:10px;color:var(--text3);font-weight:400">— do Bambu Studio</span></label><input type="number" id="nm-weight" placeholder="0" min="0" step="0.1"></div>
+        <div class="form-group"><label>Peso total (g) * <span style="font-size:10px;color:var(--text3);font-weight:400">— do Bambu Studio</span></label><input type="number" id="nm-weight" placeholder="0" min="0" step="0.1" oninput="syncSimpleTotals()"></div>
         <div class="form-group"><label>Tempo total * <span style="font-size:10px;color:var(--text3);font-weight:400">— do Bambu Studio</span></label>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="number" id="nm-h" placeholder="0" min="0" step="1" oninput="onSimpleTempoChange()" style="flex:1">
@@ -2012,6 +2012,25 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       </div>
       <!-- valor canônico em horas decimais (usado pelo cálculo e pelo modo multipartes) -->
       <input type="hidden" id="nm-hours" value="0">
+
+      <!-- Totais (mesmo padrão do modo multipartes) -->
+      <div style="margin-top:12px;padding:16px;background:linear-gradient(135deg,#0a1f3d 0%,#1e3a5f 60%,#2563eb 100%);border-radius:12px;box-shadow:0 4px 16px rgba(37,99,235,.2)">
+        <div style="font-size:11px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:12px"><i class="ti ti-sigma" style="margin-right:5px"></i>Totais Calculados</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="text-align:center;padding:10px;background:rgba(255,255,255,.06);border-radius:9px">
+            <div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px"><i class="ti ti-weight" style="font-size:12px;margin-right:3px"></i>Peso</div>
+            <div style="font-size:18px;font-weight:800;color:#fff" id="nm-simple-total-peso">0 g</div>
+          </div>
+          <div style="text-align:center;padding:10px;background:rgba(255,255,255,.06);border-radius:9px">
+            <div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px"><i class="ti ti-clock" style="font-size:12px;margin-right:3px"></i>Tempo</div>
+            <div style="font-size:18px;font-weight:800;color:#fff" id="nm-simple-total-horas">0h</div>
+          </div>
+          <div style="text-align:center;padding:10px;background:rgba(34,197,94,.15);border-radius:9px;border:1px solid rgba(34,197,94,.3)">
+            <div style="font-size:10px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px"><i class="ti ti-cash" style="font-size:12px;margin-right:3px"></i>Custo Filamento</div>
+            <div style="font-size:18px;font-weight:800;color:#4ade80" id="nm-simple-total-custo">R$ 0,00</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── MODO MULTIPARTES: tabela de partes ── -->
@@ -8502,6 +8521,7 @@ function renderModelParts() {
           </button>
 
           ${(() => {
+            if (!part.filamento_id) return '';
             const rolo = (filamentsData||[]).find(f => f.id === part.filamento_id);
             if (!rolo) return '';
             const d = rolo.dataCadastro ? new Date(rolo.dataCadastro+'T12:00:00').toLocaleDateString('pt-BR') : '';
@@ -8840,6 +8860,7 @@ function refreshSimpleFilOptions() {
     marcaSel.value = simpleFil.marca || '';
   }
   renderSimpleFilChip();
+  syncSimpleTotals();
 }
 
 function onSimpleFilTipoChange() {
@@ -8876,6 +8897,7 @@ function renderSimpleFilChip() {
 function clearSimpleFil() {
   simpleFil.cor = ''; simpleFil.hex = ''; simpleFil.filamento_id = null;
   renderSimpleFilChip();
+  syncSimpleTotals();
 }
 
 // Converte h + min -> horas decimais (campo canônico nm-hours)
@@ -8884,6 +8906,44 @@ function onSimpleTempoChange() {
   const m = parseInt(document.getElementById('nm-m')?.value) || 0;
   const el = document.getElementById('nm-hours');
   if (el) el.value = (h + m/60).toFixed(4);
+  syncSimpleTotals();
+}
+
+// Totais do modo simples — mesma lógica de custo do modo multipartes
+function syncSimpleTotals() {
+  const gramas = parseFloat(document.getElementById('nm-weight')?.value) || 0;
+  const horas  = parseFloat(document.getElementById('nm-hours')?.value) || 0;
+
+  const pesoEl = document.getElementById('nm-simple-total-peso');
+  if (pesoEl) pesoEl.textContent = (Math.round(gramas * 10) / 10) + ' g';
+
+  const horasEl = document.getElementById('nm-simple-total-horas');
+  if (horasEl) {
+    const h = Math.floor(horas), m = Math.round((horas - h) * 60);
+    horasEl.textContent = m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  // Custo: usa o rolo escolhido; se não houver, a média do tipo/marca
+  let custo = 0;
+  const fils = filamentsData || [];
+  if (gramas > 0) {
+    const rolo = simpleFil.filamento_id ? fils.find(f => f.id === simpleFil.filamento_id) : null;
+    if (rolo) {
+      custo = gramas * (rolo.price / (rolo.total || 1000));
+    } else {
+      const tipo = simpleFil.tipo || document.getElementById('nm-material')?.value || '';
+      let match = fils.filter(f => f.type === tipo);
+      if (simpleFil.marca) match = match.filter(f => f.brand === simpleFil.marca);
+      if (simpleFil.cor)   match = match.filter(f => f.color === simpleFil.cor);
+      if (!match.length)   match = fils.filter(f => f.type === tipo);
+      if (match.length) {
+        const avgRate = match.reduce((s, f) => s + (f.price / (f.total || 1000)), 0) / match.length;
+        custo = gramas * avgRate;
+      }
+    }
+  }
+  const custoEl = document.getElementById('nm-simple-total-custo');
+  if (custoEl) custoEl.textContent = 'R$ ' + custo.toFixed(2).replace('.', ',');
 }
 
 // Preenche h/min a partir das horas decimais
@@ -8894,6 +8954,7 @@ function setSimpleTempoFromHoras(horas) {
   const hEl = document.getElementById('nm-h'); if (hEl) hEl.value = h || '';
   const mEl = document.getElementById('nm-m'); if (mEl) mEl.value = m || '';
   const el = document.getElementById('nm-hours'); if (el) el.value = total;
+  syncSimpleTotals();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -10677,6 +10738,7 @@ async function loadFilamentsForQuote() {
         id: r.id, type: r.tipo || '', color: r.cor || '', swatch: r.cor_hex || '#808080',
         brand: r.marca || '', supplier: '', diameter: r.diametro ? (String(r.diametro).replace('.',',')+'mm') : '1,75mm',
         price: Number(r.preco) || 0, total: r.peso_total_g || 1000, current: r.estoque_g || 0,
+        lote: r.codigo_lote || '', dataCadastro: r.data_cadastro || '',
       }));
     }
   } catch(e){}
