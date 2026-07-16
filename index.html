@@ -11168,7 +11168,14 @@ function onQuoteFilBrandChange() {
 // ══════════════════════════════════════════════
 
 // Alterna entre modo simples e multipartes
-function setQuoteMode(mode) {
+// preserveCosts=true: usado ao restaurar um orçamento já salvo (editQuoteDB).
+// Nesse caso NÃO recalcula _rate/_custo de cada parte com o preço ATUAL do
+// filamento — isso faria o valor do orçamento mudar sozinho ao abrir para
+// editar, sempre que o preço do filamento tivesse sido atualizado depois que
+// o orçamento foi criado. Mantém os valores já restaurados (custo_unit/
+// custo_total salvos) e só recalcula de verdade quando o usuário mexe em
+// alguma parte (onMultiPartChange → recalcMultiParts sem preserveCosts).
+function setQuoteMode(mode, preserveCosts) {
   quoteMode = mode;
   const simBtn  = document.getElementById('q-mode-simples');
   const mulBtn  = document.getElementById('q-mode-multi');
@@ -11192,7 +11199,21 @@ function setQuoteMode(mode) {
     if (mulSec) mulSec.style.display = '';
     if (wEl)   { wEl.readOnly = true; wEl.title = 'Calculado automaticamente pela soma das partes'; }
     if (!multiParts.length) addMultiPart();
-    recalcMultiParts();
+    if (preserveCosts) {
+      // Só atualiza a UI (peso total, subtotal, linhas) com os valores já
+      // restaurados — sem chamar recalcMultiParts(), que sobrescreveria
+      // _rate/_custo com o preço de hoje do filamento.
+      const totalPeso  = multiParts.reduce((s,p) => s + (p.gramas || 0), 0);
+      const totalCusto = multiParts.reduce((s,p) => s + (p._custo || 0), 0);
+      if (wEl) wEl.value = totalPeso;
+      const subEl  = document.getElementById('q-multiparts-subtotal');
+      const pesoEl = document.getElementById('q-multiparts-peso');
+      if (subEl)  subEl.textContent  = brlFmt(totalCusto);
+      if (pesoEl) pesoEl.textContent = totalPeso + ' g';
+      renderMultiParts();
+    } else {
+      recalcMultiParts();
+    }
   }
   calcQuote();
 }
@@ -12061,8 +12082,10 @@ async function editQuoteDB(id) {
       });
     });
   }
-  // Aplica modo (também atualiza UI dos botões e seções)
-  setTimeout(() => { setQuoteMode(modoSalvo); }, 50);
+  // Aplica modo (também atualiza UI dos botões e seções).
+  // preserveCosts=true: mantém o valor congelado no momento da criação do
+  // orçamento — não recalcula com o preço atual do filamento (ver setQuoteMode).
+  setTimeout(() => { setQuoteMode(modoSalvo, true); }, 50);
   renderExtraMaterials();
   calcQuote();
   const title = document.getElementById('quote-modal-title');
