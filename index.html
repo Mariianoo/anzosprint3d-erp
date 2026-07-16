@@ -1690,7 +1690,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>OP Nº</th><th>Pedido</th><th>Impressora</th><th>Filamento</th><th>Operador</th><th>Início</th><th>Previsão</th><th>Progresso</th><th>Status</th><th style="min-width:160px">Ações</th></tr>
+        <tr><th>OP Nº</th><th>Pedido</th><th>Impressora</th><th>Filamento</th><th>Operador</th><th>Início</th><th>Previsão</th><th>Término real</th><th>Progresso</th><th>Status</th><th style="min-width:190px">Ações</th></tr>
       </thead>
       <tbody id="prod-tbody"></tbody>
     </table>
@@ -3520,6 +3520,120 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 </div>
 
 <!-- ═══ MODAL: DETALHES DA ORDEM DE PRODUÇÃO ═══ -->
+<!-- ═══ MODAL: CONCLUIR ORDEM DE PRODUÇÃO ═══ -->
+<div id="modal-complete-op" class="modal-overlay" style="display:none;z-index:400" onclick="if(event.target===this)closeModal('modal-complete-op')">
+  <div class="modal" style="width:660px;max-width:96vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-circle-check" style="margin-right:6px;color:var(--green)"></i>Concluir Ordem de Produção</h3>
+      <button class="modal-close" onclick="closeModal('modal-complete-op')"><i class="ti ti-x"></i></button>
+    </div>
+
+    <!-- Resumo -->
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 13px;background:var(--surface2);border-radius:var(--radius);margin-bottom:14px">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:var(--text)" id="cop-num">—</div>
+        <div style="font-size:12px;color:var(--text3)" id="cop-sub">—</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Impressora</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text2)" id="cop-printer">—</div>
+      </div>
+    </div>
+
+    <!-- Término real -->
+    <div class="form-row">
+      <div class="form-group"><label>Data de término *</label><input type="date" id="cop-date" onchange="updateCopAtrasoInfo()"></div>
+      <div class="form-group"><label>Hora de término *</label><input type="time" id="cop-time" onchange="updateCopAtrasoInfo()"></div>
+    </div>
+    <div id="cop-atraso-info" style="display:none;font-size:12px;padding:8px 11px;border-radius:8px;margin-bottom:12px"></div>
+
+    <!-- Consumo real por cor -->
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+        <i class="ti ti-palette" style="margin-right:4px;color:var(--blue)"></i><span id="cop-partes-title">Consumo real por cor</span>
+        <span class="help-ico">?<span class="help-bubble">Informe o peso que realmente saiu de cada rolo. O sistema compara com o estimado e baixa o estoque pelo valor real.</span></span>
+      </div>
+      <div id="cop-partes-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <!-- Totais estimado x real -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="text-align:center;padding:9px;background:var(--surface2);border-radius:9px">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Estimado</div>
+        <div style="font-size:16px;font-weight:800;color:var(--text2)" id="cop-total-est">0 g</div>
+      </div>
+      <div style="text-align:center;padding:9px;background:rgba(59,130,246,.12);border-radius:9px;border:1px solid rgba(59,130,246,.3)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Real</div>
+        <div style="font-size:16px;font-weight:800;color:var(--blue)" id="cop-total-real">0 g</div>
+      </div>
+      <div style="text-align:center;padding:9px;background:var(--surface2);border-radius:9px">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Diferença</div>
+        <div style="font-size:16px;font-weight:800" id="cop-total-dif">—</div>
+      </div>
+    </div>
+
+    <div class="form-group"><label>Observação <span style="color:var(--text3);font-weight:400">(opcional)</span></label>
+      <input type="text" id="cop-obs" placeholder="Ex: warping numa peça, troca de bico...">
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-complete-op')">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmCompleteOP()"><i class="ti ti-circle-check"></i> Concluir e baixar estoque</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: REGISTRAR FALHA ═══ -->
+<div id="modal-fail-op" class="modal-overlay" style="display:none;z-index:400" onclick="if(event.target===this)closeModal('modal-fail-op')">
+  <div class="modal" style="width:480px;max-width:95vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-alert-triangle" style="margin-right:6px;color:var(--red)"></i>Registrar Falha</h3>
+      <button class="modal-close" onclick="closeModal('modal-fail-op')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;color:var(--text)" id="fop-num">—</div>
+      <div style="font-size:12px;color:var(--text3)" id="fop-sub">—</div>
+    </div>
+    <div class="form-group"><label>Motivo da falha *</label>
+      <select id="fop-motivo">
+        <option>Warping / descolou da mesa</option>
+        <option>Entupimento do bico</option>
+        <option>Filamento acabou</option>
+        <option>Falha de aderência</option>
+        <option>Spaghetti / falha de camada</option>
+        <option>Erro no modelo / fatiamento</option>
+        <option>Queda de energia</option>
+        <option>Outro</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Detalhes <span style="color:var(--text3);font-weight:400">(opcional)</span></label>
+      <input type="text" id="fop-detalhe" placeholder="Descreva o que aconteceu...">
+    </div>
+    <div class="form-group"><label>Filamento perdido (g) <span class="help-ico">?<span class="help-bubble">Quanto de filamento foi desperdiçado. Será baixado do estoque.</span></span></label>
+      <input type="number" id="fop-perdido" min="0" step="0.1" placeholder="0">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-fail-op')">Cancelar</button>
+      <button class="btn btn-danger" onclick="confirmFailOP()"><i class="ti ti-alert-triangle"></i> Registrar Falha</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: HISTÓRICO DA PRODUÇÃO ═══ -->
+<div id="modal-op-history" class="modal-overlay" style="display:none;z-index:400" onclick="if(event.target===this)closeModal('modal-op-history')">
+  <div class="modal" style="width:620px;max-width:96vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-history" style="margin-right:6px;color:var(--blue)"></i>Histórico da Produção</h3>
+      <button class="modal-close" onclick="closeModal('modal-op-history')"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="oph-sub" style="font-size:12px;color:var(--text3);margin-bottom:12px">—</div>
+    <div id="oph-list" style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:0"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-op-history')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-op-detail" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-op-detail')">
   <div class="modal" style="width:600px">
     <div class="modal-header">
@@ -3606,6 +3720,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 
     <div class="modal-footer" style="justify-content:space-between">
       <button class="btn btn-danger btn-sm" onclick="deleteCurrentOP()"><i class="ti ti-trash"></i> Excluir OP</button>
+      <button class="btn btn-secondary btn-sm" onclick="openOPHistory(currentOPId)" style="margin-left:8px"><i class="ti ti-history"></i> Histórico</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-op-detail')">Fechar</button>
     </div>
   </div>
@@ -6783,129 +6898,207 @@ function printerNomeById(id) {
 }
 
 // ── Concluir produção: baixa o estoque do filamento (com confirmação de peso) ──
+// ══════════════════════════════════════════════════════════
+// CONCLUSÃO DE OP — modal com consumo real por cor
+// ══════════════════════════════════════════════════════════
+let _copOp = null;
+let _copPartes = [];
+
 async function completeProduction(opUuidOrId) {
   const op = productionData.find(x => x._uuid === opUuidOrId || x.id === opUuidOrId);
   if (!op) return;
   if (!sb) { showToast('Supabase não configurado.'); return; }
+  _copOp = op;
 
-  // Sugere o peso estimado (total), permite ajustar para o real
-  const sugestao = op.totalG || op.consumedG || 0;
-  const entrada = prompt(
-    `Concluir ${op.id}\nFilamento: ${escapeHtml(op.filament)}\n\nQuantos gramas foram realmente consumidos?\n(sugestão: ${sugestao}g — ajuste se necessário)`,
-    String(sugestao)
-  );
-  if (entrada === null) return;
-  const gramas = parseInt(entrada);
-  if (isNaN(gramas) || gramas < 0) { showToast('Valor inválido.'); return; }
+  document.getElementById('cop-num').textContent = op.id;
+  document.getElementById('cop-sub').textContent = op.order || '—';
+  document.getElementById('cop-printer').textContent = op.impressora_id ? printerNomeById(op.impressora_id) : '—';
 
-  // Verifica estoque, se houver filamento vinculado
-  if (op.filamento_id) {
-    const f = (filamentsData || []).find(x => x.id === op.filamento_id);
-    if (f && gramas > f.current) {
-      const ok = confirm(
-        `⚠ Estoque insuficiente!\n\n${escapeHtml(op.filament)}: ${f.current}g disponível, mas a produção consumiu ${gramas}g.\n\nDeseja concluir mesmo assim? O estoque ficará negativo (${f.current - gramas}g), sinalizando reposição urgente.`
-      );
-      if (!ok) return;
+  const agora = new Date();
+  document.getElementById('cop-date').value = agora.toISOString().slice(0,10);
+  document.getElementById('cop-time').value = String(agora.getHours()).padStart(2,'0') + ':' + String(agora.getMinutes()).padStart(2,'0');
+  document.getElementById('cop-obs').value = '';
+
+  // Monta as cores a partir do orçamento (o modelo é a fonte viva das cores)
+  _copPartes = [];
+  try {
+    if (op.pedido_id) {
+      const { data: ped } = await sb.from('pedidos').select('orcamento_id').eq('id', op.pedido_id).single();
+      if (ped && ped.orcamento_id) {
+        const { data: orc } = await sb.from('orcamentos')
+          .select('modo_impressao, filamentos_multipartes, peso_g, filamento_tipo, filamento_marca, filamento_cor, filamento_id')
+          .eq('id', ped.orcamento_id).single();
+        if (orc && orc.modo_impressao === 'multipartes' && Array.isArray(orc.filamentos_multipartes) && orc.filamentos_multipartes.length) {
+          _copPartes = orc.filamentos_multipartes.map(p => ({
+            cor: p.cor || p.tipo || '—', tipo: p.tipo || '', marca: p.marca || '', hex: p.hex || '#808080',
+            filamento_id: p.filamento_id || null,
+            estimado: Number(p.gramas) || 0, real: Number(p.gramas) || 0,
+          }));
+        } else if (orc) {
+          _copPartes = [{
+            cor: orc.filamento_cor || op.filament || '—', tipo: orc.filamento_tipo || '', marca: orc.filamento_marca || '',
+            hex: '#808080', filamento_id: op.filamento_id || orc.filamento_id || null,
+            estimado: Number(orc.peso_g) || op.totalG || 0, real: Number(orc.peso_g) || op.totalG || 0,
+          }];
+        }
+      }
     }
+  } catch(e) { console.warn('Partes da conclusão:', e); }
+
+  if (!_copPartes.length) {
+    _copPartes = [{ cor: op.filament || '—', tipo: '', marca: '', hex: '#808080',
+                    filamento_id: op.filamento_id || null,
+                    estimado: op.totalG || 0, real: op.totalG || 0 }];
   }
 
-  // ── Detecta atraso: compara o horário real de conclusão com a previsão ──
-  let motivoAtraso = null;
-  const agoraFim = new Date();
-  if (op._previsaoFim) {
-    const previsao = new Date(op._previsaoFim);
-    if (agoraFim > previsao) {
-      const atrasoMin = Math.round((agoraFim - previsao) / 60000);
-      const atrasoStr = atrasoMin >= 60 ? `${Math.floor(atrasoMin/60)}h ${atrasoMin%60}min` : `${atrasoMin}min`;
-      motivoAtraso = prompt(
-        `Esta OP atrasou ${atrasoStr} em relação à previsão (${previsao.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}).\n\nQual foi o motivo do atraso? (opcional, ajuda a identificar padrões)`,
-        ''
-      );
-      if (motivoAtraso === null) motivoAtraso = ''; // cancelou o prompt, segue sem motivo
+  const t = document.getElementById('cop-partes-title');
+  if (t) t.textContent = _copPartes.length > 1 ? 'Consumo real por cor' : 'Consumo real';
+  renderCopPartes();
+  updateCopAtrasoInfo();
+  document.getElementById('modal-complete-op').style.display = 'flex';
+}
+
+function renderCopPartes() {
+  const list = document.getElementById('cop-partes-list');
+  if (!list) return;
+  list.innerHTML = _copPartes.map((p, i) => {
+    const rolo = p.filamento_id ? (filamentsData||[]).find(f => f.id === p.filamento_id) : null;
+    const estoque = rolo ? rolo.current : null;
+    const semEstoqueAviso = (estoque !== null && p.real > estoque)
+      ? `<span style="font-size:10px;color:var(--red);white-space:nowrap"><i class="ti ti-alert-triangle"></i> só ${estoque}g em estoque</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--surface2);border-radius:9px">
+      <span style="width:16px;height:16px;border-radius:50%;background:${escapeHtml(p.hex||'#808080')};border:1px solid rgba(255,255,255,.2);flex-shrink:0"></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.cor)}</div>
+        <div style="font-size:10px;color:var(--text3)">${escapeHtml(p.tipo||'')}${p.marca ? ' · ' + escapeHtml(p.marca) : ''}${rolo && rolo.lote ? ' · ' + escapeHtml(rolo.lote) : ''}</div>
+      </div>
+      ${semEstoqueAviso}
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">Estimado</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text3)">${p.estimado} g</div>
+      </div>
+      <div style="flex-shrink:0;width:92px">
+        <div style="font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">Real (g)</div>
+        <input type="number" min="0" step="0.1" value="${p.real}" oninput="onCopParteChange(${i}, this.value)"
+          style="width:100%;padding:5px 7px;font-size:13px;font-weight:600;background:var(--surface);border:1.5px solid var(--blue);border-radius:6px;color:var(--text)">
+      </div>
+    </div>`;
+  }).join('');
+  updateCopTotals();
+}
+
+function onCopParteChange(idx, val) {
+  if (!_copPartes[idx]) return;
+  _copPartes[idx].real = parseFloat(val) || 0;
+  updateCopTotals();
+}
+
+function updateCopTotals() {
+  const est  = _copPartes.reduce((s,p) => s + (Number(p.estimado)||0), 0);
+  const real = _copPartes.reduce((s,p) => s + (Number(p.real)||0), 0);
+  const dif  = real - est;
+  const r = (n) => Math.round(n * 10) / 10;
+
+  const eEl = document.getElementById('cop-total-est');   if (eEl) eEl.textContent = r(est) + ' g';
+  const rEl = document.getElementById('cop-total-real');  if (rEl) rEl.textContent = r(real) + ' g';
+  const dEl = document.getElementById('cop-total-dif');
+  if (dEl) {
+    if (Math.abs(dif) < 0.05) { dEl.textContent = '—'; dEl.style.color = 'var(--text3)'; }
+    else {
+      dEl.textContent = (dif > 0 ? '+' : '') + r(dif) + ' g';
+      dEl.style.color = dif > 0 ? 'var(--red)' : 'var(--green)';
     }
+  }
+}
+
+// Mostra se o horário informado configura atraso
+function updateCopAtrasoInfo() {
+  const box = document.getElementById('cop-atraso-info');
+  if (!box || !_copOp) return;
+  const d = document.getElementById('cop-date')?.value;
+  const t = document.getElementById('cop-time')?.value;
+  if (!d || !_copOp._previsaoFim) { box.style.display = 'none'; return; }
+  const fim = new Date(`${d}T${t || '12:00'}:00`);
+  const prev = new Date(_copOp._previsaoFim);
+  const difMin = Math.round((fim - prev) / 60000);
+  if (difMin > 0) {
+    const s = difMin >= 60 ? `${Math.floor(difMin/60)}h ${difMin%60}min` : `${difMin}min`;
+    box.style.display = 'block';
+    box.style.background = 'rgba(239,68,68,.1)';
+    box.style.border = '1px solid rgba(239,68,68,.3)';
+    box.style.color = 'var(--red)';
+    box.innerHTML = `<i class="ti ti-clock-exclamation"></i> Atraso de <b>${s}</b> em relação à previsão (${prev.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}). O motivo será solicitado ao concluir.`;
+  } else {
+    box.style.display = 'block';
+    box.style.background = 'rgba(34,197,94,.1)';
+    box.style.border = '1px solid rgba(34,197,94,.3)';
+    box.style.color = 'var(--green)';
+    box.innerHTML = `<i class="ti ti-check"></i> Dentro do prazo previsto.`;
+  }
+}
+
+async function confirmCompleteOP() {
+  const op = _copOp;
+  if (!op || !sb) return;
+
+  const d = document.getElementById('cop-date').value;
+  const t = document.getElementById('cop-time').value;
+  if (!d) { await showAlertPopup('Campo obrigatório', 'Informe a data de término.'); return; }
+  const fimReal = new Date(`${d}T${t || '12:00'}:00`);
+  const obs = document.getElementById('cop-obs').value.trim();
+  const gramasTotal = _copPartes.reduce((s,p) => s + (Number(p.real)||0), 0);
+
+  // Atraso: pede o motivo se passou da previsão
+  let motivoAtraso = null;
+  if (op._previsaoFim && fimReal > new Date(op._previsaoFim)) {
+    const difMin = Math.round((fimReal - new Date(op._previsaoFim)) / 60000);
+    const s = difMin >= 60 ? `${Math.floor(difMin/60)}h ${difMin%60}min` : `${difMin}min`;
+    motivoAtraso = prompt(`Esta OP atrasou ${s}.\n\nQual foi o motivo? (opcional — ajuda a identificar padrões)`, '');
+    if (motivoAtraso === null) motivoAtraso = '';
   }
 
   try {
-    // Atualiza a produção
     await sb.from('producao').update({
-      status: 'concluido', consumido_g: gramas, fim: agoraFim.toISOString(),
-      motivo_atraso: motivoAtraso || null
+      status: 'concluido',
+      consumido_g: Math.round(gramasTotal),
+      fim: fimReal.toISOString(),
+      motivo_atraso: motivoAtraso || null,
+      consumo_partes: _copPartes.map(p => ({
+        cor: p.cor, tipo: p.tipo, marca: p.marca, filamento_id: p.filamento_id,
+        estimado: p.estimado, real: p.real
+      })),
+      observacoes: obs || op.obs || null,
     }).eq('id', op._uuid);
 
-    // ══ BAIXA DE ESTOQUE COM FIFO ══
-    // Para partes com filamento_id: baixa direta (por ID)
-    // Para partes sem filamento_id: usa FIFO por tipo+cor+marca (mais antigo primeiro)
-    // Para o modo simples: baixa do filamento único, FIFO na cor/tipo se sem ID
-    let baixaOk = false;
-    const logsBaixa = [];
-
-    try {
-      if (op.pedido_id) {
-        const { data: pedDB } = await sb.from('pedidos').select('orcamento_id').eq('id', op.pedido_id).single();
-        if (pedDB && pedDB.orcamento_id) {
-          const { data: orcDB } = await sb.from('orcamentos')
-            .select('modo_impressao, filamentos_multipartes, peso_g, filamento_tipo, filamento_marca, filamento_cor')
-            .eq('id', pedDB.orcamento_id).single();
-
-          if (orcDB && orcDB.modo_impressao === 'multipartes' && Array.isArray(orcDB.filamentos_multipartes) && orcDB.filamentos_multipartes.length) {
-            // ── Modo multipartes: distribui o consumo real proporcional a cada parte ──
-            const totalEstimado = orcDB.filamentos_multipartes.reduce((s,p) => s + (Number(p.gramas)||0), 0) || 1;
-
-            for (const parte of orcDB.filamentos_multipartes) {
-              const proporcao = (Number(parte.gramas)||0) / totalEstimado;
-              const gramasParte = Math.max(1, Math.round(gramas * proporcao));
-              if (gramasParte <= 0) continue;
-
-              if (parte.filamento_id) {
-                // Tem ID: baixa direto
-                const { data: novoEst, error: e1 } = await sb.rpc('baixar_estoque_filamento',
-                  { p_filamento_id: parte.filamento_id, p_gramas: gramasParte });
-                if (!e1) logsBaixa.push(`${parte.cor||parte.tipo}: -${gramasParte}g (${novoEst}g restantes)`);
-              } else if (parte.tipo) {
-                // Sem ID: usa FIFO por tipo+cor+marca
-                const { data: fifoRes, error: e2 } = await sb.rpc('baixar_estoque_fifo', {
-                  p_tipo: parte.tipo, p_cor: parte.cor || '', p_marca: parte.marca || '', p_gramas: gramasParte
-                });
-                if (!e2 && fifoRes && fifoRes.length) {
-                  const total = fifoRes.reduce((s,r)=>s+(r.descontado||0),0);
-                  logsBaixa.push(`${parte.cor||parte.tipo}: -${total}g via FIFO`);
-                } else if (!e2) {
-                  logsBaixa.push(`${parte.cor||parte.tipo}: sem estoque disponível`);
-                }
-              }
-            }
-            baixaOk = true;
-          } else if (orcDB && orcDB.modo_impressao !== 'multipartes') {
-            // ── Modo simples: baixa do filamento do orçamento ──
-            if (op.filamento_id) {
-              const { data: novoEst, error: e3 } = await sb.rpc('baixar_estoque_filamento',
-                { p_filamento_id: op.filamento_id, p_gramas: gramas });
-              if (!e3) logsBaixa.push(`${op.filament}: -${gramas}g (${novoEst}g restantes)`);
-            } else if (orcDB.filamento_tipo) {
-              // Sem ID: FIFO pelo tipo+cor do orçamento
-              const { data: fifoRes, error: e4 } = await sb.rpc('baixar_estoque_fifo', {
-                p_tipo: orcDB.filamento_tipo, p_cor: orcDB.filamento_cor||'', p_marca: orcDB.filamento_marca||'', p_gramas: gramas
-              });
-              if (!e4 && fifoRes && fifoRes.length) logsBaixa.push(`${orcDB.filamento_tipo}: -${gramas}g via FIFO`);
-            }
-            baixaOk = true;
-          }
-        }
+    // ══ Baixa de estoque pelo valor REAL informado em cada cor ══
+    const logs = [];
+    for (const p of _copPartes) {
+      const g = Number(p.real) || 0;
+      if (g <= 0) continue;
+      if (p.filamento_id) {
+        const { data: novo, error } = await sb.rpc('baixar_estoque_filamento',
+          { p_filamento_id: p.filamento_id, p_gramas: g });
+        if (!error) logs.push(`${p.cor}: -${g}g (${novo}g restantes)`);
+      } else if (p.tipo) {
+        const { data: fifo, error } = await sb.rpc('baixar_estoque_fifo',
+          { p_tipo: p.tipo, p_cor: p.cor || '', p_marca: p.marca || '', p_gramas: g });
+        if (!error && fifo && fifo.length) {
+          const tot = fifo.reduce((s,r) => s + (r.descontado||0), 0);
+          logs.push(`${p.cor}: -${tot}g via FIFO`);
+        } else if (!error) logs.push(`${p.cor}: sem estoque`);
       }
-    } catch(e) { console.warn('Erro na baixa de estoque:', e); }
-
-    // Fallback final: baixa direto do filamento vinculado à OP
-    if (!baixaOk && op.filamento_id && gramas > 0) {
-      const { data: novoEstoque, error: stkErr } = await sb.rpc('baixar_estoque_filamento',
-        { p_filamento_id: op.filamento_id, p_gramas: gramas });
-      if (!stkErr) { logsBaixa.push(`${op.filament}: ${novoEstoque}g restantes`); baixaOk = true; }
     }
 
-    const logTxt = logsBaixa.length ? logsBaixa.join(' · ') : 'sem filamentos vinculados';
-    showToast(`${op.id} concluída. ${logTxt}`);
+    // Histórico
+    const detalhe = _copPartes.map(p => `${p.cor}: ${p.real}g (est. ${p.estimado}g)`).join(' · ');
+    await logOPHistory(op._uuid, op.status, 'Concluído', 'conclusao',
+      `Consumo real — ${detalhe}.${obs ? ' Obs: ' + obs : ''}`);
+    if (motivoAtraso) {
+      await logOPHistory(op._uuid, null, null, 'atraso', `Atraso: ${motivoAtraso}`);
+    }
 
-    // Move o pedido vinculado para "Pós-proc." no kanban
-    if (op.pedido_id && sb) {
+    // Move o pedido para pós-processamento
+    if (op.pedido_id) {
       try {
         await sb.from('pedidos').update({ status: 'pos_processamento' }).eq('id', op.pedido_id);
         await sb.from('pedido_historico').insert({
@@ -6916,10 +7109,142 @@ async function completeProduction(opUuidOrId) {
       } catch(e){}
     }
 
+    closeModal('modal-complete-op');
+    closeModal('modal-op-detail');
+    showToast(`${op.id} concluída. ${logs.length ? logs.join(' · ') : 'sem filamentos vinculados'}`);
     await loadProductionDB();
-    filamentsData = []; await loadFilamentsForQuote(); // recarrega cache de estoque atualizado
-  } catch (e) {
+    filamentsData = []; await loadFilamentsForQuote();
+  } catch(e) {
     showToast('Erro ao concluir: ' + (e.message || e));
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// REGISTRAR FALHA
+// ══════════════════════════════════════════════════════════
+let _failOp = null;
+
+function openFailOP(opUuidOrId) {
+  const op = productionData.find(x => x._uuid === opUuidOrId || x.id === opUuidOrId);
+  if (!op) return;
+  _failOp = op;
+  document.getElementById('fop-num').textContent = op.id;
+  document.getElementById('fop-sub').textContent = (op.order || '—') + ' · ' + (op.filament || '');
+  document.getElementById('fop-detalhe').value = '';
+  document.getElementById('fop-perdido').value = op.consumedG || 0;
+  document.getElementById('modal-fail-op').style.display = 'flex';
+}
+
+async function confirmFailOP() {
+  const op = _failOp;
+  if (!op || !sb) return;
+  const motivo = document.getElementById('fop-motivo').value;
+  const detalhe = document.getElementById('fop-detalhe').value.trim();
+  const perdido = parseFloat(document.getElementById('fop-perdido').value) || 0;
+  const motivoFull = motivo + (detalhe ? ' — ' + detalhe : '');
+
+  try {
+    await sb.from('producao').update({
+      status: 'falha',
+      motivo_falha: motivoFull,
+      consumido_g: Math.round(perdido),
+      fim: new Date().toISOString(),
+    }).eq('id', op._uuid);
+
+    // Baixa o filamento desperdiçado
+    let logBaixa = '';
+    if (perdido > 0 && op.filamento_id) {
+      const { data: novo, error } = await sb.rpc('baixar_estoque_filamento',
+        { p_filamento_id: op.filamento_id, p_gramas: perdido });
+      if (!error) logBaixa = ` · ${perdido}g baixados (${novo}g restantes)`;
+    }
+
+    await logOPHistory(op._uuid, op.status, 'Falha', 'falha',
+      `${motivoFull}${perdido > 0 ? ` — ${perdido}g perdidos` : ''}`);
+
+    closeModal('modal-fail-op');
+    closeModal('modal-op-detail');
+    showToast(`${op.id} marcada como Falha${logBaixa}`);
+    await loadProductionDB();
+    filamentsData = []; await loadFilamentsForQuote();
+  } catch(e) {
+    showToast('Erro ao registrar falha: ' + (e.message || e));
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// HISTÓRICO DA PRODUÇÃO
+// ══════════════════════════════════════════════════════════
+async function logOPHistory(producaoId, deStatus, paraStatus, evento, nota) {
+  if (!sb || !producaoId) return;
+  try {
+    await sb.from('producao_historico').insert({
+      producao_id: producaoId,
+      de_status: deStatus || null,
+      para_status: paraStatus || null,
+      evento: evento || 'status',
+      nota: nota || null,
+      usuario_id: currentUser ? currentUser.id : null,
+    });
+  } catch(e) { console.warn('Histórico:', e); }
+}
+
+const OPH_EVENTO_INFO = {
+  status:    { icon:'ti-refresh',            cor:'var(--blue)',  label:'Status' },
+  conclusao: { icon:'ti-circle-check',       cor:'var(--green)', label:'Conclusão' },
+  atraso:    { icon:'ti-clock-exclamation',  cor:'var(--red)',   label:'Atraso' },
+  falha:     { icon:'ti-alert-triangle',     cor:'var(--red)',   label:'Falha' },
+  consumo:   { icon:'ti-scale',              cor:'var(--amber)', label:'Consumo' },
+  criacao:   { icon:'ti-plus',               cor:'var(--text3)', label:'Criação' },
+};
+
+async function openOPHistory(opUuidOrId) {
+  const op = productionData.find(x => x._uuid === opUuidOrId || x.id === opUuidOrId);
+  if (!op || !sb) return;
+  const sub = document.getElementById('oph-sub');
+  if (sub) sub.textContent = `${op.id} · ${op.order || '—'} · ${op.filament || ''}`;
+  const list = document.getElementById('oph-list');
+  if (list) list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:14px;text-align:center">Carregando...</div>';
+  document.getElementById('modal-op-history').style.display = 'flex';
+
+  try {
+    const { data } = await sb.from('producao_historico')
+      .select('*').eq('producao_id', op._uuid).order('created_at', { ascending: false });
+
+    // Eventos derivados da própria OP (início, previsão, término)
+    const eventos = [];
+    if (op._inicio) eventos.push({ created_at: op._inicio, evento:'criacao', nota:`Produção iniciada${op.operator ? ' por ' + op.operator : ''}.`, _auto:true });
+    (data || []).forEach(h => eventos.push(h));
+    eventos.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (!eventos.length) {
+      if (list) list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Nenhum registro no histórico ainda.</div>';
+      return;
+    }
+
+    if (list) list.innerHTML = eventos.map((h, i) => {
+      const info = OPH_EVENTO_INFO[h.evento] || OPH_EVENTO_INFO.status;
+      const dt = new Date(h.created_at).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
+      const transicao = (h.de_status && h.para_status) ? `${h.de_status} → ${h.para_status}` : (h.para_status || info.label);
+      const ultimo = i === eventos.length - 1;
+      return `<div style="display:flex;gap:11px">
+        <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:2px solid ${info.cor};display:flex;align-items:center;justify-content:center">
+            <i class="ti ${info.icon}" style="font-size:13px;color:${info.cor}"></i>
+          </div>
+          ${ultimo ? '' : `<div style="width:2px;flex:1;background:var(--border);min-height:14px"></div>`}
+        </div>
+        <div style="flex:1;padding-bottom:${ultimo ? '0' : '14px'};min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;color:${info.cor}">${escapeHtml(transicao)}</span>
+            <span style="font-size:11px;color:var(--text3)">${dt}</span>
+          </div>
+          ${h.nota ? `<div style="font-size:12px;color:var(--text2);margin-top:3px;line-height:1.45">${escapeHtml(h.nota)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    if (list) list.innerHTML = `<div style="color:var(--red);font-size:13px;padding:14px">Erro ao carregar: ${escapeHtml(e.message||String(e))}</div>`;
   }
 }
 
@@ -6977,10 +7302,22 @@ function renderProductionTable() {
       <td>${op.operator}</td>
       <td>${op.start}</td>
       <td>${previsaoHtml}</td>
+      <td>${(() => {
+        if (!op._fim) return '<span style="color:var(--text3)">—</span>';
+        const fimD = new Date(op._fim);
+        const txt = fimD.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' ' +
+                    fimD.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+        if (op._previsaoFim) {
+          const atrasou = fimD > new Date(op._previsaoFim);
+          return `<span style="color:${atrasou ? 'var(--red)' : 'var(--green)'};font-weight:600" title="${atrasou ? 'Concluída com atraso' : 'Concluída no prazo'}">${txt}</span>`;
+        }
+        return `<span style="color:var(--text2)">${txt}</span>`;
+      })()}</td>
       <td>${progressHtml}</td>
       <td><span class="badge ${badgeCls}">${op.status}</span></td>
       <td><div style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="openOPDetail('${op.id}')" title="Ver / editar ordem"><i class="ti ti-eye"></i> Ver</button>
+        <button class="btn btn-secondary btn-sm" onclick="openOPHistory('${op.id}')" title="Histórico da produção"><i class="ti ti-history"></i></button>
         ${(op.status === 'Imprimindo' || op.status === 'Aguardando inspeção') ? `<button class="btn btn-success btn-sm" onclick="completeProduction('${op._uuid || op.id}')" title="Concluir e baixar estoque"><i class="ti ti-check"></i> Concluir</button>` : ''}
         ${op.status === 'Falha' ? `<button class="btn btn-primary btn-sm" onclick="reimpressOP('${op.id}')" title="Criar reimpressão"><i class="ti ti-refresh"></i> Reimprimir</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="deleteOPById('${op.id}')" title="Excluir ordem"><i class="ti ti-trash"></i></button>
@@ -7188,9 +7525,25 @@ function updateOPProgress() {
   renderProductionTable();
 }
 
-function setOPStatus(status) {
+// Altera o status da OP — agora PERSISTE no banco (antes só mudava na memória)
+async function setOPStatus(status) {
   const op = productionData.find(x => x.id === currentOPId);
   if (!op) return;
+
+  // Conclusão e falha têm fluxos próprios (modais com dados reais)
+  if (status === 'Concluído') { closeModal('modal-op-detail'); completeProduction(op.id); return; }
+  if (status === 'Falha')     { closeModal('modal-op-detail'); openFailOP(op.id); return; }
+
+  const anterior = op.status;
+  const dbStatus = PROD_STATUS_TO_DB[status];
+  if (!dbStatus) { showToast('Status inválido.'); return; }
+
+  if (sb && op._uuid) {
+    const { error } = await sb.from('producao').update({ status: dbStatus }).eq('id', op._uuid);
+    if (error) { showToast('Erro ao salvar status: ' + error.message); return; }
+    await logOPHistory(op._uuid, anterior, status, 'status', null);
+  }
+
   op.status = status;
   syncOrderFromOP(op);
   showToast(`${op.id} → ${status}${op.order ? ' · pedido ' + op.order + ' atualizado' : ''}`);
@@ -7198,13 +7551,11 @@ function setOPStatus(status) {
   renderProductionTable();
 }
 
+// Aprovar inspeção → abre o fluxo de conclusão (com consumo real)
 function approveInspectionOP(id) {
   const op = productionData.find(x => x.id === id);
   if (!op) return;
-  op.status = 'Concluído';
-  syncOrderFromOP(op);
-  showToast(op.id + ' aprovado → Concluído' + (op.order ? ' · ' + op.order + ' → Pós-processamento' : ''));
-  renderProductionTable();
+  completeProduction(id);
 }
 
 function reimpressOP(id) {
