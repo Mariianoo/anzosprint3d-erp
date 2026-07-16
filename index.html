@@ -12011,6 +12011,14 @@ async function editQuoteDB(id) {
   editingQuoteId = id;
   refreshQuoteClientOptions();
   if (q.cliente_id) document.getElementById('q-client').value = q.cliente_id;
+  // Garante que modelsData esteja carregado e o <select> tenha as <option>
+  // preenchidas ANTES de tentar selecionar o modelo. Sem isso, se o usuário
+  // abre o Editar direto (sem passar por "Novo Orçamento" ou pela tela de
+  // Modelos 3D antes), o select está vazio e o value abaixo não "gruda" em
+  // nenhuma option — o modelo fica sem carregar e, se salvar, o vínculo
+  // (modelo_id) e a imagem se perdem.
+  if (!modelsData.length) await loadModelsDB();
+  refreshQuoteModelOptions();
   // Restaura o modelo vinculado. CRÍTICO: sem isso o seletor mantém o modelo
   // selecionado anteriormente e o save grava a imagem do modelo errado.
   const modelSelEdit = document.getElementById('q-model');
