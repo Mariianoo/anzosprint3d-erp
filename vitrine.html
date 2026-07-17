@@ -65,7 +65,7 @@ img{display:block}
 .hdr-main{max-width:1280px;margin:0 auto;padding:14px clamp(16px,4vw,40px);display:flex;align-items:center;gap:20px;transition:padding var(--ease)}
 .hdr.shrink .hdr-main{padding-top:9px;padding-bottom:9px}
 .hdr-brand{display:flex;align-items:center;gap:11px;text-decoration:none;flex-shrink:0}
-.hdr-logo{width:40px;height:40px;border-radius:11px;object-fit:cover;background:var(--s2)}
+.hdr-logo{width:50px;height:50px;border-radius:12px;object-fit:cover;background:var(--s2)}
 .hdr-name{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.3px;line-height:1.2}
 .hdr-sub{font-size:11px;color:var(--text3)}
 .hdr-search{flex:1;max-width:560px;position:relative}
@@ -1383,12 +1383,24 @@ async function loadFavorites(){
   const { data } = await sb.from('favoritos').select('modelo_id');
   if(data) favoriteIds=new Set(data.map(f=>f.modelo_id));
 }
-async function toggleFavorite(modeloId){
-  if(!session){ openAuth('login'); return; }
-  if(!myProfile?.cliente_id){
-    await loadMyProfile();
-    if(!myProfile?.cliente_id){ toast('Não consegui preparar sua conta agora. Tenta de novo em instantes.'); return; }
+// Confere se a conta logada é de CLIENTE (favoritos/carrinho dependem de
+// cliente_id). Contas de staff/admin nunca ganham esse vínculo de propósito
+// (senão apareceriam misturadas na lista de Clientes do ERP) — por isso a
+// mensagem avisa isso especificamente, em vez de um erro genérico.
+async function ensureCustomerAccount(){
+  if(!session){ openAuth('login'); return false; }
+  if(myProfile?.cliente_id) return true;
+  if(myProfile && myProfile.perfil && myProfile.perfil!=='cliente'){
+    toast('Essa ação é só para conta de cliente — esta conta é de equipe ('+myProfile.perfil+'). Teste com uma conta criada pelo Cadastro.');
+    return false;
   }
+  await loadMyProfile();
+  if(!myProfile?.cliente_id){ toast('Não consegui preparar sua conta agora. Tenta de novo em instantes.'); return false; }
+  return true;
+}
+
+async function toggleFavorite(modeloId){
+  if(!(await ensureCustomerAccount())) return;
   const isFav=favoriteIds.has(modeloId);
   if(isFav){
     const { error } = await sb.from('favoritos').delete().eq('modelo_id', modeloId).eq('cliente_id', myProfile.cliente_id);
@@ -1436,11 +1448,7 @@ function updateCartBadge(){
   badge.style.display = count>0 ? 'flex' : 'none';
 }
 async function addToCart(modeloId, qty){
-  if(!session){ openAuth('login'); return; }
-  if(!myProfile?.cliente_id){
-    await loadMyProfile();
-    if(!myProfile?.cliente_id){ toast('Não consegui preparar sua conta agora.'); return; }
-  }
+  if(!(await ensureCustomerAccount())) return;
   qty = qty>0 ? qty : 1;
   const existing=cartItems.find(i=>i.modelo_id===modeloId);
   if(existing){
