@@ -6491,6 +6491,11 @@ async function printShippingLabel() {
   .recv { padding:2.5mm; font-size:7.5pt; border-top:1px solid #ccc; margin-top:auto; }
   .recv .line { display:inline-block; border-bottom:1px solid #000; }
   .foot { font-size:6pt; text-align:center; color:#666; padding:1mm 2mm 2mm; }
+  .print-btn-bar { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid #ddd; padding:10px; display:flex; gap:8px; justify-content:center; box-shadow:0 -2px 10px rgba(0,0,0,.1); }
+  .print-btn-bar button { font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:bold; padding:10px 24px; border-radius:8px; border:none; cursor:pointer; }
+  .print-btn-bar button:not(.ghost) { background:${ACCENT}; color:#fff; }
+  .print-btn-bar button.ghost { background:#eee; color:#333; }
+  @media print { .print-btn-bar { display:none !important; } }
 </style></head>
 <body>
   <div class="label">
@@ -6557,10 +6562,13 @@ async function printShippingLabel() {
       <div class="foot">ⓘ Etiqueta interna ANZO'S Print 3D — não substitui etiqueta dos Correios/transportadora.</div>
     </div>
   </div>
-  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 350); };<\/script>
+  <div class="print-btn-bar">
+    <button onclick="window.print()">🖨️ Imprimir</button>
+    <button onclick="window.close()" class="ghost">Fechar</button>
+  </div>
 </body></html>`;
 
-  const w = window.open('', '_blank', 'width=440,height=660');
+  const w = window.open('', '_blank', 'width=520,height=800');
   if (!w) { showToast('Permita pop-ups para imprimir a etiqueta.'); return; }
   w.document.write(html);
   w.document.close();
