@@ -364,6 +364,9 @@ select.filter{padding:7px 12px;border:1px solid var(--border2);border-radius:var
 .kanban{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px}
 .kanban-col{min-width:230px;flex:0 0 230px}
 .kanban-col-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--radius) var(--radius) 0 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em}
+.col-resizer{position:absolute;right:-4px;top:0;bottom:0;width:8px;cursor:col-resize;user-select:none;z-index:2}
+.col-resizer:hover{background:rgba(59,130,246,.25)}
+.col-resizer.resizing{background:rgba(59,130,246,.4)}
 .kanban-col-stripe{height:4px;margin-bottom:8px}
 .kanban-col-body{display:flex;flex-direction:column;gap:8px}
 .kanban-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:12px}
@@ -3533,14 +3536,22 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
           <option value="value">Maior valor</option>
         </select>
       </div>
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap" style="overflow-x:auto">
+        <table id="do-table" style="table-layout:fixed;width:100%;min-width:760px">
+          <colgroup>
+            <col id="do-col-0" style="width:100px">
+            <col id="do-col-1" style="width:80px">
+            <col id="do-col-2" style="width:170px">
+            <col id="do-col-3" style="width:260px">
+            <col id="do-col-4" style="width:120px">
+            <col id="do-col-5" style="width:110px">
+          </colgroup>
           <thead><tr>
-            <th><i class="ti ti-hash"></i> Pedido</th>
-            <th><i class="ti ti-tool"></i> OS</th>
-            <th><i class="ti ti-user"></i> Cliente</th>
-            <th><i class="ti ti-file-description"></i> Descrição</th>
-            <th><i class="ti ti-calendar"></i> Data produção</th>
+            <th style="position:relative"><i class="ti ti-hash"></i> Pedido<span class="col-resizer" onmousedown="startColResize(event,0)" title="Arraste para redimensionar"></span></th>
+            <th style="position:relative"><i class="ti ti-tool"></i> OS<span class="col-resizer" onmousedown="startColResize(event,1)" title="Arraste para redimensionar"></span></th>
+            <th style="position:relative"><i class="ti ti-user"></i> Cliente<span class="col-resizer" onmousedown="startColResize(event,2)" title="Arraste para redimensionar"></span></th>
+            <th style="position:relative"><i class="ti ti-file-description"></i> Descrição<span class="col-resizer" onmousedown="startColResize(event,3)" title="Arraste para redimensionar"></span></th>
+            <th style="position:relative"><i class="ti ti-calendar"></i> Data produção<span class="col-resizer" onmousedown="startColResize(event,4)" title="Arraste para redimensionar"></span></th>
             <th style="text-align:right"><i class="ti ti-currency-dollar"></i> Valor</th>
           </tr></thead>
           <tbody id="do-tbody"></tbody>
@@ -5494,6 +5505,31 @@ function renderDeliveredOrdersByClient() {
     </div>`;
 }
 
+// Redimensionar colunas da tabela (arrastar a borda direita do cabeçalho)
+let colResizeState = null;
+function startColResize(e, idx) {
+  e.preventDefault();
+  const col = document.getElementById('do-col-' + idx);
+  if (!col) return;
+  colResizeState = { idx, startX: e.clientX, startWidth: col.getBoundingClientRect().width };
+  e.target.classList.add('resizing');
+  document.addEventListener('mousemove', onColResizeMove);
+  document.addEventListener('mouseup', stopColResize);
+}
+function onColResizeMove(e) {
+  if (!colResizeState) return;
+  const col = document.getElementById('do-col-' + colResizeState.idx);
+  if (!col) return;
+  const newWidth = Math.max(50, colResizeState.startWidth + (e.clientX - colResizeState.startX));
+  col.style.width = newWidth + 'px';
+}
+function stopColResize() {
+  colResizeState = null;
+  document.querySelectorAll('.col-resizer.resizing').forEach(el => el.classList.remove('resizing'));
+  document.removeEventListener('mousemove', onColResizeMove);
+  document.removeEventListener('mouseup', stopColResize);
+}
+
 function renderDeliveredOrdersList() {
   const tbody = document.getElementById('do-tbody');
   const emptyEl = document.getElementById('do-empty');
@@ -5525,7 +5561,7 @@ function renderDeliveredOrdersList() {
       <td><b>${escapeHtml(o.id)}</b></td>
       <td>${o.os !== '—' ? `<span class="badge badge-blue">${escapeHtml(o.os)}</span>` : '—'}</td>
       <td>${escapeHtml(o.client || '—')}</td>
-      <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(o.desc || '')}">${escapeHtml(o.desc || '—')}</td>
+      <td style="white-space:normal;word-break:break-word" title="${escapeHtml(o.desc || '')}">${escapeHtml(o.desc || '—')}</td>
       <td>${escapeHtml(o.dataProducao)}</td>
       <td style="text-align:right;font-weight:700">${formatCurrency(o.value || 0)}</td>
     </tr>`).join('');
@@ -5690,21 +5726,16 @@ function renderKanban() {
         body.insertAdjacentHTML('afterbegin', `<div style="padding:20px;text-align:center;font-size:12px;color:var(--text3)">Nenhum pedido entregue</div>`);
         return;
       }
-      orders.forEach(o => {
-        const card = document.createElement('div');
-        card.className = 'kanban-card';
-        card.style.cursor = 'pointer';
-        card.innerHTML = `
-          <div class="kanban-card-title">${o.id} — ${escapeHtml(o.client)}</div>
-          <div class="kanban-card-meta">${escapeHtml(o.desc)}<br>R$ ${o.value.toFixed(2).replace('.',',')} · entregue ${o.deadline}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-            <span class="badge badge-green" style="font-size:10px"><i class="ti ti-check"></i> Entregue</span>
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openOrderDetail('${o.id}')" style="padding:3px 8px;font-size:11px"><i class="ti ti-eye"></i> Ver</button>
-          </div>`;
-        card.onclick = () => openOrderDetail(o.id);
-        makeDraggableCard(card, o.id);
-        body.insertBefore(card, body.lastChild);
-      });
+      // Não lista mais card por card aqui — a coluna ficaria enorme com o tempo.
+      // O histórico completo mora no modal "Pedidos Entregues" (botão no cabeçalho).
+      body.insertAdjacentHTML('afterbegin', `
+        <div style="padding:28px 14px;text-align:center">
+          <i class="ti ti-package-export" style="font-size:30px;color:#16a34a;display:block;margin-bottom:8px"></i>
+          <div style="font-size:22px;font-weight:800;color:#166534">${orders.length}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:14px">pedido${orders.length !== 1 ? 's' : ''} entregue${orders.length !== 1 ? 's' : ''}</div>
+          <button class="btn btn-secondary btn-sm" onclick="openDeliveredOrdersModal()"><i class="ti ti-list-details"></i> Ver todos</button>
+          <div style="font-size:10px;color:var(--text3);margin-top:16px">Arraste um card aqui pra marcar como entregue</div>
+        </div>`);
       return;
     }
 
