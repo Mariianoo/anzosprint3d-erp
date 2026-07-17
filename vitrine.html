@@ -1455,8 +1455,8 @@ function renderCartDrawer(){
 
 // Mensagem consolidada do carrinho — função NOVA e separada de buildMsg().
 // buildMsg() (usada pela página do produto) continua 100% como estava.
-function buildCartMsg(){
-  if(!cartItems.length) return null;
+function buildCartMsg(numeros){
+  if(!cartItems.length && !numeros) return null;
   let subtotal=0;
   let t=`Olá! Quero fazer um pedido com estes itens 🛒\n\n`;
   cartItems.forEach((item,i)=>{
@@ -1466,14 +1466,32 @@ function buildCartMsg(){
     if(m.preco_vitrine!=null) subtotal+=m.preco_vitrine*item.quantidade;
   });
   t+=`\n💰 *Subtotal estimado:* ${brl(subtotal)}\n`;
+  if(numeros && numeros.length) t+=`\n🧾 *Orçamento(s) gerado(s):* ${numeros.join(', ')}\n`;
   t+=`\n👤 *Meus dados:*\nNome: ${myProfile?.nome||''}\nWhatsApp: ${myProfile?.telefone||''}`;
   return t;
 }
-function checkoutCart(){
-  const t=buildCartMsg();
-  if(!t){ toast('Seu carrinho está vazio.'); return; }
+async function checkoutCart(){
+  if(!cartItems.length){ toast('Seu carrinho está vazio.'); return; }
   const num=(empresa.whatsapp||empresa.telefone||'').replace(/\D/g,'');
   if(!num){ toast('Número da loja não configurado'); return; }
+
+  let numerosGerados=[];
+  try{
+    const { data, error } = await sb.rpc('finalizar_carrinho_como_orcamento');
+    if(!error && data){ numerosGerados = data.map(r=>r.numero); }
+  }catch(e){}
+  // Mesmo se a geração automática do orçamento falhar por algum motivo,
+  // a mensagem ainda é enviada — o cliente nunca fica travado no meio do
+  // checkout por causa disso.
+
+  const t=buildCartMsg(numerosGerados);
+  if(!t){ toast('Seu carrinho está vazio.'); return; }
+
+  if(numerosGerados.length){
+    cartItems=[]; updateCartBadge(); renderCartDrawer();
+    toast('Pedido registrado! Já aparece em "Meus orçamentos".');
+  }
+
   window.open('https://wa.me/'+num+'?text='+encodeURIComponent(t),'_blank');
 }
 
