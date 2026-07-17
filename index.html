@@ -11951,6 +11951,13 @@ async function saveCalculatorQuote() {
           custo_total: p._custo || 0
         }))
       : [],
+    // Detalhamento da mão de obra (horas/valor-hora por item), para restaurar
+    // exatamente ao editar — antes só o total (custo_mao_obra) era salvo.
+    mao_obra: [
+      { item: 'modelagem',  horas: parseFloat(document.getElementById('q-lab-model-h').value)  || 0, valor_hora: parseFloat(document.getElementById('q-lab-model-r').value)  || 0 },
+      { item: 'acabamento', horas: parseFloat(document.getElementById('q-lab-finish-h').value) || 0, valor_hora: parseFloat(document.getElementById('q-lab-finish-r').value) || 0 },
+      { item: 'pintura',    horas: parseFloat(document.getElementById('q-lab-paint-h').value)  || 0, valor_hora: parseFloat(document.getElementById('q-lab-paint-r').value)  || 0 },
+    ],
   };
 
   const btn = document.getElementById('quote-save-btn');
@@ -12054,6 +12061,46 @@ async function editQuoteDB(id) {
   // Restaura embalagem e brinde
   const pkgEl = document.getElementById('q-pkg'); if (pkgEl) pkgEl.value = q.custo_embalagem || 0;
   const brindeEl = document.getElementById('q-brinde'); if (brindeEl) brindeEl.checked = q.eh_brinde || false;
+  // Restaura mão de obra (modelagem/acabamento/pintura). CRÍTICO: sem isso os
+  // campos ficavam com o que sobrou de uma edição anterior (ou zerados), e o
+  // total do orçamento mudava sozinho ao abrir para editar — o custo de mão
+  // de obra salvo (custo_mao_obra) simplesmente desaparecia do cálculo.
+  const laborFields = [
+    { key: 'modelagem',  h: 'q-lab-model-h',  r: 'q-lab-model-r'  },
+    { key: 'acabamento', h: 'q-lab-finish-h', r: 'q-lab-finish-r' },
+    { key: 'pintura',    h: 'q-lab-paint-h',  r: 'q-lab-paint-r'  },
+  ];
+  if (Array.isArray(q.mao_obra) && q.mao_obra.length) {
+    laborFields.forEach(lf => {
+      const item = q.mao_obra.find(m => m.item === lf.key) || {};
+      const hEl = document.getElementById(lf.h); if (hEl) hEl.value = item.horas || 0;
+      const rEl = document.getElementById(lf.r); if (rEl) rEl.value = item.valor_hora || 0;
+    });
+  } else {
+    // Orçamentos salvos antes desta correção não têm o detalhamento por item,
+    // só o total (custo_mao_obra). Joga o total em "Modelagem" pra não perder
+    // o valor — dá pra reorganizar manualmente entre os itens se precisar.
+    laborFields.forEach(lf => { const hEl = document.getElementById(lf.h); if (hEl) hEl.value = 0; });
+    document.getElementById('q-lab-model-h').value = q.custo_mao_obra > 0 ? 1 : 0;
+    document.getElementById('q-lab-model-r').value = q.custo_mao_obra || 0;
+  }
+  // Restaura pós-processamento (select com valores fixos: 0/20/50/80)
+  const postEl = document.getElementById('q-post');
+  if (postEl) {
+    const match = [...postEl.options].find(o => Number(o.value) === Number(q.custo_pos_proc || 0));
+    postEl.value = match ? match.value : '0';
+  }
+  // Taxas de marketplace/outros não têm coluna própria salva (só entram
+  // somadas em custo_operacional junto com energia/desgaste, que recalculam
+  // sozinhos a partir das horas) — zera pra não herdar valor de outra edição.
+  const mktEl = document.getElementById('q-op-marketplace'); if (mktEl) mktEl.value = 0;
+  const otherEl = document.getElementById('q-op-other'); if (otherEl) otherEl.value = 0;
+  opEnergyManual = false; opWearManual = false;
+  // Restaura o frete (modalidade específica não é salva, então volta como "Outro")
+  const shipValEl = document.getElementById('q-ship-value'); if (shipValEl) shipValEl.value = q.custo_frete || 0;
+  const shipMethodEl = document.getElementById('q-ship-method'); if (shipMethodEl) shipMethodEl.value = 'custom';
+  const shipPassEl = document.getElementById('q-ship-passthrough'); if (shipPassEl) shipPassEl.value = '1';
+  shipManual = true;
   // Restaura a seleção de filamento (tipo → marca → cor)
   await loadFilamentsForQuote();
   refreshQuoteFilamentTypes();
