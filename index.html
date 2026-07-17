@@ -1604,7 +1604,13 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <div class="kanban-col-body" id="kcol-finalizado"></div>
     </div>
     <div class="kanban-col" id="kanban-col-entregue">
-      <div class="kanban-col-header" style="background:#f0fdf4;color:#166534"><span>Entregue</span><span class="badge badge-green" id="kcount-entregue">34</span></div>
+      <div class="kanban-col-header" style="background:#f0fdf4;color:#166534">
+        <span>Entregue</span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <button onclick="openDeliveredOrdersModal()" title="Ver todos os pedidos entregues" style="background:rgba(255,255,255,.6);border:1px solid rgba(22,101,52,.25);color:#166534;border-radius:6px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-list-details" style="font-size:13px"></i></button>
+          <span class="badge badge-green" id="kcount-entregue">34</span>
+        </span>
+      </div>
       <div class="kanban-col-stripe" style="background:#22c55e"></div>
       <div class="kanban-col-body" id="kcol-entregue"></div>
     </div>
@@ -3503,7 +3509,47 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
   </div>
 </div>
 
-<!-- ═══ MODAL: NOVA ORDEM DE PRODUÇÃO ═══ -->
+<!-- ═══ MODAL: PEDIDOS ENTREGUES ═══ -->
+<div id="modal-delivered-orders" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-delivered-orders')">
+  <div class="modal" style="width:min(960px,92vw);max-height:88vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div>
+        <h3 style="margin:0"><i class="ti ti-package-export" style="color:#16a34a;margin-right:6px"></i>Pedidos Entregues</h3>
+        <p style="font-size:12px;color:var(--text2);margin:2px 0 0">Histórico completo — sem precisar rolar o Kanban</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-delivered-orders')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="overflow-y:auto;padding:0 2px">
+      <div class="grid-5" id="do-metrics" style="margin-bottom:16px"></div>
+      <div id="do-by-client" style="margin-bottom:16px"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <div class="search-input" style="flex:1;min-width:220px">
+          <i class="ti ti-search"></i>
+          <input type="text" id="do-search" placeholder="Buscar por cliente, número ou descrição..." oninput="renderDeliveredOrdersList()">
+        </div>
+        <select id="do-sort" class="fi" onchange="renderDeliveredOrdersList()" style="width:auto">
+          <option value="recent">Mais recentes</option>
+          <option value="client">Cliente (A-Z)</option>
+          <option value="value">Maior valor</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th><i class="ti ti-hash"></i> Pedido</th>
+            <th><i class="ti ti-tool"></i> OS</th>
+            <th><i class="ti ti-user"></i> Cliente</th>
+            <th><i class="ti ti-file-description"></i> Descrição</th>
+            <th><i class="ti ti-calendar"></i> Data produção</th>
+            <th style="text-align:right"><i class="ti ti-currency-dollar"></i> Valor</th>
+          </tr></thead>
+          <tbody id="do-tbody"></tbody>
+        </table>
+      </div>
+      <div id="do-empty" style="display:none;text-align:center;color:var(--text3);padding:30px"><i class="ti ti-package-off" style="font-size:32px;display:block;margin-bottom:8px"></i>Nenhum pedido entregue ainda.</div>
+    </div>
+  </div>
+</div>
 <div id="modal-new-op" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-new-op')">
   <div class="modal" style="width:600px">
     <div class="modal-header">
@@ -5372,6 +5418,119 @@ async function refreshOrdersBadge() {
   else badge.style.display = 'none';
 }
 
+// ══════════════════════════════════════════════
+// PEDIDOS ENTREGUES — modal com histórico completo
+// ══════════════════════════════════════════════
+let deliveredOrdersFull = [];
+
+async function openDeliveredOrdersModal() {
+  openModal('modal-delivered-orders');
+  const tbody = document.getElementById('do-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px"><i class="ti ti-loader"></i> Carregando...</td></tr>';
+
+  const entregues = ordersData.filter(o => o.status === 'Entregue');
+  // Busca a Ordem de Produção mais recente de cada pedido, para trazer o
+  // número da OS e a data em que a produção começou.
+  let producaoMap = {};
+  if (sb && entregues.length) {
+    try {
+      const ids = entregues.map(o => o._uuid).filter(Boolean);
+      const { data } = await sb.from('producao').select('numero,pedido_id,inicio')
+        .in('pedido_id', ids).order('inicio', { ascending: false });
+      (data || []).forEach(p => { if (!producaoMap[p.pedido_id]) producaoMap[p.pedido_id] = p; });
+    } catch(e){}
+  }
+
+  deliveredOrdersFull = entregues.map(o => ({
+    ...o,
+    os: producaoMap[o._uuid]?.numero || '—',
+    dataProducaoRaw: producaoMap[o._uuid]?.inicio || null,
+    dataProducao: producaoMap[o._uuid]?.inicio ? isoToBR(producaoMap[o._uuid].inicio) : '—',
+  }));
+
+  renderDeliveredOrdersMetrics();
+  renderDeliveredOrdersByClient();
+  document.getElementById('do-search').value = '';
+  document.getElementById('do-sort').value = 'recent';
+  renderDeliveredOrdersList();
+}
+
+function renderDeliveredOrdersMetrics() {
+  const box = document.getElementById('do-metrics');
+  if (!box) return;
+  const total = deliveredOrdersFull.length;
+  const valorTotal = deliveredOrdersFull.reduce((s, o) => s + (o.value || 0), 0);
+  const clientesUnicos = new Set(deliveredOrdersFull.map(o => o.cliente_id || o.client)).size;
+  const ticketMedio = total ? valorTotal / total : 0;
+  box.innerHTML = `
+    <div class="metric-card"><div class="metric-label"><i class="ti ti-package"></i> Total entregues</div><div class="metric-value">${total}</div></div>
+    <div class="metric-card"><div class="metric-label"><i class="ti ti-cash"></i> Valor total</div><div class="metric-value" style="color:#16a34a">${formatCurrency(valorTotal)}</div></div>
+    <div class="metric-card"><div class="metric-label"><i class="ti ti-users"></i> Clientes únicos</div><div class="metric-value">${clientesUnicos}</div></div>
+    <div class="metric-card"><div class="metric-label"><i class="ti ti-receipt"></i> Ticket médio</div><div class="metric-value">${formatCurrency(ticketMedio)}</div></div>
+  `;
+}
+
+function renderDeliveredOrdersByClient() {
+  const box = document.getElementById('do-by-client');
+  if (!box) return;
+  const porCliente = {};
+  deliveredOrdersFull.forEach(o => {
+    const nome = o.client || 'Sem cliente';
+    if (!porCliente[nome]) porCliente[nome] = { qtd: 0, valor: 0 };
+    porCliente[nome].qtd++;
+    porCliente[nome].valor += (o.value || 0);
+  });
+  const ranking = Object.entries(porCliente).sort((a, b) => b[1].qtd - a[1].qtd).slice(0, 8);
+  if (!ranking.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px"><i class="ti ti-crown"></i> Pedidos por cliente</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${ranking.map(([nome, d]) => `
+        <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 12px 6px 8px">
+          <span style="width:24px;height:24px;border-radius:50%;background:#f0fdf4;color:#166534;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">${d.qtd}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text)">${escapeHtml(nome)}</span>
+          <span style="font-size:11px;color:var(--text3)">${formatCurrency(d.valor)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderDeliveredOrdersList() {
+  const tbody = document.getElementById('do-tbody');
+  const emptyEl = document.getElementById('do-empty');
+  if (!tbody) return;
+  const q = (document.getElementById('do-search')?.value || '').toLowerCase().trim();
+  const sortMode = document.getElementById('do-sort')?.value || 'recent';
+
+  let rows = deliveredOrdersFull.filter(o =>
+    !q || (o.client || '').toLowerCase().includes(q) || (o.id || '').toLowerCase().includes(q) || (o.desc || '').toLowerCase().includes(q)
+  );
+  if (sortMode === 'client') rows = [...rows].sort((a, b) => (a.client || '').localeCompare(b.client || ''));
+  else if (sortMode === 'value') rows = [...rows].sort((a, b) => (b.value || 0) - (a.value || 0));
+  else rows = [...rows].sort((a, b) => new Date(b.dataProducaoRaw || 0) - new Date(a.dataProducaoRaw || 0));
+
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    if (emptyEl) {
+      emptyEl.style.display = 'block';
+      emptyEl.innerHTML = deliveredOrdersFull.length
+        ? '<i class="ti ti-search-off" style="font-size:32px;display:block;margin-bottom:8px"></i>Nenhum resultado para essa busca.'
+        : '<i class="ti ti-package-off" style="font-size:32px;display:block;margin-bottom:8px"></i>Nenhum pedido entregue ainda.';
+    }
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  tbody.innerHTML = rows.map(o => `
+    <tr>
+      <td><b>${escapeHtml(o.id)}</b></td>
+      <td>${o.os !== '—' ? `<span class="badge badge-blue">${escapeHtml(o.os)}</span>` : '—'}</td>
+      <td>${escapeHtml(o.client || '—')}</td>
+      <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(o.desc || '')}">${escapeHtml(o.desc || '—')}</td>
+      <td>${escapeHtml(o.dataProducao)}</td>
+      <td style="text-align:right;font-weight:700">${formatCurrency(o.value || 0)}</td>
+    </tr>`).join('');
+}
+
 // ── Kanban Drag & Drop state ──
 let dragOrderId = null;
 let dragSourceStatus = null;
@@ -5756,7 +5915,7 @@ const STATUS_BADGE_ORDER = {
   'Finalizado':'badge-purple','Entregue':'badge-green','Atrasado':'badge-red','Devolução':'badge-red'
 };
 
-function changeOrderStatus(delta) {
+async function changeOrderStatus(delta) {
   const o = ordersData.find(x => x.id === currentOrderId);
   if (!o) return;
   const curIdx = STATUS_FLOW.indexOf(o.status === 'Atrasado' ? 'Produção' : o.status);
@@ -5772,13 +5931,16 @@ function changeOrderStatus(delta) {
     to: o.status,
     note: ''
   });
+  // Grava de verdade no banco (antes só mudava em memória e "voltava" ao recarregar a página)
+  await persistOrderStatus(o._uuid, STATUS_LABEL_TO_DB[o.status], STATUS_LABEL_TO_DB[prevStatus]);
   showToast(`${o.id} → ${o.status} · registrado por ${getLoggedUser()}`);
   renderKanban();
   renderOrdersTable();
+  refreshOrdersBadge();
   openOrderDetail(o.id);
 }
 
-function advanceOrderFromTable(id) {
+async function advanceOrderFromTable(id) {
   const o = ordersData.find(x => x.id === id);
   if (!o) return;
   const curIdx = STATUS_FLOW.indexOf(o.status === 'Atrasado' ? 'Produção' : o.status);
@@ -5787,9 +5949,11 @@ function advanceOrderFromTable(id) {
   o.status = STATUS_FLOW[curIdx + 1];
   if (!o.history) o.history = [];
   o.history.push({ at: nowStr(), by: getLoggedUser(), from: prev, to: o.status, note: 'Avançado pela tabela.' });
+  await persistOrderStatus(o._uuid, STATUS_LABEL_TO_DB[o.status], STATUS_LABEL_TO_DB[prev]);
   showToast(`${o.id} → ${o.status}`);
   renderKanban();
   renderOrdersTable();
+  refreshOrdersBadge();
 }
 
 async function deleteOrderById(id) {
