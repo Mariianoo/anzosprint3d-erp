@@ -8957,6 +8957,16 @@ function renderModels() {
 
   grid.innerHTML = '';
   let shown = 0;
+
+  // Card "Adicionar modelo" fixo como primeiro item do grid (não se move
+  // conforme novos modelos são cadastrados).
+  const addCard = document.createElement('div');
+  addCard.className = 'model-card';
+  addCard.style.cssText = 'border:2px dashed var(--border2);background:var(--surface2);min-height:200px;display:flex;align-items:center;justify-content:center;cursor:pointer';
+  addCard.onclick = () => openNewModel();
+  addCard.innerHTML = `<div style="text-align:center;color:var(--text3)"><i class="ti ti-upload" style="font-size:32px;display:block;margin-bottom:8px"></i><div style="font-size:13px">Adicionar modelo</div></div>`;
+  grid.appendChild(addCard);
+
   modelsData.forEach(m => {
     const matchSearch = !search || m.name.toLowerCase().includes(search) || m.category.toLowerCase().includes(search) || m.material.toLowerCase().includes(search);
     const matchCat = catF === 'all' || m.category === catF;
@@ -8990,16 +9000,8 @@ function renderModels() {
     grid.appendChild(card);
   });
 
-  // Add "new model" card
-  const addCard = document.createElement('div');
-  addCard.className = 'model-card';
-  addCard.style.cssText = 'border:2px dashed var(--border2);background:var(--surface2);min-height:200px;display:flex;align-items:center;justify-content:center;cursor:pointer';
-  addCard.onclick = () => openNewModel();
-  addCard.innerHTML = `<div style="text-align:center;color:var(--text3)"><i class="ti ti-upload" style="font-size:32px;display:block;margin-bottom:8px"></i><div style="font-size:13px">Adicionar modelo</div></div>`;
-  grid.appendChild(addCard);
-
   if (shown === 0 && (search || catF !== 'all' || matF !== 'all')) {
-    grid.insertAdjacentHTML('afterbegin', '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text3)">Nenhum modelo encontrado com esses filtros.</div>');
+    grid.insertAdjacentHTML('beforeend', '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text3)">Nenhum modelo encontrado com esses filtros.</div>');
   }
   updateModelKPIs();
 }
