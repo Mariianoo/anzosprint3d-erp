@@ -97,6 +97,8 @@ img{display:block}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
 .drawer-overlay.open{opacity:1;pointer-events:all}
 .drawer{position:fixed;top:0;left:0;bottom:0;width:min(320px,84vw);background:var(--s1);z-index:201;transform:translateX(-100%);transition:transform .25s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;overflow-y:auto}
+.drawer-right{left:auto;right:0;transform:translateX(100%)}
+.drawer-right.open{transform:translateX(0)}
 .drawer.open{transform:translateX(0)}
 .drawer-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)}
 .drawer-body{padding:10px}
@@ -179,6 +181,15 @@ img{display:block}
 .card-thumb-ico{font-size:52px;color:rgba(255,255,255,.1)}
 .card-cat{position:absolute;top:10px;left:10px;background:rgba(7,17,31,.82);backdrop-filter:blur(6px);border:1px solid var(--border2);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:var(--text2)}
 .card-new{position:absolute;top:10px;right:10px;background:var(--blue);border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.4px}
+.card-fav-btn{position:absolute;bottom:10px;right:10px;width:32px;height:32px;border-radius:50%;background:rgba(7,17,31,.82);backdrop-filter:blur(6px);border:1px solid var(--border2);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;z-index:2;padding:0}
+.card-fav-btn:hover{border-color:var(--red);transform:scale(1.08)}
+.card-fav-btn.on{border-color:rgba(239,68,68,.4)}
+.card-fav-btn.on i{color:var(--red)}
+.cart-line{display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.cart-line-thumb{width:56px;height:56px;background:#060f1e;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.cart-line-thumb img{width:100%;height:100%;object-fit:contain}
+.cart-line-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-line-price{font-size:12px;color:var(--text3);margin:2px 0 6px}
 .card-body{padding:15px;flex:1;display:flex;flex-direction:column;gap:8px}
 .card-name{font-size:14px;font-weight:700;color:var(--text);line-height:1.32;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.64em}
 .card-tags{display:flex;gap:5px;flex-wrap:wrap}
@@ -395,6 +406,10 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
       <div class="search-suggest" id="search-suggest"></div>
     </div>
     <div class="hdr-actions">
+      <button class="hdr-account-btn" id="hdr-cart-btn" onclick="openCart()" aria-label="Carrinho" style="position:relative">
+        <i class="ti ti-shopping-cart" aria-hidden="true"></i>
+        <span id="cart-badge" style="display:none;position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
+      </button>
       <button class="hdr-account-btn" id="hdr-account-btn" onclick="onAccountBtnClick()">
         <i class="ti ti-user-circle" aria-hidden="true"></i> <span id="hdr-account-label">Entrar</span>
       </button>
@@ -538,6 +553,15 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
         </div>
         <p class="pdp-desc" id="pdp-desc"></p>
 
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-outline btn-md" style="flex:1" onclick="addToCart(curProd.id, parseInt(el('f-qty').value)||1)">
+            <i class="ti ti-shopping-cart-plus" aria-hidden="true"></i> Adicionar ao carrinho
+          </button>
+          <button class="btn btn-ghost btn-md" id="pdp-fav-btn" onclick="toggleFavorite(curProd.id)" style="flex:0;min-width:0;padding:0 16px" aria-label="Favoritar">
+            <i class="ti ti-heart" id="pdp-fav-icon" aria-hidden="true"></i>
+          </button>
+        </div>
+
         <div class="form-box">
           <div class="form-title"><i class="ti ti-clipboard-list" style="color:var(--blue)" aria-hidden="true"></i> Solicitar este produto</div>
           <div class="qty-row" style="margin-bottom:14px">
@@ -610,6 +634,17 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
   </div>
 </footer>
 
+<!-- CARRINHO -->
+<div class="drawer-overlay" id="cart-overlay" onclick="closeCart()"></div>
+<div class="drawer drawer-right" id="cart-drawer" role="dialog" aria-modal="true" aria-label="Carrinho">
+  <div class="drawer-hdr">
+    <span style="font-weight:800;font-size:15px">Meu carrinho</span>
+    <button class="btn-icon" onclick="closeCart()" aria-label="Fechar carrinho"><i class="ti ti-x" aria-hidden="true"></i></button>
+  </div>
+  <div class="drawer-body" id="cart-body" style="flex:1"></div>
+  <div style="padding:16px 18px;border-top:1px solid var(--border)" id="cart-foot"></div>
+</div>
+
 <!-- MODAL DE AUTENTICAÇÃO (login / cadastro / recuperação de senha) -->
 <div class="overlay" id="auth-overlay" onclick="if(event.target===this)closeAuth()">
   <div class="modal" onclick="event.stopPropagation()">
@@ -630,6 +665,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 let all=[], filtered=[], cat='Todos', empresa={}, curProd=null;
+let favoriteIds=new Set(), cartItems=[];
 let heroSlideIdx=0, heroTimer=null;
 
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -849,26 +885,28 @@ function filter(){
   render();
 }
 
-function render(){
-  const g=el('v-grid');
-  if(!filtered.length){
-    g.innerHTML=`<div class="state"><i class="ti ti-search-off" aria-hidden="true"></i><h3>Nenhum produto encontrado</h3><p>Tente outro filtro ou busca</p><button class="btn btn-outline btn-md" onclick="resetFilters()" style="margin:0 auto">Limpar filtros</button></div>`;
-    return;
-  }
-  g.innerHTML=filtered.map((p,i)=>{
-    const thumb=p.capa_base64
-      ?`<img src="${p.capa_base64}" alt="${esc(p.nome)}" loading="lazy">`
-      :`<i class="ti ti-cube-3d-sphere card-thumb-ico" aria-hidden="true"></i>`;
-    const priceHTML=p.preco_vitrine
-      ?`<div><div class="price-from">a partir de</div><div class="price">${brl(p.preco_vitrine)}</div></div>`
-      :`<div class="price-consult"><i class="ti ti-message-circle" aria-hidden="true"></i> Sob consulta</div>`;
-    const prazoHTML=p.prazo_dias?`<span class="prazo"><i class="ti ti-clock" aria-hidden="true"></i>${p.prazo_dias}d</span>`:'';
-    const isNew=i<3?`<span class="card-new">Novo</span>`:'';
-    return`<div class="card" onclick="openProd('${p.id}')" role="button" tabindex="0" aria-label="${esc(p.nome)}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProd('${p.id}')}">
+// ── Componente reutilizável: card de produto ──
+// Usado na grade do catálogo, nos "relacionados" da página do produto e na
+// lista de favoritos — uma única fonte de verdade para esse layout.
+function productCardHtml(p, opts){
+  opts = opts || {};
+  const thumb=p.capa_base64
+    ?`<img src="${p.capa_base64}" alt="${esc(p.nome)}" loading="lazy">`
+    :`<i class="ti ti-cube-3d-sphere card-thumb-ico" aria-hidden="true"></i>`;
+  const priceHTML=p.preco_vitrine
+    ?`<div><div class="price-from">a partir de</div><div class="price">${brl(p.preco_vitrine)}</div></div>`
+    :`<div class="price-consult"><i class="ti ti-message-circle" aria-hidden="true"></i> Sob consulta</div>`;
+  const prazoHTML=p.prazo_dias?`<span class="prazo"><i class="ti ti-clock" aria-hidden="true"></i>${p.prazo_dias}d</span>`:'';
+  const newBadge=opts.isNew?`<span class="card-new">Novo</span>`:'';
+  const catBadge=opts.showCat===false?'':`<span class="card-cat">${esc(p.categoria||'Modelo')}</span>`;
+  const isFav=favoriteIds.has(p.id);
+  const favBtn=`<button class="card-fav-btn ${isFav?'on':''}" onclick="event.stopPropagation();toggleFavorite('${p.id}')" aria-label="${isFav?'Remover dos favoritos':'Favoritar'}" aria-pressed="${isFav}"><i class="ti ${isFav?'ti-heart-filled':'ti-heart'}" aria-hidden="true"></i></button>`;
+  return`<div class="card" onclick="openProd('${p.id}')" role="button" tabindex="0" aria-label="${esc(p.nome)}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProd('${p.id}')}">
       <div class="card-thumb">
         ${thumb}
-        <span class="card-cat">${esc(p.categoria||'Modelo')}</span>
-        ${isNew}
+        ${catBadge}
+        ${newBadge}
+        ${favBtn}
       </div>
       <div class="card-body">
         <div class="card-name">${esc(p.nome)}</div>
@@ -883,12 +921,21 @@ function render(){
         ${prazoHTML}
       </div>
     </div>`;
-  }).join('');
+}
+
+function render(){
+  const g=el('v-grid');
+  if(!filtered.length){
+    g.innerHTML=`<div class="state"><i class="ti ti-search-off" aria-hidden="true"></i><h3>Nenhum produto encontrado</h3><p>Tente outro filtro ou busca</p><button class="btn btn-outline btn-md" onclick="resetFilters()" style="margin:0 auto">Limpar filtros</button></div>`;
+    return;
+  }
+  g.innerHTML=filtered.map((p,i)=>productCardHtml(p,{isNew:i<3})).join('');
 }
 function resetFilters(){
   el('v-search').value=''; el('search-row').classList.remove('has-val');
   el('f-material').value=''; el('f-price-min').value=''; el('f-price-max').value=''; el('f-sort').value='relevancia';
   cat='Todos'; buildCats(); filter();
+
 }
 
 // ── Navegação: troca entre as 3 views (catálogo / produto / conta) ──
@@ -945,19 +992,12 @@ function openProd(id){
   const relWrap=el('pdp-related-wrap');
   if(related.length){
     relWrap.style.display='';
-    el('pdp-related').innerHTML=related.map(r=>{
-      const th=r.capa_base64?`<img src="${r.capa_base64}" alt="${esc(r.nome)}" loading="lazy">`:`<i class="ti ti-cube-3d-sphere card-thumb-ico" aria-hidden="true"></i>`;
-      const pr=r.preco_vitrine?`<div><div class="price-from">a partir de</div><div class="price">${brl(r.preco_vitrine)}</div></div>`:`<div class="price-consult"><i class="ti ti-message-circle" aria-hidden="true"></i> Sob consulta</div>`;
-      return `<div class="card" onclick="openProd('${r.id}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'){openProd('${r.id}')}">
-        <div class="card-thumb">${th}</div>
-        <div class="card-body"><div class="card-name">${esc(r.nome)}</div></div>
-        <div class="card-foot">${pr}</div>
-      </div>`;
-    }).join('');
+    el('pdp-related').innerHTML=related.map(r=>productCardHtml(r,{showCat:false})).join('');
   } else { relWrap.style.display='none'; }
 
   el('f-cor').value=''; el('f-msg').value=''; el('f-qty').value=1;
   updateQtyTotal();
+  updateProdFavButton();
 
   showView('pdp');
   renderBreadcrumb(p);
@@ -1067,7 +1107,7 @@ async function initAuth(){
     session=s2;
     if(event==='PASSWORD_RECOVERY'){ openAuth('reset'); return; }
     if(event==='SIGNED_IN'){ await loadMyProfile(); updateHeaderAuthUI(); }
-    if(event==='SIGNED_OUT'){ myProfile=null; updateHeaderAuthUI(); showView('catalog'); }
+    if(event==='SIGNED_OUT'){ myProfile=null; favoriteIds=new Set(); cartItems=[]; updateCartBadge(); updateHeaderAuthUI(); showView('catalog'); }
   });
 }
 
@@ -1084,6 +1124,7 @@ async function loadMyProfile(){
       myProfile = r.data || myProfile;
     }catch(e){}
   }
+  await Promise.all([loadFavorites(), loadCart()]);
 }
 
 function updateHeaderAuthUI(){
@@ -1195,6 +1236,7 @@ async function logout(){
 // ══════════════════════════════════════════════════════════════
 const ACCOUNT_TABS=[
   {k:'dados', label:'Meus dados', icon:'ti-user'},
+  {k:'favoritos', label:'Favoritos', icon:'ti-heart'},
   {k:'pedidos', label:'Meus pedidos', icon:'ti-package'},
   {k:'orcamentos', label:'Meus orçamentos', icon:'ti-file-text'},
 ];
@@ -1212,8 +1254,18 @@ function openAccount(tab){
 function renderAccountPanel(){
   const panel=el('account-panel');
   if(accountTab==='dados') return renderAccountDados(panel);
+  if(accountTab==='favoritos') return renderAccountFavorites(panel);
   if(accountTab==='pedidos') return renderAccountList(panel,'pedidos');
   if(accountTab==='orcamentos') return renderAccountList(panel,'orcamentos');
+}
+async function renderAccountFavorites(panel){
+  panel.innerHTML=`<h2>Favoritos</h2><div class="shimmer" style="height:200px;border-radius:16px"></div>`;
+  const { data, error } = await sb.from('favoritos').select('modelo_id').order('created_at',{ascending:false});
+  if(error){ panel.innerHTML=`<h2>Favoritos</h2><div class="state"><i class="ti ti-alert-circle" aria-hidden="true"></i><p>Não consegui carregar agora.</p></div>`; return; }
+  favoriteIds=new Set((data||[]).map(f=>f.modelo_id));
+  const items=(data||[]).map(f=>all.find(m=>m.id===f.modelo_id)).filter(Boolean);
+  if(!items.length){ panel.innerHTML=`<h2>Favoritos</h2><div class="state"><i class="ti ti-heart" aria-hidden="true"></i><h3>Nenhum favorito ainda</h3><p>Toque no coração de um produto pra salvar aqui.</p></div>`; return; }
+  panel.innerHTML=`<h2>Favoritos</h2><div class="grid">${items.map(p=>productCardHtml(p)).join('')}</div>`;
 }
 function renderAccountDados(panel){
   panel.innerHTML=`
@@ -1263,6 +1315,165 @@ async function renderAccountList(panel, kind){
       <div class="list-card-meta"><span>${dataFmt}</span>${valor!=null?`<span>${brl(valor)}</span>`:''}</div>
     </div>`;
   }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// FAVORITOS — recurso novo, tabela própria (favoritos), RLS restrita
+// ao próprio cliente. Não depende de nada existente, só de estar logado.
+// ══════════════════════════════════════════════════════════════
+async function loadFavorites(){
+  favoriteIds=new Set();
+  if(!session || !myProfile?.cliente_id) return;
+  const { data } = await sb.from('favoritos').select('modelo_id');
+  if(data) favoriteIds=new Set(data.map(f=>f.modelo_id));
+}
+async function toggleFavorite(modeloId){
+  if(!session){ openAuth('login'); return; }
+  if(!myProfile?.cliente_id){
+    await loadMyProfile();
+    if(!myProfile?.cliente_id){ toast('Não consegui preparar sua conta agora. Tenta de novo em instantes.'); return; }
+  }
+  const isFav=favoriteIds.has(modeloId);
+  if(isFav){
+    const { error } = await sb.from('favoritos').delete().eq('modelo_id', modeloId).eq('cliente_id', myProfile.cliente_id);
+    if(error){ toast('Não consegui remover agora.'); return; }
+    favoriteIds.delete(modeloId);
+    toast('Removido dos favoritos');
+  } else {
+    const { error } = await sb.from('favoritos').insert({ cliente_id: myProfile.cliente_id, modelo_id: modeloId });
+    if(error){ toast('Não consegui favoritar agora.'); return; }
+    favoriteIds.add(modeloId);
+    toast('Adicionado aos favoritos');
+  }
+  if(el('view-catalog').style.display!=='none') render();
+  if(el('pdp').style.display==='block' && curProd) updateProdFavButton();
+  if(el('view-conta').style.display!=='none' && accountTab==='favoritos') renderAccountPanel();
+}
+function updateProdFavButton(){
+  const btn=el('pdp-fav-btn'), icon=el('pdp-fav-icon');
+  if(!btn || !curProd) return;
+  const isFav=favoriteIds.has(curProd.id);
+  btn.classList.toggle('on', isFav);
+  btn.setAttribute('aria-pressed', isFav);
+  btn.style.color = isFav ? 'var(--red)' : '';
+  icon.className = 'ti '+(isFav?'ti-heart-filled':'ti-heart');
+}
+
+// ══════════════════════════════════════════════════════════════
+// CARRINHO PERSISTENTE — recurso novo, tabela própria (carrinho_itens).
+// O "Comprar agora" da página do produto (buildMsg/enviarWpp) continua
+// existindo do jeito que já funcionava; o carrinho é um fluxo A MAIS,
+// pra quem quer juntar vários produtos num só pedido.
+// ══════════════════════════════════════════════════════════════
+async function loadCart(){
+  cartItems=[];
+  if(!session || !myProfile?.cliente_id){ updateCartBadge(); return; }
+  const { data } = await sb.from('carrinho_itens').select('id,modelo_id,quantidade,cor_personalizacao,observacoes,updated_at').order('updated_at',{ascending:false});
+  cartItems=(data||[]).map(row=>({ ...row, modelo: all.find(m=>m.id===row.modelo_id) })).filter(r=>r.modelo);
+  updateCartBadge();
+}
+function updateCartBadge(){
+  const badge=el('cart-badge');
+  if(!badge) return;
+  const count=cartItems.reduce((s,i)=>s+i.quantidade,0);
+  badge.textContent=count;
+  badge.style.display = count>0 ? 'flex' : 'none';
+}
+async function addToCart(modeloId, qty){
+  if(!session){ openAuth('login'); return; }
+  if(!myProfile?.cliente_id){
+    await loadMyProfile();
+    if(!myProfile?.cliente_id){ toast('Não consegui preparar sua conta agora.'); return; }
+  }
+  qty = qty>0 ? qty : 1;
+  const existing=cartItems.find(i=>i.modelo_id===modeloId);
+  if(existing){
+    const { error } = await sb.from('carrinho_itens').update({ quantidade: existing.quantidade+qty }).eq('id', existing.id);
+    if(error){ toast('Não consegui atualizar o carrinho.'); return; }
+  } else {
+    const { error } = await sb.from('carrinho_itens').insert({ cliente_id: myProfile.cliente_id, modelo_id: modeloId, quantidade: qty });
+    if(error){ toast('Não consegui adicionar ao carrinho.'); return; }
+  }
+  await loadCart();
+  toast('Adicionado ao carrinho!');
+}
+async function updateCartQty(itemId, qty){
+  if(qty<1) return removeFromCart(itemId);
+  await sb.from('carrinho_itens').update({ quantidade: qty }).eq('id', itemId);
+  await loadCart();
+  renderCartDrawer();
+}
+async function removeFromCart(itemId){
+  await sb.from('carrinho_itens').delete().eq('id', itemId);
+  await loadCart();
+  renderCartDrawer();
+}
+function openCart(){ el('cart-overlay').classList.add('open'); el('cart-drawer').classList.add('open'); document.body.style.overflow='hidden'; renderCartDrawer(); }
+function closeCart(){ el('cart-overlay').classList.remove('open'); el('cart-drawer').classList.remove('open'); document.body.style.overflow=''; }
+
+function renderCartDrawer(){
+  const body=el('cart-body'), foot=el('cart-foot');
+  if(!session){
+    body.innerHTML=`<div class="state"><i class="ti ti-lock" aria-hidden="true"></i><h3>Entre na sua conta</h3><p>Faça login para usar o carrinho.</p><button class="btn btn-wpp btn-md" onclick="closeCart();openAuth('login')" style="margin:0 auto">Entrar</button></div>`;
+    foot.innerHTML='';
+    return;
+  }
+  if(!cartItems.length){
+    body.innerHTML=`<div class="state"><i class="ti ti-shopping-cart-off" aria-hidden="true"></i><h3>Seu carrinho está vazio</h3><p>Adicione produtos do catálogo.</p></div>`;
+    foot.innerHTML='';
+    return;
+  }
+  let subtotal=0, temSobConsulta=false;
+  body.innerHTML=cartItems.map(item=>{
+    const m=item.modelo;
+    if(m.preco_vitrine!=null) subtotal+=m.preco_vitrine*item.quantidade; else temSobConsulta=true;
+    const thumb=m.capa_base64?`<img src="${m.capa_base64}" alt="${esc(m.nome)}">`:`<i class="ti ti-cube-3d-sphere" aria-hidden="true"></i>`;
+    return `<div class="cart-line">
+      <div class="cart-line-thumb">${thumb}</div>
+      <div style="flex:1;min-width:0">
+        <div class="cart-line-name">${esc(m.nome)}</div>
+        <div class="cart-line-price">${m.preco_vitrine?brl(m.preco_vitrine):'Sob consulta'} cada</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="qty-stepper" style="transform:scale(.88);transform-origin:left center">
+            <button type="button" onclick="updateCartQty('${item.id}', ${item.quantidade-1})" aria-label="Diminuir">−</button>
+            <input class="fi" value="${item.quantidade}" readonly style="border-radius:0;height:38px">
+            <button type="button" onclick="updateCartQty('${item.id}', ${item.quantidade+1})" aria-label="Aumentar">+</button>
+          </div>
+          <button class="btn-icon" onclick="removeFromCart('${item.id}')" aria-label="Remover item" style="color:var(--red)"><i class="ti ti-trash" aria-hidden="true"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  foot.innerHTML=`
+    <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px">
+      <span>Subtotal</span><strong style="color:var(--text)">${brl(subtotal)}</strong>
+    </div>
+    <div style="font-size:11px;color:var(--amber);margin-bottom:10px;min-height:14px">${temSobConsulta?'Alguns itens são sob consulta e não entram nesse subtotal.':''}</div>
+    <button class="btn btn-wpp btn-lg" style="width:100%" onclick="checkoutCart()"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i> Finalizar pedido</button>`;
+}
+
+// Mensagem consolidada do carrinho — função NOVA e separada de buildMsg().
+// buildMsg() (usada pela página do produto) continua 100% como estava.
+function buildCartMsg(){
+  if(!cartItems.length) return null;
+  let subtotal=0;
+  let t=`Olá! Quero fazer um pedido com estes itens 🛒\n\n`;
+  cartItems.forEach((item,i)=>{
+    const m=item.modelo;
+    const preco=m.preco_vitrine?brl(m.preco_vitrine):'Sob consulta';
+    t+=`${i+1}. *${m.nome}* — Qtd: ${item.quantidade} — ${preco}\n`;
+    if(m.preco_vitrine!=null) subtotal+=m.preco_vitrine*item.quantidade;
+  });
+  t+=`\n💰 *Subtotal estimado:* ${brl(subtotal)}\n`;
+  t+=`\n👤 *Meus dados:*\nNome: ${myProfile?.nome||''}\nWhatsApp: ${myProfile?.telefone||''}`;
+  return t;
+}
+function checkoutCart(){
+  const t=buildCartMsg();
+  if(!t){ toast('Seu carrinho está vazio.'); return; }
+  const num=(empresa.whatsapp||empresa.telefone||'').replace(/\D/g,'');
+  if(!num){ toast('Número da loja não configurado'); return; }
+  window.open('https://wa.me/'+num+'?text='+encodeURIComponent(t),'_blank');
 }
 
 init();

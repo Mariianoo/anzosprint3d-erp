@@ -790,6 +790,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <div class="nav-item" onclick="nav('clients')"><i class="ti ti-users"></i><span>Clientes</span></div>
       <div class="nav-item" onclick="nav('quotations')"><i class="ti ti-file-dollar"></i><span>Orçamentos</span><span class="nav-badge" id="nav-badge-quotes" style="display:none">0</span></div>
       <div class="nav-item" onclick="nav('orders')"><i class="ti ti-shopping-cart"></i><span>Pedidos</span><span class="nav-badge" id="nav-badge-orders" style="display:none">0</span></div>
+      <div class="nav-item" onclick="nav('abandonedcarts')"><i class="ti ti-shopping-cart-x"></i><span>Carrinhos Abandonados</span><span class="nav-badge" id="nav-badge-abandoned" style="display:none">0</span></div>
       <div class="nav-section-label">Produção</div>
       <div class="nav-item" onclick="nav('production')"><i class="ti ti-assembly"></i><span>Produção</span></div>
       <div class="nav-item" onclick="nav('printers')"><i class="ti ti-printer"></i><span>Impressoras</span></div>
@@ -1643,6 +1644,34 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
     </div>
     <div style="margin-top:10px;font-size:13px;color:var(--text2)" id="orders-table-count"></div>
   </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: CARRINHOS ABANDONADOS (recurso novo)
+     Consulta a view carrinhos_abandonados (calculada em tempo real,
+     staff-only via RLS). Não depende de nenhuma outra página existente.
+═══════════════════════════════════════════ -->
+<div class="page" id="page-abandonedcarts">
+  <div class="page-header">
+    <div class="page-header-row">
+      <div><h2>Carrinhos Abandonados</h2><p>Clientes que adicionaram itens ao carrinho da vitrine e não finalizaram o pedido</p></div>
+      <button class="btn btn-secondary" onclick="loadAbandonedCartsDB()"><i class="ti ti-refresh"></i> Atualizar</button>
+    </div>
+  </div>
+  <div class="grid-5" style="margin-bottom:20px">
+    <div class="metric-card"><div class="metric-label">Carrinhos abandonados</div><div class="metric-value" style="color:var(--amber)" id="ac-total">0</div></div>
+    <div class="metric-card"><div class="metric-label">Itens parados</div><div class="metric-value" id="ac-items">0</div></div>
+    <div class="metric-card"><div class="metric-label">Mais antigo</div><div class="metric-value" style="font-size:16px" id="ac-oldest">—</div></div>
+  </div>
+  <div class="table-wrap" style="margin-bottom:20px">
+    <table>
+      <thead><tr><th>Cliente</th><th>Contato</th><th>Itens</th><th>Quantidade</th><th>Parado há</th><th style="min-width:160px">Ações</th></tr></thead>
+      <tbody id="abandoned-tbody">
+        <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px"><i class="ti ti-loader"></i> Carregando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:12px;color:var(--text3)"><i class="ti ti-info-circle"></i> "Registrar contato" só anota a intenção de retomar contato (fila interna) — nenhuma mensagem é enviada automaticamente por WhatsApp, e-mail ou push.</p>
 </div>
 
 
@@ -3893,8 +3922,8 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 <div id="toast"><i class="ti ti-check"></i> <span id="toast-msg"></span></div>
 
 <script>
-const PAGES = ['dashboard','clients','quotations','orders','production','printers','filaments','models','financial','receivables','payables','suppliers','supplies','gallery','vitrine','reports','settings'];
-const TITLES = {dashboard:'Dashboard',clients:'Clientes',quotations:'Orçamentos',orders:'Pedidos',production:'Produção',printers:'Impressoras',filaments:'Filamentos',models:'Modelos 3D',financial:'Financeiro',receivables:'Contas a Receber',payables:'Contas a Pagar',suppliers:'Fornecedores',supplies:'Insumos',gallery:'Galeria',vitrine:'Vitrine Pública',reports:'Relatórios',settings:'Configurações'};
+const PAGES = ['dashboard','clients','quotations','orders','abandonedcarts','production','printers','filaments','models','financial','receivables','payables','suppliers','supplies','gallery','vitrine','reports','settings'];
+const TITLES = {dashboard:'Dashboard',clients:'Clientes',quotations:'Orçamentos',orders:'Pedidos',abandonedcarts:'Carrinhos Abandonados',production:'Produção',printers:'Impressoras',filaments:'Filamentos',models:'Modelos 3D',financial:'Financeiro',receivables:'Contas a Receber',payables:'Contas a Pagar',suppliers:'Fornecedores',supplies:'Insumos',gallery:'Galeria',vitrine:'Vitrine Pública',reports:'Relatórios',settings:'Configurações'};
 
 function nav(page) {
   PAGES.forEach(p => document.getElementById('page-'+p).classList.remove('active'));
@@ -5122,6 +5151,7 @@ function nowStr() {
 }
 
 let ordersData = [];
+let abandonedCartsData = [];
 let nextOrderId = 48;
 let currentOrderId = null;
 
@@ -5167,6 +5197,84 @@ function isOrderLate(o) {
 }
 
 // ── Carrega pedidos do banco ──
+// ══════════════════════════════════════════════════════════════
+// CARRINHOS ABANDONADOS — recurso novo, isolado das demais páginas.
+// Consulta a view carrinhos_abandonados (staff-only via RLS, calculada
+// em tempo real). "Registrar contato" só grava a intenção numa fila
+// interna (notificacoes_fila) — nenhum envio automático acontece.
+// ══════════════════════════════════════════════════════════════
+async function loadAbandonedCartsDB() {
+  const tbody = document.getElementById('abandoned-tbody');
+  if (!sb) { if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Sem conexão com o banco.</td></tr>'; return; }
+  const { data, error } = await sb.from('carrinhos_abandonados').select('*');
+  if (error) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);padding:24px">Erro ao carregar: ' + escapeHtml(error.message) + '</td></tr>';
+    return;
+  }
+  abandonedCartsData = data || [];
+  renderAbandonedCartsDB();
+}
+
+function renderAbandonedCartsDB() {
+  const rows = abandonedCartsData || [];
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('ac-total', rows.length);
+  set('ac-items', rows.reduce((s, r) => s + (r.quantidade_total || 0), 0));
+  set('ac-oldest', rows.length ? fmtParadoHa(rows[0].parado_ha) : '—');
+
+  const badge = document.getElementById('nav-badge-abandoned');
+  if (badge) {
+    if (rows.length > 0) { badge.style.display = ''; badge.textContent = rows.length; }
+    else badge.style.display = 'none';
+  }
+
+  const tbody = document.getElementById('abandoned-tbody');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Nenhum carrinho abandonado no momento</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const contato = r.cliente_whatsapp || r.cliente_telefone || r.cliente_email || '—';
+    return `<tr>
+      <td>${escapeHtml(r.cliente_nome || '—')}</td>
+      <td>${escapeHtml(contato)}</td>
+      <td>${r.itens}</td>
+      <td>${r.quantidade_total}</td>
+      <td>${fmtParadoHa(r.parado_ha)}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="registrarContatoAbandonado('${r.cliente_id}')"><i class="ti ti-clipboard-plus"></i> Registrar contato</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// Formata o "interval" que o Postgres retorna (ex: "3 days 04:12:00") em texto curto
+function fmtParadoHa(intervalStr) {
+  if (!intervalStr) return '—';
+  const s = String(intervalStr);
+  const diaMatch = s.match(/(\d+)\s+day/);
+  const horaMatch = s.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+  const dias = diaMatch ? parseInt(diaMatch[1]) : 0;
+  const horas = horaMatch ? parseInt(horaMatch[1]) : 0;
+  if (dias > 0) return dias + 'd ' + horas + 'h';
+  if (horas > 0) return horas + 'h';
+  return 'menos de 1h';
+}
+
+// Só registra a intenção de contato numa fila interna — não envia nada.
+async function registrarContatoAbandonado(clienteId) {
+  if (!sb) return;
+  let userId = null;
+  try { const { data } = await sb.auth.getUser(); userId = data?.user?.id || null; } catch(e){}
+  const { error } = await sb.from('notificacoes_fila').insert({
+    canal: 'whatsapp',
+    cliente_id: clienteId,
+    contexto: { origem: 'carrinho_abandonado', registrado_em: new Date().toISOString() },
+    criado_por: userId,
+  });
+  if (error) { showToast('Não foi possível registrar: ' + error.message); return; }
+  showToast('Registrado na fila interna — nenhuma mensagem foi enviada automaticamente.');
+}
+
 async function loadOrdersDB() {
   if (!sb) { renderKanban(); renderOrdersTable(); return; }
   // Carrega clientes para resolver nomes
@@ -6778,6 +6886,7 @@ nav = function(page) {
   if (page === 'clients')   { loadClientsDB(); }
   if (page === 'quotations'){ loadQuotesDB(); }
   if (page === 'orders')     { loadOrdersDB(); }
+  if (page === 'abandonedcarts') { loadAbandonedCartsDB(); }
   if (page === 'production') { loadProductionDB(); }
   if (page === 'printers')   { loadPrintersDB(); }
   if (page === 'filaments')  { loadFilamentsDB(); }
