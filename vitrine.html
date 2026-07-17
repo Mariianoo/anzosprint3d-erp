@@ -322,6 +322,46 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* ─── MODAL / OVERLAY (componente reaproveitado pela autenticação) ─── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--s1);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;transform:translateY(16px);transition:transform .2s}
+.overlay.open .modal{transform:translateY(0)}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border)}
+.modal-hdr h2{font-size:17px;font-weight:800}
+.modal-body{padding:20px}
+.auth-switch{text-align:center;font-size:12px;color:var(--text3);margin-top:14px}
+.auth-switch button{background:none;border:none;color:#93c5fd;font-weight:700;cursor:pointer;font-size:12px}
+.auth-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;font-size:12px;padding:9px 12px;border-radius:8px;margin-bottom:12px;display:none}
+.auth-error.show{display:block}
+
+.hdr-account-btn{display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:0 14px;height:38px;color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;transition:border-color .15s}
+.hdr-account-btn:hover{border-color:var(--blue);color:#93c5fd}
+.hdr-account-btn i{font-size:16px}
+
+/* ─── ÁREA DO CLIENTE ─── */
+.account-wrap{max-width:1000px;margin:0 auto;padding:24px clamp(16px,4vw,40px) 60px;display:grid;grid-template-columns:220px 1fr;gap:32px}
+.account-nav{display:flex;flex-direction:column;gap:4px}
+.account-nav button{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:9px;background:none;border:none;color:var(--text2);font-size:13px;font-weight:700;text-align:left;cursor:pointer;transition:all .15s}
+.account-nav button:hover{background:var(--s2)}
+.account-nav button.on{background:var(--blue-l);color:#93c5fd}
+.account-panel{min-width:0}
+.account-panel h2{font-size:18px;font-weight:800;margin-bottom:18px}
+
+.list-card{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}
+.list-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.list-card-num{font-weight:800;font-size:14px}
+.list-card-desc{font-size:12px;color:var(--text2)}
+.list-card-meta{font-size:11px;color:var(--text3);display:flex;gap:12px;flex-wrap:wrap}
+.status-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.status-amber{background:rgba(245,158,11,.14);color:#fbbf24}
+.status-blue{background:rgba(59,130,246,.14);color:#93c5fd}
+.status-green{background:rgba(34,197,94,.14);color:#4ade80}
+.status-red{background:rgba(239,68,68,.14);color:#fca5a5}
+.status-gray{background:var(--s3);color:var(--text3)}
+
+@media(max-width:720px){ .account-wrap{grid-template-columns:1fr} .account-nav{flex-direction:row;overflow-x:auto} .account-nav button{flex-shrink:0} }
 </style>
 </head>
 <body>
@@ -355,6 +395,9 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
       <div class="search-suggest" id="search-suggest"></div>
     </div>
     <div class="hdr-actions">
+      <button class="hdr-account-btn" id="hdr-account-btn" onclick="onAccountBtnClick()">
+        <i class="ti ti-user-circle" aria-hidden="true"></i> <span id="hdr-account-label">Entrar</span>
+      </button>
       <a id="v-wpp-hdr" href="#" target="_blank" rel="noopener" class="btn btn-wpp btn-md" style="display:none">
         <i class="ti ti-brand-whatsapp" aria-hidden="true"></i> <span class="sr-only-mobile">WhatsApp</span>
       </a>
@@ -374,6 +417,9 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
   </div>
   <div class="drawer-body" id="drawer-cats"></div>
   <div class="drawer-foot">
+    <button class="drawer-link" onclick="onAccountBtnClick();closeDrawer()">
+      <i class="ti ti-user-circle" aria-hidden="true"></i> <span id="drawer-account-label">Entrar / Cadastrar</span>
+    </button>
     <a id="v-wpp-drawer" href="#" target="_blank" rel="noopener" class="btn btn-wpp btn-md" style="display:none;width:100%">
       <i class="ti ti-brand-whatsapp" aria-hidden="true"></i> Falar no WhatsApp
     </a>
@@ -462,6 +508,15 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
       <div class="skel-card"><div class="skel-thumb shimmer"></div><div class="skel-body"><div class="shimmer" style="height:16px;width:60%"></div><div class="shimmer" style="height:11px"></div><div class="shimmer" style="height:11px;width:70%"></div></div></div>
     </div>
   </section>
+</div>
+
+<!-- ÁREA DO CLIENTE -->
+<div id="view-conta" style="display:none">
+  <div class="breadcrumb" id="conta-breadcrumb"></div>
+  <div class="account-wrap">
+    <nav class="account-nav" id="account-nav" aria-label="Navegação da conta"></nav>
+    <div class="account-panel" id="account-panel"></div>
+  </div>
 </div>
 
 <!-- PÁGINA DO PRODUTO -->
@@ -554,6 +609,17 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
     <span class="footer-copy" id="v-footer-local"></span>
   </div>
 </footer>
+
+<!-- MODAL DE AUTENTICAÇÃO (login / cadastro / recuperação de senha) -->
+<div class="overlay" id="auth-overlay" onclick="if(event.target===this)closeAuth()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hdr">
+      <h2 id="auth-title">Entrar</h2>
+      <button class="btn-icon" onclick="closeAuth()" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>
+    <div class="modal-body" id="auth-body"></div>
+  </div>
+</div>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
@@ -825,7 +891,12 @@ function resetFilters(){
   cat='Todos'; buildCats(); filter();
 }
 
-// ── Navegação: catálogo ↔ página do produto ──
+// ── Navegação: troca entre as 3 views (catálogo / produto / conta) ──
+function showView(name){
+  el('view-catalog').style.display = name==='catalog' ? '' : 'none';
+  el('pdp').style.display = name==='pdp' ? 'block' : 'none';
+  el('view-conta').style.display = name==='conta' ? '' : 'none';
+}
 function focusCatalog(){ setTimeout(()=>document.getElementById('catalogo').scrollIntoView({behavior:'smooth',block:'start'}),10); }
 function goHome(){ backToCatalog(); window.scrollTo({top:0,behavior:'smooth'}); }
 
@@ -888,8 +959,7 @@ function openProd(id){
   el('f-cor').value=''; el('f-msg').value=''; el('f-qty').value=1;
   updateQtyTotal();
 
-  el('view-catalog').style.display='none';
-  el('pdp').style.display='block';
+  showView('pdp');
   renderBreadcrumb(p);
   window.scrollTo({top:0,behavior:'instant' in document.documentElement.style?'instant':'auto'});
   el('pdp-title').focus({preventScroll:true});
@@ -898,8 +968,7 @@ function openProd(id){
 
 function backToCatalog(){
   curProd=null;
-  el('pdp').style.display='none';
-  el('view-catalog').style.display='';
+  showView('catalog');
   renderBreadcrumb();
   if(location.hash) history.pushState({}, '', location.pathname+location.search);
 }
@@ -977,7 +1046,227 @@ function copiarMsg(){
   navigator.clipboard.writeText(t).then(()=>toast('Mensagem copiada!')).catch(()=>toast('Erro ao copiar'));
 }
 
+// ══════════════════════════════════════════════════════════════
+// AUTENTICAÇÃO — Login, Cadastro, Recuperação de senha
+// Usa o Supabase Auth que já existe no projeto (mesmo usado no ERP).
+// Todo novo cadastro público entra automaticamente com perfil='cliente'
+// (isso já é feito pelo trigger handle_new_user existente no banco —
+// não foi criado nem alterado nada aqui). A vinculação com um registro
+// de `clientes` é feita pela função vincular_cliente_apos_cadastro(),
+// criada nesta sessão, que só age sobre a própria conta de quem chama.
+// ══════════════════════════════════════════════════════════════
+let session=null, myProfile=null;
+
+async function initAuth(){
+  const { data:{ session:s } } = await sb.auth.getSession();
+  session=s;
+  if(session) await loadMyProfile();
+  updateHeaderAuthUI();
+
+  sb.auth.onAuthStateChange(async (event, s2)=>{
+    session=s2;
+    if(event==='PASSWORD_RECOVERY'){ openAuth('reset'); return; }
+    if(event==='SIGNED_IN'){ await loadMyProfile(); updateHeaderAuthUI(); }
+    if(event==='SIGNED_OUT'){ myProfile=null; updateHeaderAuthUI(); showView('catalog'); }
+  });
+}
+
+async function loadMyProfile(){
+  if(!session) return;
+  const { data } = await sb.from('perfis').select('*').eq('id', session.user.id).maybeSingle();
+  myProfile = data || null;
+  // Conta recém-criada ainda sem cliente_id vinculado (ex: confirmou o
+  // e-mail em outra aba) — tenta vincular agora, de forma idempotente.
+  if(myProfile && !myProfile.cliente_id){
+    try{
+      await sb.rpc('vincular_cliente_apos_cadastro');
+      const r=await sb.from('perfis').select('*').eq('id', session.user.id).maybeSingle();
+      myProfile = r.data || myProfile;
+    }catch(e){}
+  }
+}
+
+function updateHeaderAuthUI(){
+  const label=el('hdr-account-label'), drawerLabel=el('drawer-account-label');
+  const first = myProfile?.nome ? myProfile.nome.split(' ')[0] : 'Entrar';
+  if(label) label.textContent = session ? first : 'Entrar';
+  if(drawerLabel) drawerLabel.textContent = session ? ('Olá, '+first) : 'Entrar / Cadastrar';
+}
+
+function onAccountBtnClick(){ if(session){ openAccount('dados'); } else { openAuth('login'); } }
+
+// ── Modal de autenticação: um único componente, 4 modos ──
+function openAuth(mode){
+  el('auth-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+  renderAuthBody(mode||'login');
+}
+function closeAuth(){
+  el('auth-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+function renderAuthBody(mode){
+  const titles={login:'Entrar',signup:'Criar minha conta',forgot:'Recuperar senha',reset:'Nova senha'};
+  el('auth-title').textContent=titles[mode]||'Entrar';
+  const body=el('auth-body');
+  if(mode==='login'){
+    body.innerHTML=`
+      <div class="auth-error" id="auth-error"></div>
+      <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-email">E-mail</label><input class="fi" id="au-email" type="email" autocomplete="email"></div>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Senha</label><input class="fi" id="au-pass" type="password" autocomplete="current-password"></div>
+      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doLogin()">Entrar</button>
+      <div class="auth-switch"><button onclick="renderAuthBody('forgot')">Esqueci minha senha</button></div>
+      <div class="auth-switch">Não tem conta? <button onclick="renderAuthBody('signup')">Cadastre-se</button></div>`;
+  } else if(mode==='signup'){
+    body.innerHTML=`
+      <div class="auth-error" id="auth-error"></div>
+      <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-nome">Nome completo</label><input class="fi" id="au-nome" type="text" autocomplete="name"></div>
+      <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-tel">WhatsApp</label><input class="fi" id="au-tel" type="tel" oninput="fmtFone(this)" autocomplete="tel"></div>
+      <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-email">E-mail</label><input class="fi" id="au-email" type="email" autocomplete="email"></div>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Senha</label><input class="fi" id="au-pass" type="password" autocomplete="new-password" minlength="6"></div>
+      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doSignup()">Criar conta</button>
+      <div class="auth-switch">Já tem conta? <button onclick="renderAuthBody('login')">Entrar</button></div>`;
+  } else if(mode==='forgot'){
+    body.innerHTML=`
+      <div class="auth-error" id="auth-error"></div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Informe seu e-mail — vamos mandar um link para você criar uma nova senha.</p>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-email">E-mail</label><input class="fi" id="au-email" type="email" autocomplete="email"></div>
+      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doForgotPassword()">Enviar link</button>
+      <div class="auth-switch"><button onclick="renderAuthBody('login')">Voltar para o login</button></div>`;
+  } else if(mode==='reset'){
+    body.innerHTML=`
+      <div class="auth-error" id="auth-error"></div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Crie sua nova senha de acesso.</p>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Nova senha</label><input class="fi" id="au-pass" type="password" minlength="6" autocomplete="new-password"></div>
+      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doResetPassword()">Salvar nova senha</button>`;
+  }
+}
+function authErr(msg){ const e=el('auth-error'); if(e){ e.textContent=msg; e.classList.add('show'); } }
+
+async function doLogin(){
+  const email=el('au-email').value.trim(), pass=el('au-pass').value;
+  if(!email||!pass){ authErr('Preencha e-mail e senha.'); return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(error){ authErr('E-mail ou senha incorretos.'); return; }
+  await loadMyProfile(); updateHeaderAuthUI(); closeAuth(); toast('Bem-vindo de volta!');
+}
+async function doSignup(){
+  const nome=el('au-nome').value.trim(), tel=el('au-tel').value.trim();
+  const email=el('au-email').value.trim(), pass=el('au-pass').value;
+  if(!nome||!email||!pass){ authErr('Preencha nome, e-mail e senha.'); return; }
+  if(pass.length<6){ authErr('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  const { data, error } = await sb.auth.signUp({ email, password: pass, options:{ data:{ nome, telefone: tel } } });
+  if(error){ authErr(error.message && error.message.toLowerCase().includes('already') ? 'Este e-mail já tem cadastro. Tente entrar.' : 'Não foi possível criar a conta agora.'); return; }
+  if(data.session){
+    session=data.session;
+    try{ await sb.rpc('vincular_cliente_apos_cadastro'); }catch(e){}
+    await loadMyProfile(); updateHeaderAuthUI(); closeAuth(); toast('Conta criada! Bem-vindo(a).');
+  } else {
+    closeAuth(); toast('Confirme seu e-mail para ativar a conta.');
+  }
+}
+async function doForgotPassword(){
+  const email=el('au-email').value.trim();
+  if(!email){ authErr('Informe seu e-mail.'); return; }
+  const redirectTo = location.origin + location.pathname;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+  if(error){ authErr('Não foi possível enviar o link agora.'); return; }
+  closeAuth(); toast('Link enviado! Confira seu e-mail.');
+}
+async function doResetPassword(){
+  const pass=el('au-pass').value;
+  if(!pass||pass.length<6){ authErr('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  const { error } = await sb.auth.updateUser({ password: pass });
+  if(error){ authErr('Não foi possível salvar a nova senha.'); return; }
+  closeAuth(); toast('Senha alterada com sucesso!');
+}
+async function logout(){
+  await sb.auth.signOut();
+  session=null; myProfile=null; updateHeaderAuthUI(); closeDrawer();
+  toast('Você saiu da sua conta.');
+  showView('catalog');
+}
+
+// ══════════════════════════════════════════════════════════════
+// ÁREA DO CLIENTE — Meus dados, Meus pedidos, Meus orçamentos
+// As consultas abaixo pedem só as colunas que fazem sentido pro cliente
+// ver — não usam select('*') de propósito, para não expor custo interno
+// e margem (que existem nessas tabelas para uso do ERP).
+// ══════════════════════════════════════════════════════════════
+const ACCOUNT_TABS=[
+  {k:'dados', label:'Meus dados', icon:'ti-user'},
+  {k:'pedidos', label:'Meus pedidos', icon:'ti-package'},
+  {k:'orcamentos', label:'Meus orçamentos', icon:'ti-file-text'},
+];
+let accountTab='dados';
+
+function openAccount(tab){
+  if(!session){ openAuth('login'); return; }
+  accountTab=tab||'dados';
+  showView('conta');
+  el('account-nav').innerHTML=ACCOUNT_TABS.map(t=>`<button class="${t.k===accountTab?'on':''}" onclick="openAccount('${t.k}')"><i class="ti ${t.icon}" aria-hidden="true"></i> ${t.label}</button>`).join('')
+    + `<button onclick="logout()" style="color:var(--red);margin-top:8px"><i class="ti ti-logout" aria-hidden="true"></i> Sair</button>`;
+  el('conta-breadcrumb').innerHTML=`<div style="max-width:1280px;margin:0 auto;padding:16px clamp(16px,4vw,40px) 0;font-size:12px;color:var(--text3)"><a href="#" onclick="goHome();return false">Catálogo</a> <i class="ti ti-chevron-right" aria-hidden="true"></i> <span style="color:var(--text2);font-weight:600">Minha conta</span></div>`;
+  renderAccountPanel();
+}
+function renderAccountPanel(){
+  const panel=el('account-panel');
+  if(accountTab==='dados') return renderAccountDados(panel);
+  if(accountTab==='pedidos') return renderAccountList(panel,'pedidos');
+  if(accountTab==='orcamentos') return renderAccountList(panel,'orcamentos');
+}
+function renderAccountDados(panel){
+  panel.innerHTML=`
+    <h2>Meus dados</h2>
+    <div class="form-box" style="max-width:440px">
+      <div class="fg" style="margin-bottom:12px"><label class="fl" for="md-nome">Nome</label><input class="fi" id="md-nome" value="${esc(myProfile?.nome||'')}"></div>
+      <div class="fg" style="margin-bottom:12px"><label class="fl" for="md-tel">WhatsApp</label><input class="fi" id="md-tel" value="${esc(myProfile?.telefone||'')}" oninput="fmtFone(this)"></div>
+      <div class="fg" style="margin-bottom:16px"><label class="fl">E-mail</label><input class="fi" value="${esc(myProfile?.email||'')}" disabled style="opacity:.6"></div>
+      <button class="btn btn-wpp btn-md" onclick="saveMyProfile()">Salvar alterações</button>
+    </div>`;
+}
+async function saveMyProfile(){
+  const nome=el('md-nome').value.trim(), tel=el('md-tel').value.trim();
+  if(!nome){ toast('Informe seu nome.'); return; }
+  const { error } = await sb.from('perfis').update({ nome, telefone: tel }).eq('id', session.user.id);
+  if(error){ toast('Não foi possível salvar agora.'); return; }
+  myProfile.nome=nome; myProfile.telefone=tel;
+  updateHeaderAuthUI(); toast('Dados atualizados!');
+}
+
+const PEDIDO_STATUS={ aguardando:{l:'Aguardando',c:'amber'}, producao:{l:'Em produção',c:'blue'}, pos_processamento:{l:'Acabamento',c:'blue'}, finalizado:{l:'Finalizado',c:'green'}, entregue:{l:'Entregue',c:'green'}, devolucao:{l:'Devolução',c:'red'}, cancelado:{l:'Cancelado',c:'red'} };
+const ORCAMENTO_STATUS={ rascunho:{l:'Rascunho',c:'gray'}, aguardando:{l:'Aguardando aprovação',c:'amber'}, aprovado:{l:'Aprovado',c:'green'}, recusado:{l:'Recusado',c:'red'}, convertido:{l:'Convertido em pedido',c:'blue'} };
+
+async function renderAccountList(panel, kind){
+  const titleTxt = kind==='pedidos' ? 'Meus pedidos' : 'Meus orçamentos';
+  panel.innerHTML=`<h2>${titleTxt}</h2><div class="shimmer" style="height:80px;margin-bottom:10px;border-radius:12px"></div><div class="shimmer" style="height:80px;border-radius:12px"></div>`;
+  const query = kind==='pedidos'
+    ? sb.from('pedidos').select('id,numero,descricao,valor,prazo,status,created_at').order('created_at',{ascending:false})
+    : sb.from('orcamentos').select('id,numero,descricao,quantidade,preco_final,prazo_dias,status,created_at').order('created_at',{ascending:false});
+  const { data, error } = await query;
+  if(error){ panel.innerHTML=`<h2>${titleTxt}</h2><div class="state"><i class="ti ti-alert-circle" aria-hidden="true"></i><p>Não consegui carregar agora. Tenta de novo em instantes.</p></div>`; return; }
+  if(!data.length){
+    panel.innerHTML=`<h2>${titleTxt}</h2><div class="state"><i class="ti ${kind==='pedidos'?'ti-package':'ti-file-text'}" aria-hidden="true"></i><h3>Nada por aqui ainda</h3><p>Assim que você tiver ${kind==='pedidos'?'um pedido':'um orçamento'}, ele aparece nesta lista.</p></div>`;
+    return;
+  }
+  const statusMap = kind==='pedidos' ? PEDIDO_STATUS : ORCAMENTO_STATUS;
+  panel.innerHTML=`<h2>${titleTxt}</h2>` + data.map(row=>{
+    const st=statusMap[row.status]||{l:row.status,c:'gray'};
+    const valor = kind==='pedidos' ? row.valor : row.preco_final;
+    const dataFmt = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '';
+    return `<div class="list-card">
+      <div class="list-card-top">
+        <span class="list-card-num">${esc(row.numero||'')}</span>
+        <span class="status-badge status-${st.c}">${esc(st.l)}</span>
+      </div>
+      <div class="list-card-desc">${esc(row.descricao||'')}</div>
+      <div class="list-card-meta"><span>${dataFmt}</span>${valor!=null?`<span>${brl(valor)}</span>`:''}</div>
+    </div>`;
+  }).join('');
+}
+
 init();
+initAuth();
 </script>
 </body>
 </html>
