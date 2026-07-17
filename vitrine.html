@@ -1201,7 +1201,7 @@ function renderAuthBody(mode){
     body.innerHTML=`
       <div class="auth-error" id="auth-error"></div>
       <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-email">E-mail</label><input class="fi" id="au-email" type="email" autocomplete="email"></div>
-      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Senha</label><input class="fi" id="au-pass" type="password" autocomplete="current-password"></div>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Senha</label><div style="position:relative"><input class="fi" id="au-pass" type="password" autocomplete="current-password" style="padding-right:40px"><button type="button" onclick="togglePassVis(this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;display:flex" aria-label="Mostrar senha"><i class="ti ti-eye" aria-hidden="true"></i></button></div></div>
       <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doLogin()">Entrar</button>
       <div class="auth-switch"><button onclick="renderAuthBody('forgot')">Esqueci minha senha</button></div>
       <div class="auth-switch">Não tem conta? <button onclick="renderAuthBody('signup')">Cadastre-se</button></div>`;
@@ -1211,7 +1211,7 @@ function renderAuthBody(mode){
       <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-nome">Nome completo</label><input class="fi" id="au-nome" type="text" autocomplete="name"></div>
       <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-tel">WhatsApp</label><input class="fi" id="au-tel" type="tel" oninput="fmtFone(this)" autocomplete="tel"></div>
       <div class="fg" style="margin-bottom:12px"><label class="fl" for="au-email">E-mail</label><input class="fi" id="au-email" type="email" autocomplete="email"></div>
-      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Senha</label><input class="fi" id="au-pass" type="password" autocomplete="new-password" minlength="6"></div>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Senha</label><div style="position:relative"><input class="fi" id="au-pass" type="password" autocomplete="new-password" minlength="6" style="padding-right:40px"><button type="button" onclick="togglePassVis(this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;display:flex" aria-label="Mostrar senha"><i class="ti ti-eye" aria-hidden="true"></i></button></div></div>
       <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doSignup()">Criar conta</button>
       <div class="auth-switch">Já tem conta? <button onclick="renderAuthBody('login')">Entrar</button></div>`;
   } else if(mode==='forgot'){
@@ -1225,11 +1225,20 @@ function renderAuthBody(mode){
     body.innerHTML=`
       <div class="auth-error" id="auth-error"></div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Crie sua nova senha de acesso.</p>
-      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Nova senha</label><input class="fi" id="au-pass" type="password" minlength="6" autocomplete="new-password"></div>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-pass">Nova senha</label><div style="position:relative"><input class="fi" id="au-pass" type="password" minlength="6" autocomplete="new-password" style="padding-right:40px"><button type="button" onclick="togglePassVis(this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;display:flex" aria-label="Mostrar senha"><i class="ti ti-eye" aria-hidden="true"></i></button></div></div>
       <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doResetPassword()">Salvar nova senha</button>`;
   }
 }
 function authErr(msg){ const e=el('auth-error'); if(e){ e.textContent=msg; e.classList.add('show'); } }
+function togglePassVis(btn){
+  const input=btn.previousElementSibling;
+  if(!input) return;
+  const showing=input.type==='text';
+  input.type=showing?'password':'text';
+  const icon=btn.querySelector('i');
+  icon.className='ti '+(showing?'ti-eye':'ti-eye-off');
+  btn.setAttribute('aria-label', showing?'Mostrar senha':'Ocultar senha');
+}
 
 async function doLogin(){
   const email=el('au-email').value.trim(), pass=el('au-pass').value;
