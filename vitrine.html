@@ -223,7 +223,11 @@ img{display:block}
 .qty-stepper{display:flex;align-items:center;border:1px solid var(--border2);border-radius:10px;overflow:hidden}
 .qty-stepper button{width:36px;height:38px;background:var(--s2);border:none;color:var(--text2);font-size:16px;cursor:pointer;transition:background .15s}
 .qty-stepper button:hover{background:var(--s3);color:var(--text)}
-.qty-stepper input{width:44px;height:38px;text-align:center;background:var(--s1);border:none;border-left:1px solid var(--border2);border-right:1px solid var(--border2);color:var(--text);font-size:14px;font-weight:700;outline:none}
+.qty-stepper input{width:48px;height:38px;text-align:center;background:var(--s1);border:none;border-left:1px solid var(--border2);border-right:1px solid var(--border2);color:var(--text);font-size:14px;font-weight:700;outline:none}
+.qty-stepper input::-webkit-outer-spin-button,.qty-stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.qty-stepper input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.qty-total-line{font-size:12px;color:var(--text2);margin:2px 0 4px}
+.qty-total-line strong{color:var(--text);font-weight:800}
 .pdp-actions{display:flex;gap:10px;flex-wrap:wrap}
 .pdp-actions .btn-lg{flex:1;min-width:220px}
 
@@ -485,10 +489,11 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
             <span class="qty-label">Quantidade</span>
             <div class="qty-stepper">
               <button type="button" onclick="stepQty(-1)" aria-label="Diminuir quantidade">−</button>
-              <input class="fi" id="f-qty" type="number" value="1" min="1" style="border-radius:0;height:38px">
+              <input class="fi" id="f-qty" type="number" value="1" min="1" style="border-radius:0;height:38px" oninput="updateQtyTotal()">
               <button type="button" onclick="stepQty(1)" aria-label="Aumentar quantidade">+</button>
             </div>
           </div>
+          <div class="qty-total-line" id="qty-total-line" style="display:none"></div>
           <div class="form-grid">
             <div class="fg"><label class="fl" for="f-nome">Seu nome *</label><input class="fi" id="f-nome" type="text" placeholder="João Silva"></div>
             <div class="fg"><label class="fl" for="f-wpp">WhatsApp *</label><input class="fi" id="f-wpp" type="tel" placeholder="(11) 90000-0000" oninput="fmtFone(this)"></div>
@@ -881,6 +886,7 @@ function openProd(id){
   } else { relWrap.style.display='none'; }
 
   el('f-cor').value=''; el('f-msg').value=''; el('f-qty').value=1;
+  updateQtyTotal();
 
   el('view-catalog').style.display='none';
   el('pdp').style.display='block';
@@ -919,6 +925,16 @@ function pdpZoomOff(){ el('pdp-thumb-wrap').classList.remove('zoomed'); }
 // ── Quantidade ──
 function stepQty(delta){
   const q=el('f-qty'); let v=(parseInt(q.value)||1)+delta; if(v<1)v=1; q.value=v;
+  updateQtyTotal();
+}
+function updateQtyTotal(){
+  const line=el('qty-total-line');
+  let qty=parseInt(el('f-qty').value);
+  if(!qty||qty<1){ qty=1; el('f-qty').value=1; }
+  if(!curProd || !curProd.preco_vitrine || qty<=1){ line.style.display='none'; return; }
+  const total=curProd.preco_vitrine*qty;
+  line.innerHTML=brl(curProd.preco_vitrine)+' cada &times; '+qty+' = <strong>'+brl(total)+'</strong> <span style="color:var(--text3)">(estimado)</span>';
+  line.style.display='';
 }
 
 // ── Drawer mobile ──
