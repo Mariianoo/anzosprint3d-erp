@@ -6393,10 +6393,23 @@ async function printShippingLabel() {
       const { data: ped } = await sb.from('pedidos').select('orcamento_id').eq('id', o._uuid).single();
       if (ped && ped.orcamento_id) {
         const { data: orc } = await sb.from('orcamentos')
-          .select('filamento_tipo,filamento_cor,peso_g').eq('id', ped.orcamento_id).single();
+          .select('filamento_tipo,filamento_cor,peso_g,modo_impressao,filamentos_multipartes').eq('id', ped.orcamento_id).single();
         if (orc) {
-          mat = orc.filamento_tipo || '—';
-          cor = orc.filamento_cor || '—';
+          if (orc.modo_impressao === 'multipartes' && Array.isArray(orc.filamentos_multipartes) && orc.filamentos_multipartes.length) {
+            // Multicolor: o campo "filamento_tipo" simples não é usado nesse modo (ficava
+            // com o valor padrão do seletor não utilizado — por isso aparecia "ABS" errado).
+            // O material real está em cada parte.
+            const tipos = [...new Set(orc.filamentos_multipartes.map(p => p.tipo).filter(Boolean))];
+            mat = tipos.length ? tipos.join('/') : '—';
+            // Cor: se as partes usam uma única cor na prática, mostra ela normalmente —
+            // mesma lógica do campo Conteúdo. Só fica "—" quando são várias cores de fato
+            // (aí a mistura já aparece detalhada em Conteúdo, repetir aqui não ajuda).
+            const cores = [...new Set(orc.filamentos_multipartes.map(p => p.cor).filter(Boolean))];
+            cor = cores.length === 1 ? cores[0] : '—';
+          } else {
+            mat = orc.filamento_tipo || '—';
+            cor = orc.filamento_cor || '—';
+          }
           peso = (orc.peso_g != null && orc.peso_g !== '') ? `${orc.peso_g} g` : '—';
         }
       }
