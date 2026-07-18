@@ -374,6 +374,35 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
 .status-gray{background:var(--s3);color:var(--text3)}
 
 @media(max-width:720px){ .account-wrap{grid-template-columns:1fr} .account-nav{flex-direction:row;overflow-x:auto} .account-nav button{flex-shrink:0} }
+
+/* ─── ASSISTENTE VIRTUAL (respostas prontas, sem IA) ─── */
+.chatbot-fab{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;border:none;box-shadow:0 10px 28px rgba(244,105,23,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;z-index:250;transition:transform .2s}
+.chatbot-fab:hover{transform:scale(1.06)}
+.chatbot-fab .badge-dot{position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:var(--red);border:2px solid #fff}
+.chatbot-panel{position:fixed;right:20px;bottom:88px;width:min(360px,calc(100vw - 40px));height:min(520px,calc(100vh - 140px));background:var(--s1);border:1px solid var(--border2);border-radius:16px;box-shadow:var(--shadow-lg);z-index:250;display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(12px) scale(.97);pointer-events:none;transition:opacity .18s,transform .18s}
+.chatbot-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:all}
+.chatbot-hdr{background:var(--blue-d);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.chatbot-hdr-avatar{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.chatbot-hdr-title{font-size:13px;font-weight:800}
+.chatbot-hdr-sub{font-size:11px;color:rgba(255,255,255,.7)}
+.chatbot-hdr-close{margin-left:auto;background:none;border:none;color:#fff;cursor:pointer;padding:4px;opacity:.8}
+.chatbot-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.chatbot-msg{max-width:82%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.5}
+.chatbot-msg.bot{background:var(--s1);border:1px solid var(--border);color:var(--text);align-self:flex-start;border-bottom-left-radius:3px}
+.chatbot-msg.user{background:var(--blue);color:#fff;align-self:flex-end;border-bottom-right-radius:3px}
+.chatbot-msg-product{display:flex;align-items:center;gap:8px;margin-top:6px;padding:7px;background:var(--s2);border-radius:9px;cursor:pointer;border:1px solid var(--border)}
+.chatbot-msg-product img{width:34px;height:34px;object-fit:contain;border-radius:6px;background:#fff;flex-shrink:0}
+.chatbot-suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px;flex-shrink:0}
+.chatbot-chip{font-size:11px;font-weight:600;padding:6px 12px;border-radius:16px;background:var(--s2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;transition:all .15s}
+.chatbot-chip:hover{border-color:var(--accent);color:var(--accent-d)}
+.chatbot-input-row{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);flex-shrink:0;background:var(--s1)}
+.chatbot-input-row input{flex:1;height:38px;padding:0 12px;background:var(--s2);border:1px solid var(--border2);border-radius:20px;color:var(--text);font-size:13px;outline:none}
+.chatbot-input-row input:focus{border-color:var(--blue)}
+.chatbot-input-row button{width:38px;height:38px;border-radius:50%;background:var(--blue);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+@media(max-width:640px){
+  .chatbot-fab{bottom:90px}
+  .chatbot-panel{right:12px;left:12px;width:auto;bottom:150px}
+}
 </style>
 </head>
 <body>
@@ -667,6 +696,27 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
       <button class="btn-icon" onclick="closeAuth()" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
     </div>
     <div class="modal-body" id="auth-body"></div>
+  </div>
+</div>
+
+<!-- ASSISTENTE VIRTUAL -->
+<button class="chatbot-fab" id="chatbot-fab" onclick="toggleChatbot()" aria-label="Assistente virtual">
+  <i class="ti ti-message-chatbot" id="chatbot-fab-icon" aria-hidden="true"></i>
+</button>
+<div class="chatbot-panel" id="chatbot-panel" role="dialog" aria-label="Assistente virtual">
+  <div class="chatbot-hdr">
+    <div class="chatbot-hdr-avatar"><i class="ti ti-robot" aria-hidden="true"></i></div>
+    <div>
+      <div class="chatbot-hdr-title">Assistente ANZO'S</div>
+      <div class="chatbot-hdr-sub">Respostas rápidas · direto ao WhatsApp se precisar</div>
+    </div>
+    <button class="chatbot-hdr-close" onclick="toggleChatbot()" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
+  </div>
+  <div class="chatbot-body" id="chatbot-body"></div>
+  <div class="chatbot-suggestions" id="chatbot-suggestions"></div>
+  <div class="chatbot-input-row">
+    <input type="text" id="chatbot-input" placeholder="Digite sua pergunta..." onkeydown="if(event.key==='Enter')chatbotSend()">
+    <button onclick="chatbotSend()" aria-label="Enviar"><i class="ti ti-send" aria-hidden="true"></i></button>
   </div>
 </div>
 
@@ -1576,6 +1626,108 @@ async function checkoutCart(){
   }
 
   window.open('https://wa.me/'+num+'?text='+encodeURIComponent(t),'_blank');
+}
+
+// ══════════════════════════════════════════════════════════════
+// ASSISTENTE VIRTUAL — respostas prontas, sem IA e sem custo de API.
+// Reconhece palavras-chave e responde com dados reais (catálogo/config).
+// Qualquer coisa fora do que ele reconhece, encaminha pro WhatsApp já
+// com o contexto da pergunta, pra não fazer a pessoa repetir tudo.
+// ══════════════════════════════════════════════════════════════
+let chatbotOpen = false;
+let chatbotOrcConfig = null;
+let chatbotGreeted = false;
+const CHATBOT_SUGGESTIONS = ['Prazo de entrega', 'Formas de pagamento', 'Como faço meu pedido?', 'Falar com atendente'];
+
+function toggleChatbot(){
+  chatbotOpen = !chatbotOpen;
+  el('chatbot-panel').classList.toggle('open', chatbotOpen);
+  el('chatbot-fab-icon').className = 'ti ' + (chatbotOpen ? 'ti-x' : 'ti-message-chatbot');
+  if(chatbotOpen && !chatbotGreeted){
+    chatbotGreeted = true;
+    addChatMsg('bot', 'Oi! 👋 Eu ajudo com perguntas rápidas sobre pedidos, prazos e pagamento. O que você quer saber?');
+    renderChatSuggestions();
+    el('chatbot-input').focus();
+  }
+}
+function addChatMsg(role, html){
+  const body = el('chatbot-body');
+  const div = document.createElement('div');
+  div.className = 'chatbot-msg ' + role;
+  div.innerHTML = html;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+function renderChatSuggestions(){
+  el('chatbot-suggestions').innerHTML = CHATBOT_SUGGESTIONS.map(s => `<button class="chatbot-chip" onclick="chatbotSend('${esc(s)}')">${esc(s)}</button>`).join('');
+}
+function chatbotSend(text){
+  text = (text || el('chatbot-input').value).trim();
+  if(!text) return;
+  addChatMsg('user', esc(text));
+  el('chatbot-input').value = '';
+  el('chatbot-suggestions').innerHTML = '';
+  setTimeout(() => chatbotRespond(text), 350);
+}
+async function getOrcamentoConfig(){
+  if(chatbotOrcConfig) return chatbotOrcConfig;
+  try{
+    const { data } = await sb.from('configuracoes_publicas').select('valor').eq('chave','orcamento_config').maybeSingle();
+    chatbotOrcConfig = data ? JSON.parse(data.valor || '{}') : {};
+  }catch(e){ chatbotOrcConfig = {}; }
+  return chatbotOrcConfig;
+}
+function chatbotWppLink(msg){
+  const num = (empresa.whatsapp||empresa.telefone||'').replace(/\D/g,'');
+  return num ? 'https://wa.me/'+num+'?text='+encodeURIComponent(msg||'Olá! Vim pelo assistente do site e queria falar com vocês.') : '#';
+}
+function chatbotWppOffer(intro, contextText){
+  const msg = intro || 'Claro, é só chamar no WhatsApp que a gente te ajuda rapidinho!';
+  const wppMsg = contextText ? `Olá! Vim pelo assistente do site. Minha dúvida: "${contextText}"` : undefined;
+  addChatMsg('bot', `${esc(msg)}<div style="margin-top:8px"><a href="${chatbotWppLink(wppMsg)}" target="_blank" rel="noopener" class="btn btn-wpp btn-sm" style="width:100%;justify-content:center"><i class="ti ti-brand-whatsapp"></i> Abrir WhatsApp</a></div>`);
+  renderChatSuggestions();
+}
+
+const FAQ_RULES = [
+  { kw:['prazo','entrega','demora','quanto tempo','quando chega','quando fica pronto'], fn: () => {
+    const prazos = all.map(p=>p.prazo_dias).filter(Boolean);
+    if(!prazos.length) return 'O prazo varia por produto — você confere o prazo exato na página de cada peça.';
+    const min=Math.min(...prazos), max=Math.max(...prazos);
+    return min===max ? `Nossos produtos costumam ficar prontos em ${min} dias úteis.` : `Nossos prazos variam entre ${min} e ${max} dias úteis, dependendo do produto — o prazo exato aparece na página de cada peça.`;
+  }},
+  { kw:['pagamento','pagar','pix','cartão','forma de pagamento','parcela','desconto'], fn: async () => {
+    const cfg = await getOrcamentoConfig();
+    return cfg.formas_pagamento ? `Formas de pagamento: ${cfg.formas_pagamento}` : 'Trabalhamos com PIX e cartão — os detalhes certinhos a gente combina com você no WhatsApp.';
+  }},
+  { kw:['como funciona','como faço','como pedir','como comprar','fazer pedido','fazer meu pedido'], fn: () => 'É bem simples: escolha um produto no catálogo, ajuste a quantidade e clique em "Comprar agora" — ou adicione ao carrinho pra juntar vários itens num pedido só. No final você confirma pelo WhatsApp e a gente cuida do resto!' },
+  { kw:['material','pla','qualidade da impressão','resistente'], fn: () => 'Trabalhamos principalmente com PLA — material de alta qualidade, com ótimo acabamento, ideal pra peças decorativas e personalizadas.' },
+  { kw:['cor','personaliza','customiz','muda a cor'], fn: () => 'Sim, dá sim! A maioria dos produtos pode ser personalizada — cor, texto, detalhes. É só usar o campo "Cor/Personalização" na página do produto, ou combinar direto no WhatsApp.' },
+  { kw:['onde fica','localiza','endereço','regiao','região','cidade','envia pra','manda pra'], fn: () => `Somos de ${empresa.cidade||'—'}${empresa.estado?'/'+empresa.estado:''} e enviamos pra todo o Brasil.` },
+  { kw:['favorito','carrinho','minha conta','login','cadastro','conta'], fn: () => 'Você pode criar uma conta grátis pra salvar favoritos, montar um carrinho com vários produtos e acompanhar seus pedidos — o botão fica ali em cima, no ícone de pessoa.' },
+  { kw:['atendente','humano','pessoa de verdade','falar com alguem','falar com alguém','whatsapp'], fn: () => '__WPP__' },
+];
+
+async function chatbotRespond(text){
+  const q = text.toLowerCase();
+  for(const rule of FAQ_RULES){
+    if(rule.kw.some(k => q.includes(k))){
+      const ans = await rule.fn();
+      if(ans === '__WPP__'){ chatbotWppOffer(null, text); return; }
+      addChatMsg('bot', ans);
+      renderChatSuggestions();
+      return;
+    }
+  }
+  const qTrim = q.trim();
+  const found = qTrim.length>2 && all.find(p => p.nome && (qTrim.includes(p.nome.toLowerCase()) || p.nome.toLowerCase().includes(qTrim)));
+  if(found){
+    let html = `Encontrei "${esc(found.nome)}"! ${found.preco_vitrine ? 'A partir de '+brl(found.preco_vitrine) : 'Sob consulta'}.`;
+    html += `<div class="chatbot-msg-product" onclick="toggleChatbot();openProd('${found.id}')">${found.capa_base64?`<img src="${found.capa_base64}" alt="">`:''}<span style="font-size:12px;font-weight:600">Ver produto →</span></div>`;
+    addChatMsg('bot', html);
+    renderChatSuggestions();
+    return;
+  }
+  chatbotWppOffer('Não consegui entender essa pergunta, mas posso te conectar direto com a gente! 💬', text);
 }
 
 init();
