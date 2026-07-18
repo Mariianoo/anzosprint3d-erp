@@ -2156,7 +2156,13 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <div id="md-parts-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
     <div style="background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:10px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px">Descrição</div><div id="md-notes" style="font-size:13px">—</div></div>
-    <div style="background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:14px"><div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:2px"><i class="ti ti-folder" style="font-size:12px"></i> Localização do arquivo</div><div id="md-location" style="font-size:13px">—</div></div>
+    <div style="background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase"><i class="ti ti-folder" style="font-size:12px"></i> Localização do arquivo</div>
+        <button class="btn btn-secondary btn-sm" onclick="copyModelLocation()" title="Copiar caminho" style="padding:2px 8px"><i class="ti ti-copy" style="font-size:13px"></i></button>
+      </div>
+      <div id="md-location" style="font-size:13px">—</div>
+    </div>
     <div class="modal-footer" style="justify-content:space-between">
       <button class="btn btn-danger btn-sm" onclick="deleteModelFromDetail()"><i class="ti ti-trash"></i> Excluir</button>
       <div style="display:flex;gap:8px">
@@ -9948,6 +9954,18 @@ function openNewModel() {
   if (!filamentsData || !filamentsData.length) loadFilamentsForQuote();
   setTimeout(() => setModelMode('simples'), 30);
   openModal('modal-new-model');
+}
+
+async function copyModelLocation() {
+  const el_ = document.getElementById('md-location');
+  const text = el_ ? el_.textContent.trim() : '';
+  if (!text || text === '—') { showToast('Nenhuma localização cadastrada.'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Caminho copiado!');
+  } catch (e) {
+    showToast('Não consegui copiar agora.');
+  }
 }
 
 async function deleteModelFromDetail() {
