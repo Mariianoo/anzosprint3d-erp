@@ -564,6 +564,9 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
           <button class="btn btn-ghost btn-md" id="pdp-fav-btn" onclick="toggleFavorite(curProd.id)" style="flex:0;min-width:0;padding:0 16px" aria-label="Favoritar">
             <i class="ti ti-heart" id="pdp-fav-icon" aria-hidden="true"></i>
           </button>
+          <button class="btn btn-ghost btn-md" onclick="shareProduct()" style="flex:0;min-width:0;padding:0 16px" aria-label="Compartilhar produto">
+            <i class="ti ti-share-3" aria-hidden="true"></i>
+          </button>
         </div>
 
         <div class="form-box">
@@ -1425,6 +1428,23 @@ function updateProdFavButton(){
   btn.setAttribute('aria-pressed', isFav);
   btn.style.color = isFav ? 'var(--red)' : '';
   icon.className = 'ti '+(isFav?'ti-heart-filled':'ti-heart');
+}
+
+async function shareProduct(){
+  if(!curProd) return;
+  const url = location.origin + location.pathname + '#/produto/' + curProd.id;
+  const precoTxt = curProd.preco_vitrine ? ` — a partir de ${brl(curProd.preco_vitrine)}` : '';
+  const shareData = { title: curProd.nome, text: `Confira "${curProd.nome}" na ${empresa.nome || "ANZO'S Print 3D"}${precoTxt}`, url };
+  if(navigator.share){
+    try{ await navigator.share(shareData); }catch(e){ /* usuário cancelou o compartilhamento — silencioso */ }
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(url);
+    toast('Link copiado!');
+  }catch(e){
+    toast('Não consegui copiar o link agora.');
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
