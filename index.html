@@ -2290,6 +2290,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <option value="Hoje">Vence hoje</option>
       <option value="A vencer">A vencer</option>
       <option value="Recebido">Recebido</option>
+      <option value="Cancelado">Cancelado</option>
     </select>
   </div>
 
@@ -14505,7 +14506,7 @@ async function loadReceivablesDB() {
     value: Number(r.valor) || 0,
     due: r.vencimento,
     payment: r.pagamento || '—',
-    status: r.status === 'recebido' ? 'recebido' : 'pendente',
+    status: r.status || 'pendente',
     recebido_em: r.recebido_em || null,
     recebido_obs: r.observacoes || '',
     recebido_forma: r.pagamento_recebimento || r.pagamento || 'Pix',
@@ -14516,7 +14517,8 @@ async function loadReceivablesDB() {
 }
 
 function recvStatus(r) {
-  if (r.status === 'recebido') return { key:'Recebido', badge:'badge-green' };
+  if (r.status === 'recebido' || r.status === 'pago') return { key:'Recebido', badge:'badge-green' };
+  if (r.status === 'cancelado') return { key:'Cancelado', badge:'badge-gray' };
   const today = new Date(); today.setHours(0,0,0,0);
   const due = new Date(r.due + 'T00:00:00');
   if (due < today) return { key:'Vencido', badge:'badge-red' };
@@ -14542,13 +14544,18 @@ function renderReceivables() {
     // Botão de ver detalhes — presente em todos os status
     const detailBtn = `<button class="btn btn-secondary btn-sm" onclick="openReceivableDetail('${r.id}')" title="Ver detalhes"><i class="ti ti-eye"></i></button>`;
 
-    if (r.status === 'recebido') {
+    if (r.status === 'recebido' || r.status === 'pago') {
       actionBtn = `<div style="display:flex;gap:4px;align-items:center">
         ${detailBtn}
         <button class="btn btn-secondary btn-sm" onclick="revertReceivable('${r.id}')" title="Estornar — voltar para Pendente" style="color:var(--amber)">
           <i class="ti ti-arrow-back-up"></i>
         </button>
         <span style="font-size:12px;color:var(--green)"><i class="ti ti-circle-check"></i> Recebido</span>
+      </div>`;
+    } else if (r.status === 'cancelado') {
+      actionBtn = `<div style="display:flex;gap:4px;align-items:center">
+        ${detailBtn}
+        <span style="font-size:12px;color:var(--text3)"><i class="ti ti-ban"></i> Cancelado</span>
       </div>`;
     } else if (st.key === 'Vencido') {
       actionBtn = `<div style="display:flex;gap:4px">
@@ -14560,7 +14567,7 @@ function renderReceivables() {
       actionBtn = `<div style="display:flex;gap:4px">${detailBtn}<button class="btn btn-success btn-sm" onclick="markReceived('${r.id}')"><i class="ti ti-check"></i> Receber</button></div>`;
     }
     const tr = document.createElement('tr');
-    if (r.status === 'recebido') tr.style.opacity = '0.7';
+    if (r.status === 'recebido' || r.status === 'pago' || r.status === 'cancelado') tr.style.opacity = '0.7';
     // Exibe o número do pedido vinculado (busca no ordersData)
     let pedidoLabel = '—';
     if (r.pedido_id) {
@@ -14588,7 +14595,7 @@ function updateReceivableKPIs() {
   const total = pending.reduce((s,r) => s+r.value, 0);
   const overdue = pending.filter(r => recvStatus(r).key === 'Vencido').reduce((s,r)=>s+r.value,0);
   const todayVal = pending.filter(r => recvStatus(r).key === 'Hoje').reduce((s,r)=>s+r.value,0);
-  const received = receivablesData.filter(r => r.status === 'recebido').reduce((s,r)=>s+r.value,0);
+  const received = receivablesData.filter(r => r.status === 'recebido' || r.status === 'pago').reduce((s,r)=>s+r.value,0);
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = 'R$ ' + Math.round(val).toLocaleString('pt-BR'); };
   set('rec-total', total);
   set('rec-overdue', overdue);
@@ -14904,7 +14911,7 @@ function exportReceivablesPdf() {
 
   const pending = receivablesData.filter(r=>r.status==='pendente');
   const total = pending.reduce((s,r)=>s+r.value,0);
-  const received = receivablesData.filter(r=>r.status==='recebido').reduce((s,r)=>s+r.value,0);
+  const received = receivablesData.filter(r=>r.status==='recebido'||r.status==='pago').reduce((s,r)=>s+r.value,0);
 
   let y = 40;
   doc.setFillColor(219,234,254); doc.roundedRect(14,y,88,22,2,2,'F');
