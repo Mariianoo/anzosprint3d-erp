@@ -1511,6 +1511,10 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
               <span>Preço sem desconto</span>
               <span id="qs-price">R$ 0,00</span>
             </div>
+            <div id="qs-payment-options" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2);display:flex;flex-direction:column;gap:4px;font-size:12px">
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--green)"><i class="ti ti-brand-pix"></i> À vista / PIX</span><b id="qs-price-pix">R$ 0,00</b></div>
+              <div style="display:flex;justify-content:space-between;color:var(--text2)"><span><i class="ti ti-credit-card"></i> Parcelado</span><b id="qs-price-parcelado">até 1x de R$ 0,00</b></div>
+            </div>
           </div>
 
           <!-- Ações -->
@@ -2981,6 +2985,33 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <button class="btn btn-primary" style="margin-top:16px" onclick="saveQuoteConfig()"><i class="ti ti-device-floppy"></i> Salvar Configurações do Orçamento</button>
     </div>
 
+    <!-- ══ CONFIGURAÇÕES DE PAGAMENTO ══ -->
+    <div class="card">
+      <div class="cfg-card-title"><i class="ti ti-credit-card"></i> Pagamento</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:16px">Desconto à vista, parcelamento e o link de pagamento (InfinitePay) gerado a partir do orçamento.</p>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Desconto à vista / PIX (%)</label>
+          <input type="number" id="cfg-desconto-pix" value="10" min="0" max="100" step="1" style="max-width:120px">
+          <span style="font-size:11px;color:var(--text3)">Aplicado sobre o preço final quando o cliente paga à vista.</span>
+        </div>
+        <div class="form-group">
+          <label>Parcelamento máximo</label>
+          <input type="number" id="cfg-parcelas-max" value="12" min="1" max="12" style="max-width:120px">
+          <span style="font-size:11px;color:var(--text3)">Número máximo de parcelas no cartão.</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Sua InfiniteTag (InfinitePay)</label>
+        <input type="text" id="cfg-infinitepay-handle" placeholder="seu-handle-sem-o-cifrao">
+        <span style="font-size:11px;color:var(--text3)">O @ que aparece no canto superior esquerdo do app InfinitePay, sem o símbolo $.</span>
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:8px" onclick="saveQuoteConfig()"><i class="ti ti-device-floppy"></i> Salvar Configurações de Pagamento</button>
+    </div>
+
     <!-- ══ PARÂMETROS DE CUSTO ══ -->
     <div class="card">
       <div class="cfg-card-title"><i class="ti ti-calculator"></i> Parâmetros de Custo</div>
@@ -3521,6 +3552,8 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <div style="display:flex;gap:8px">
         <button class="btn btn-danger btn-sm" onclick="deleteCurrentOrder()"><i class="ti ti-trash"></i> Excluir</button>
         <button class="btn btn-secondary btn-sm" id="od-label-btn" onclick="printShippingLabel()" style="display:none;border-color:#3b82f6;color:#3b82f6"><i class="ti ti-tag"></i> Imprimir Etiqueta</button>
+        <button class="btn btn-secondary btn-sm" id="od-pix-btn" onclick="gerarLinkPagamento('pix')" style="border-color:#16a34a;color:#16a34a"><i class="ti ti-brand-pix"></i> Link PIX</button>
+        <button class="btn btn-secondary btn-sm" id="od-parcelado-btn" onclick="gerarLinkPagamento('parcelado')" style="border-color:#7c3aed;color:#7c3aed"><i class="ti ti-credit-card"></i> Link Parcelado</button>
         <button class="btn btn-secondary btn-sm" id="od-devolution-btn" onclick="openDevolutionModal()" style="display:none;border-color:#f59e0b;color:#d97706"><i class="ti ti-arrow-back-up"></i> Registrar Devolução</button>
       </div>
       <div style="display:flex;gap:8px">
@@ -6182,7 +6215,8 @@ async function lookupCepRemetente() {
 let quoteConfigCache = {
   formas_pagamento: 'PIX, Cartão de crédito, Dinheiro',
   mostrar_imagem: true, mostrar_filamento: true, mostrar_extras: true,
-  validade_dias: 7
+  validade_dias: 7,
+  desconto_pix_pct: 10, parcelas_max: 12, infinitepay_handle: '',
 };
 
 function saveQuoteConfig() {
@@ -6192,6 +6226,9 @@ function saveQuoteConfig() {
     mostrar_imagem: document.getElementById('cfg-mostrar-imagem')?.checked ?? true,
     mostrar_filamento: document.getElementById('cfg-mostrar-filamento')?.checked ?? true,
     mostrar_extras: document.getElementById('cfg-mostrar-extras')?.checked ?? true,
+    desconto_pix_pct: parseFloat(document.getElementById('cfg-desconto-pix')?.value) || 0,
+    parcelas_max: parseInt(document.getElementById('cfg-parcelas-max')?.value) || 1,
+    infinitepay_handle: document.getElementById('cfg-infinitepay-handle')?.value?.trim().replace(/^\$/, '') || '',
   };
   quoteConfigCache = cfg;
   localStorage.setItem('anzos_orcamento_config', JSON.stringify(cfg));
@@ -6231,6 +6268,9 @@ function applyQuoteConfigForm() {
   chk('cfg-mostrar-imagem', quoteConfigCache.mostrar_imagem);
   chk('cfg-mostrar-filamento', quoteConfigCache.mostrar_filamento);
   chk('cfg-mostrar-extras', quoteConfigCache.mostrar_extras);
+  set('cfg-desconto-pix', quoteConfigCache.desconto_pix_pct);
+  set('cfg-parcelas-max', quoteConfigCache.parcelas_max);
+  set('cfg-infinitepay-handle', quoteConfigCache.infinitepay_handle);
 }
 
 async function saveCompanyData() {
@@ -6582,6 +6622,28 @@ function code39SVG(text, opts = {}) {
     x += narrow; // espaço entre caracteres
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${height}" viewBox="0 0 ${x} ${height}" preserveAspectRatio="none">${rects}</svg>`;
+}
+
+// Gera o link de pagamento (PIX com desconto ou parcelado) via InfinitePay,
+// chamando a Edge Function que guarda a lógica/handle escondidos do navegador.
+async function gerarLinkPagamento(tipo) {
+  const o = ordersData.find(x => x.id === currentOrderId);
+  if (!o || !o._uuid) { showToast('Pedido não encontrado.'); return; }
+  if (!sb) { showToast('Sem conexão com o banco.'); return; }
+  showToast('Gerando link de pagamento...');
+  try {
+    const { data, error } = await sb.functions.invoke('criar-link-pagamento', { body: { pedido_id: o._uuid, tipo } });
+    if (error || !data || data.error) {
+      showToast('Erro ao gerar link: ' + (data?.error || error?.message || 'desconhecido'));
+      return;
+    }
+    try { await navigator.clipboard.writeText(data.url); } catch (e) {}
+    const valorFmt = formatCurrency(data.valor || 0);
+    showToast(`Link copiado! ${tipo === 'pix' ? 'PIX à vista' : 'Parcelado'}: ${valorFmt}`);
+    window.open(data.url, '_blank');
+  } catch (e) {
+    showToast('Não foi possível gerar o link agora: ' + e.message);
+  }
 }
 
 async function printShippingLabel() {
@@ -11967,6 +12029,12 @@ function calcQuote() {
   set('qs-unit', qty > 1 ? brlFmt(finalComDesconto/qty) + ' / un · ' + qty + ' un' : '');
   set('qs-desconto-valor', descontoPct > 0 ? '- ' + brlFmt(descontoValor) + ' (' + descontoPct + '%)' : brlFmt(0));
   set('qs-final-desconto', brlFmt(finalComDesconto));
+
+  // À vista (PIX) com desconto configurado, e parcelamento máximo configurado
+  const descPixPct = quoteConfigCache?.desconto_pix_pct || 0;
+  const maxParcelas = quoteConfigCache?.parcelas_max || 1;
+  set('qs-price-pix', brlFmt(finalComDesconto * (1 - descPixPct/100)));
+  set('qs-price-parcelado', maxParcelas > 1 ? `até ${maxParcelas}x de ${brlFmt(finalComDesconto/maxParcelas)}` : brlFmt(finalComDesconto));
 
   // Badge de brinde
   const brindeBadge = document.getElementById('qs-brinde-badge');
