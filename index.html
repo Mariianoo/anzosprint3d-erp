@@ -2621,6 +2621,16 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
         <select id="su-unit"><option>un</option><option>m</option><option>cm</option><option>kg</option><option>g</option><option>L</option><option>mL</option><option>par</option><option>kit</option></select>
       </div>
     </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+        <input type="checkbox" id="su-pack-mode" onchange="toggleSupplyPackMode()" style="width:16px;height:16px;accent-color:var(--blue)">
+        Comprei em pacote/caixa fechada (calcular o preço unitário sozinho)
+      </label>
+    </div>
+    <div class="form-row" id="su-pack-fields" style="display:none">
+      <div class="form-group"><label>Preço do pacote (R$)</label><input type="number" id="su-pack-price" placeholder="Ex: 29,76" step="0.01" min="0" oninput="calcSupplyUnitPrice()"></div>
+      <div class="form-group"><label>Quantidade no pacote</label><input type="number" id="su-pack-qty" placeholder="Ex: 100" min="1" step="1" oninput="calcSupplyUnitPrice()"></div>
+    </div>
     <div class="form-row">
       <div class="form-group"><label>Preço unitário (R$) *</label><input type="number" id="su-price" placeholder="0,00" step="0.01" min="0"></div>
       <div class="form-group"><label>Fornecedor</label><select id="su-supplier"></select></div>
@@ -4905,6 +4915,12 @@ function openModal(id) {
     document.getElementById('su-stock-min').value = 10;
     document.getElementById('su-category').selectedIndex = 0;
     document.getElementById('su-unit').selectedIndex = 0;
+    document.getElementById('su-pack-mode').checked = false;
+    document.getElementById('su-pack-fields').style.display = 'none';
+    document.getElementById('su-pack-price').value = '';
+    document.getElementById('su-pack-qty').value = '';
+    document.getElementById('su-price').readOnly = false;
+    document.getElementById('su-price').style.background = '';
   }
   if (id === 'modal-new-supplier') {
     editingSupplierId = null;
@@ -10713,6 +10729,27 @@ async function saveSupply() {
   await loadSuppliesDB();
 }
 
+function toggleSupplyPackMode() {
+  const on = document.getElementById('su-pack-mode').checked;
+  document.getElementById('su-pack-fields').style.display = on ? 'flex' : 'none';
+  const priceEl = document.getElementById('su-price');
+  if (on) {
+    priceEl.readOnly = true;
+    priceEl.style.background = 'var(--surface2)';
+    calcSupplyUnitPrice();
+  } else {
+    priceEl.readOnly = false;
+    priceEl.style.background = '';
+  }
+}
+function calcSupplyUnitPrice() {
+  const packPrice = parseFloat(document.getElementById('su-pack-price').value) || 0;
+  const packQty = parseFloat(document.getElementById('su-pack-qty').value) || 0;
+  if (packQty > 0) {
+    document.getElementById('su-price').value = (packPrice / packQty).toFixed(4);
+  }
+}
+
 function editSupply(id) {
   const s = suppliesData.find(x => x.id === id);
   if (!s) return;
@@ -10724,6 +10761,12 @@ function editSupply(id) {
   document.getElementById('su-category').value = s.category;
   document.getElementById('su-unit').value = s.unit;
   document.getElementById('su-price').value = s.price;
+  document.getElementById('su-pack-mode').checked = false;
+  document.getElementById('su-pack-fields').style.display = 'none';
+  document.getElementById('su-pack-price').value = '';
+  document.getElementById('su-pack-qty').value = '';
+  document.getElementById('su-price').readOnly = false;
+  document.getElementById('su-price').style.background = '';
   // Seleciona o fornecedor pelo uuid
   const supSel = document.getElementById('su-supplier');
   if (supSel && s.fornecedor_id) {
