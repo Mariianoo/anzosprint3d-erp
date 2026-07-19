@@ -1648,6 +1648,12 @@ function toggleChatbot(){
     addChatMsg('bot', 'Oi! 👋 Eu ajudo com perguntas rápidas sobre pedidos, prazos e pagamento. O que você quer saber?');
     renderChatSuggestions();
     el('chatbot-input').focus();
+  } else if(!chatbotOpen){
+    // Fechou — limpa a conversa pra começar do zero na próxima abertura
+    el('chatbot-body').innerHTML = '';
+    el('chatbot-suggestions').innerHTML = '';
+    el('chatbot-input').value = '';
+    chatbotGreeted = false;
   }
 }
 function addChatMsg(role, html){
