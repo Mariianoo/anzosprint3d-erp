@@ -747,7 +747,7 @@ async function init(){
     const[cfg,prod]=await Promise.all([
       sb.from('configuracoes_publicas').select('chave,valor').in('chave',['empresa','logo']),
       sb.from('modelos_3d')
-        .select('id,nome,categoria,material,peso_g,horas,cor_hex,capa_base64,preco_vitrine,prazo_dias,descricao_vitrine,impressoes')
+        .select('id,nome,categoria,material,peso_g,horas,cor_hex,capa_base64,preco_vitrine,prazo_dias,descricao_vitrine,impressoes,estoque')
         .eq('visivel_vitrine',true).is('deleted_at',null).order('created_at',{ascending:false})
     ]);
     if(cfg.error) throw cfg.error;
@@ -960,7 +960,9 @@ function productCardHtml(p, opts){
   const priceHTML=p.preco_vitrine
     ?`<div><div class="price-from">a partir de</div><div class="price">${brl(p.preco_vitrine)}</div></div>`
     :`<div class="price-consult"><i class="ti ti-message-circle" aria-hidden="true"></i> Sob consulta</div>`;
-  const prazoHTML=p.prazo_dias?`<span class="prazo"><i class="ti ti-clock" aria-hidden="true"></i>${p.prazo_dias}d</span>`:'';
+  const prazoHTML=p.estoque>0
+    ?`<span class="prazo" style="color:#16a34a;font-weight:700"><i class="ti ti-bolt" aria-hidden="true"></i>Pronta entrega</span>`
+    :(p.prazo_dias?`<span class="prazo"><i class="ti ti-clock" aria-hidden="true"></i>${p.prazo_dias}d</span>`:'');
   const newBadge=opts.isNew?`<span class="card-new">Novo</span>`:'';
   const catBadge=opts.showCat===false?'':`<span class="card-cat">${esc(p.categoria||'Modelo')}</span>`;
   const isFav=favoriteIds.has(p.id);
@@ -1041,7 +1043,9 @@ function openProd(id){
     priceArea.innerHTML=`<div class="pdp-price-consult"><i class="ti ti-message-circle" aria-hidden="true"></i> Sob consulta — fale conosco</div>`;
     mobPrice.textContent='Sob consulta'; mobLabel.style.display='none';
   }
-  el('pdp-prazo').innerHTML=p.prazo_dias?`<i class="ti ti-clock" aria-hidden="true"></i> ${p.prazo_dias} dias úteis`:'';
+  el('pdp-prazo').innerHTML = p.estoque>0
+    ? `<span style="color:#16a34a;font-weight:700"><i class="ti ti-bolt" aria-hidden="true"></i> Pronta entrega — envio imediato (${p.estoque} unidade${p.estoque!==1?'s':''} em estoque)</span>`
+    : (p.prazo_dias?`<i class="ti ti-clock" aria-hidden="true"></i> ${p.prazo_dias} dias úteis`:'');
   const tags=[p.categoria,p.material,p.peso_g?p.peso_g+'g':null,p.horas?p.horas+'h':null].filter(Boolean);
   el('pdp-tags').innerHTML=tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('');
   const descWrap=el('pdp-desc-wrap');
@@ -1055,7 +1059,7 @@ function openProd(id){
   el('pdp-specs').innerHTML=[
     ['Categoria',p.categoria||'—'],['Material',p.material||'—'],
     ['Peso aproximado',p.peso_g?p.peso_g+' g':'—'],['Tempo de impressão',p.horas?p.horas+' h':'—'],
-    ['Prazo de entrega',p.prazo_dias?p.prazo_dias+' dias úteis':'Sob consulta'],
+    ['Prazo de entrega', p.estoque>0 ? 'Pronta entrega (envio imediato)' : (p.prazo_dias?p.prazo_dias+' dias úteis':'Sob consulta')],
   ].map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
 
   const related=all.filter(x=>x.id!==p.id && x.categoria===p.categoria).slice(0,4);

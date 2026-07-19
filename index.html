@@ -2163,6 +2163,17 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       </div>
       <div id="md-location" style="font-size:13px">—</div>
     </div>
+    <div style="background:var(--surface2);border-radius:var(--radius);padding:10px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase"><i class="ti ti-package" style="font-size:12px"></i> Estoque pronto (unidades já impressas)</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="adjustModelStock(-1)" style="padding:2px 9px" title="Diminuir 1"><i class="ti ti-minus" style="font-size:12px"></i></button>
+          <span id="md-stock" style="font-size:15px;font-weight:800;min-width:22px;text-align:center">0</span>
+          <button class="btn btn-secondary btn-sm" onclick="adjustModelStock(1)" style="padding:2px 9px" title="Adicionar 1"><i class="ti ti-plus" style="font-size:12px"></i></button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Acima de 0, o produto aparece como "Pronta entrega" na vitrine.</div>
+    </div>
     <div class="modal-footer" style="justify-content:space-between">
       <button class="btn btn-danger btn-sm" onclick="deleteModelFromDetail()"><i class="ti ti-trash"></i> Excluir</button>
       <div style="display:flex;gap:8px">
@@ -9345,6 +9356,7 @@ async function loadModelsDB() {
     precoVitrine: m.preco_vitrine || null,
     prazoDias: m.prazo_dias || null,
     descricaoVitrine: m.descricao_vitrine || '',
+    estoque: m.estoque || 0,
   }));
   renderModels();
 }
@@ -9385,8 +9397,9 @@ function renderModels() {
       ? `<div class="model-thumb" style="background:#0a1220;padding:8px;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center">
            <img src="${m.images[0]}" style="max-width:100%;max-height:164px;width:auto;height:auto;object-fit:contain;border-radius:6px">
            ${m.images.length > 1 ? `<span style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,0.6);color:white;font-size:10px;padding:2px 6px;border-radius:10px"><i class="ti ti-photo" style="font-size:10px"></i> ${m.images.length}</span>` : ''}
+           ${m.estoque > 0 ? `<span style="position:absolute;top:6px;left:6px;background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px"><i class="ti ti-package" style="font-size:10px"></i> ${m.estoque} pronta${m.estoque!==1?'s':''}</span>` : ''}
          </div>`
-      : `<div class="model-thumb" style="background:linear-gradient(135deg,${shadeColor(m.color,-40)},${escapeHtml(m.color)})"><i class="ti ti-cube-3d-sphere"></i></div>`;
+      : `<div class="model-thumb" style="position:relative;background:linear-gradient(135deg,${shadeColor(m.color,-40)},${escapeHtml(m.color)})"><i class="ti ti-cube-3d-sphere"></i>${m.estoque > 0 ? `<span style="position:absolute;top:6px;left:6px;background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px"><i class="ti ti-package" style="font-size:10px"></i> ${m.estoque} pronta${m.estoque!==1?'s':''}</span>` : ''}</div>`;
     card.innerHTML = `
       ${thumbHtml}
       <div class="model-body">
@@ -9474,6 +9487,7 @@ function openModelDetail(id) {
   set('md-cost', 'R$ ' + estimateModelCost(m).toFixed(2).replace('.',','));
   set('md-notes', m.notes || '— sem descrição');
   set('md-location', m.location || '— não informado');
+  set('md-stock', m.estoque || 0);
 
   // Partes multipartes
   const mdPartsSection = document.getElementById('md-parts-section');
@@ -9954,6 +9968,19 @@ function openNewModel() {
   if (!filamentsData || !filamentsData.length) loadFilamentsForQuote();
   setTimeout(() => setModelMode('simples'), 30);
   openModal('modal-new-model');
+}
+
+async function adjustModelStock(delta) {
+  const m = modelsData.find(x => x.id === currentModelId);
+  if (!m || !sb) return;
+  const novo = Math.max(0, (m.estoque || 0) + delta);
+  if (novo === m.estoque) return;
+  const { error } = await sb.from('modelos_3d').update({ estoque: novo }).eq('id', m._uuid);
+  if (error) { showToast('Não foi possível atualizar o estoque: ' + error.message); return; }
+  m.estoque = novo;
+  document.getElementById('md-stock').textContent = novo;
+  renderModels();
+  showToast(novo > 0 ? `Estoque: ${novo} unidade${novo !== 1 ? 's' : ''} pronta${novo !== 1 ? 's' : ''}` : 'Estoque zerado — volta a aparecer como sob encomenda na vitrine.');
 }
 
 async function copyModelLocation() {
