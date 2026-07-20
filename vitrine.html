@@ -49,7 +49,12 @@ img{display:block}
 .btn-outline:hover{background:rgba(13,58,99,.2);transform:translateY(-1px)}
 .btn-ghost{background:var(--s2);border:1px solid var(--border2);color:var(--text2)}
 .btn-ghost:hover{border-color:var(--blue);color:#0d3a63}
-.btn-icon{width:38px;height:38px;padding:0;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:var(--text2)}
+.btn-icon{width:38px;height:38px;padding:0;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:var(--text2);display:flex;align-items:center;justify-content:center}
+.hamburger-icon{width:18px;height:13px;position:relative;display:inline-block;flex-shrink:0}
+.hamburger-icon span{position:absolute;left:0;right:0;height:2px;background:currentColor;border-radius:2px}
+.hamburger-icon span:nth-child(1){top:0}
+.hamburger-icon span:nth-child(2){top:5.5px}
+.hamburger-icon span:nth-child(3){top:11px}
 .btn-icon:hover{border-color:var(--blue);color:#0d3a63}
 .btn[disabled]{opacity:.5;cursor:not-allowed;transform:none!important}
 
@@ -426,7 +431,9 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
 
 <header class="hdr" id="v-header">
   <div class="hdr-main">
-    <button class="btn-icon hdr-menu-btn" id="drawer-open-btn" onclick="openDrawer()" aria-label="Abrir menu"><i class="ti ti-menu-2" aria-hidden="true"></i></button>
+    <button class="btn-icon hdr-menu-btn" id="drawer-open-btn" onclick="openDrawer()" aria-label="Abrir menu">
+      <span class="hamburger-icon"><span></span><span></span><span></span></span>
+    </button>
     <a class="hdr-brand" href="#" onclick="goHome();return false">
       <img id="v-logo" class="hdr-logo" src="./icon-192.png" alt="Logo da loja">
       <div>
@@ -684,7 +691,10 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
   </div>
   <div class="footer-bottom">
     <span class="footer-copy">© <span id="v-footer-year"></span> <span id="v-footer-nome2">ANZO'S Print 3D</span>. Todos os direitos reservados.</span>
-    <span class="footer-copy" id="v-footer-local"></span>
+    <span style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <button onclick="openPrivacyModal()" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;text-decoration:underline;padding:0">Política de Privacidade</button>
+      <span class="footer-copy" id="v-footer-local"></span>
+    </span>
   </div>
 </footer>
 
@@ -728,6 +738,43 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
   <div class="chatbot-input-row">
     <input type="text" id="chatbot-input" placeholder="Digite sua pergunta..." onkeydown="if(event.key==='Enter')chatbotSend()">
     <button onclick="chatbotSend()" aria-label="Enviar"><i class="ti ti-send" aria-hidden="true"></i></button>
+  </div>
+</div>
+
+<!-- POLÍTICA DE PRIVACIDADE -->
+<div class="overlay" id="privacy-overlay" onclick="if(event.target===this)closePrivacyModal()">
+  <div class="modal" style="max-width:640px" onclick="event.stopPropagation()">
+    <div class="modal-hdr">
+      <h2>Política de Privacidade</h2>
+      <button class="btn-icon" onclick="closePrivacyModal()" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>
+    <div class="modal-body" style="font-size:13px;color:var(--text2);line-height:1.7">
+      <p style="color:var(--text3);font-size:11px;margin-bottom:16px">Última atualização: 20 de julho de 2026</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">1. Quem somos</h3>
+      <p style="margin-bottom:14px">Esta política se aplica ao catálogo online de <b id="privacy-empresa-nome">ANZO'S Print 3D</b>. Ao usar este site, você concorda com as práticas descritas aqui.</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">2. Quais dados coletamos</h3>
+      <p style="margin-bottom:14px">Coletamos apenas o necessário para atender seu pedido: nome, WhatsApp, e-mail (opcional) e, quando você mesmo informa, dados de personalização e endereço de entrega. Se você criar uma conta, também guardamos seus produtos favoritos e itens do carrinho.</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">3. Como usamos seus dados</h3>
+      <p style="margin-bottom:14px">Usamos essas informações exclusivamente para: processar e acompanhar seu pedido, entrar em contato pelo WhatsApp, manter sua conta (favoritos, carrinho, histórico de pedidos) e gerar links de pagamento quando solicitado. Não usamos seus dados para publicidade nem os vendemos a terceiros.</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">4. Cookies e armazenamento local</h3>
+      <p style="margin-bottom:14px">Usamos armazenamento local do navegador (localStorage) apenas para manter você conectado e lembrar preferências básicas de navegação. Não usamos cookies de rastreamento de terceiros nem redes de publicidade.</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">5. Com quem compartilhamos</h3>
+      <p style="margin-bottom:14px">Seus dados ficam armazenados em servidores da Supabase (nosso provedor de banco de dados). Quando você solicita um link de pagamento, o necessário para gerar a cobrança é compartilhado com a InfinitePay. Não compartilhamos seus dados com mais ninguém além do necessário para viabilizar seu pedido.</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">6. Seus direitos (LGPD)</h3>
+      <p style="margin-bottom:14px">Você pode solicitar a qualquer momento: acesso aos seus dados, correção de informações incorretas, exclusão da sua conta e dos seus dados, ou esclarecimentos sobre como usamos suas informações. Basta entrar em contato pelo WhatsApp ou e-mail informados no rodapé desta página.</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">7. Segurança</h3>
+      <p style="margin-bottom:14px">Adotamos controles de acesso para proteger seus dados contra acesso não autorizado. Nenhum sistema é 100% livre de riscos, mas trabalhamos para manter suas informações protegidas.</p>
+
+      <h3 style="font-size:14px;color:var(--text);margin-bottom:6px">8. Contato</h3>
+      <p style="margin-bottom:4px">Dúvidas sobre esta política ou sobre seus dados? Fale com a gente pelo WhatsApp (ícone no topo da página) ou pelo e-mail cadastrado no rodapé.</p>
+    </div>
   </div>
 </div>
 
@@ -1695,6 +1742,17 @@ let chatbotOpen = false;
 let chatbotOrcConfig = null;
 let chatbotGreeted = false;
 const CHATBOT_SUGGESTIONS = ['Prazo de entrega', 'Formas de pagamento', 'Como faço meu pedido?', 'Falar com atendente'];
+
+function openPrivacyModal(){
+  const nomeEl = el('privacy-empresa-nome');
+  if(nomeEl && empresa.nome) nomeEl.textContent = empresa.nome;
+  el('privacy-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closePrivacyModal(){
+  el('privacy-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
 
 function toggleChatbot(){
   chatbotOpen = !chatbotOpen;
