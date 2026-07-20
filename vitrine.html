@@ -739,7 +739,7 @@ const SUPA_URL = 'https://rjvhwffqmirpnjgmambw.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdmh3ZmZxbWlycG5qZ21hbWJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDM0MzIsImV4cCI6MjA5NzI3OTQzMn0.iFTzQOVKiI0gE89GuctJUjv6mLi8Fonm_bUe0JiRd30';
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
-let all=[], filtered=[], cat='Todos', empresa={}, curProd=null;
+let all=[], filtered=[], cat='Todos', empresa={}, curProd=null, paymentConfig={};
 let favoriteIds=new Set(), cartItems=[];
 let pdpGalImages=[], pdpGalIndex=0;
 let heroSlideIdx=0, heroTimer=null;
@@ -757,7 +757,7 @@ async function init(){
   showLoadingSkeleton();
   try{
     const[cfg,prod]=await Promise.all([
-      sb.from('configuracoes_publicas').select('chave,valor').in('chave',['empresa','logo']),
+      sb.from('configuracoes_publicas').select('chave,valor').in('chave',['empresa','logo','orcamento_config']),
       sb.from('modelos_3d')
         .select('id,nome,categoria,material,peso_g,horas,cor_hex,capa_base64,imagens,preco_vitrine,prazo_dias,descricao_vitrine,impressoes,estoque')
         .eq('visivel_vitrine',true).is('deleted_at',null).order('created_at',{ascending:false})
@@ -767,7 +767,9 @@ async function init(){
     if(cfg.data){
       const eRow=cfg.data.find(r=>r.chave==='empresa');
       const lRow=cfg.data.find(r=>r.chave==='logo');
+      const pRow=cfg.data.find(r=>r.chave==='orcamento_config');
       try{if(eRow)empresa=JSON.parse(eRow.valor||'{}')}catch(e){}
+      try{if(pRow)paymentConfig=JSON.parse(pRow.valor||'{}')}catch(e){}
       if(lRow?.valor){const l=el('v-logo');if(l)l.src=lRow.valor}
     }
     applyEmpresa();
@@ -1048,7 +1050,17 @@ function openProd(id){
   const priceArea=el('pdp-price-area');
   const mobPrice=el('pdp-mob-price'), mobLabel=el('pdp-mob-label');
   if(p.preco_vitrine){
-    priceArea.innerHTML=`<div class="pdp-price-from">a partir de</div><div class="pdp-price-big">${brl(p.preco_vitrine)}</div>`;
+    const descPct = Number(paymentConfig.desconto_pix_pct)||0;
+    const maxParc = Number(paymentConfig.parcelas_max)||1;
+    let paymentHtml = '';
+    if(descPct>0){
+      const pixPrice = p.preco_vitrine * (1 - descPct/100);
+      paymentHtml += `<div style="font-size:12px;color:#16a34a;font-weight:700;margin-top:8px"><i class="ti ti-brand-pix" aria-hidden="true"></i> ${brl(pixPrice)} à vista no PIX (${descPct}% off)</div>`;
+    }
+    if(maxParc>1){
+      paymentHtml += `<div style="font-size:12px;color:var(--text2);margin-top:3px"><i class="ti ti-credit-card" aria-hidden="true"></i> ou até ${maxParc}x de ${brl(p.preco_vitrine/maxParc)}</div>`;
+    }
+    priceArea.innerHTML=`<div class="pdp-price-from">a partir de</div><div class="pdp-price-big">${brl(p.preco_vitrine)}</div>${paymentHtml}`;
     mobPrice.textContent=brl(p.preco_vitrine); mobLabel.style.display='';
   }else{
     priceArea.innerHTML=`<div class="pdp-price-consult"><i class="ti ti-message-circle" aria-hidden="true"></i> Sob consulta — fale conosco</div>`;
@@ -1721,12 +1733,7 @@ function chatbotSend(text){
   setTimeout(() => chatbotRespond(text), 350);
 }
 async function getOrcamentoConfig(){
-  if(chatbotOrcConfig) return chatbotOrcConfig;
-  try{
-    const { data } = await sb.from('configuracoes_publicas').select('valor').eq('chave','orcamento_config').maybeSingle();
-    chatbotOrcConfig = data ? JSON.parse(data.valor || '{}') : {};
-  }catch(e){ chatbotOrcConfig = {}; }
-  return chatbotOrcConfig;
+  return paymentConfig || {};
 }
 function chatbotWppLink(msg){
   const num = (empresa.whatsapp||empresa.telefone||'').replace(/\D/g,'');
