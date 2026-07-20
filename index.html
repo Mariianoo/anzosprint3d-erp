@@ -13142,6 +13142,9 @@ async function newQuoteFromCalc() {
   await loadFilamentsForQuote();
   refreshQuoteFilamentTypes();
   refreshQuoteClientOptions();
+  // Garante que a lista de modelos esteja carregada antes de popular o
+  // dropdown — mesmo problema já corrigido no editQuoteDB(), faltava aqui.
+  if (!modelsData.length) await loadModelsDB();
   refreshQuoteModelOptions();
   renderExtraMaterials();
   // Inicializa o toggle no modo simples (visual)
