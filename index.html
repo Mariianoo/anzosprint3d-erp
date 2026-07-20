@@ -1172,6 +1172,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
           <div class="qm-header-sub">Preencha da esquerda para a direita — o preço atualiza em tempo real</div>
         </div>
       </div>
+      <button class="btn-icon" onclick="openSmartPricingModal()" title="Calculadora Inteligente de Precificação" style="margin-right:6px"><i class="ti ti-calculator"></i></button>
       <button class="qm-close" onclick="closeModal('modal-quote')"><i class="ti ti-x"></i></button>
     </div>
 
@@ -3099,6 +3100,29 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
         <div class="cfg-cost-formula"><i class="ti ti-calculator"></i> Desgaste por impressão = R$/h × horas · Preço final = Custo × (1 + margem%/100)</div>
       </div>
 
+      <!-- SUGESTÕES DA CALCULADORA INTELIGENTE -->
+      <div class="cfg-cost-group">
+        <div class="cfg-cost-group-title"><i class="ti ti-bulb"></i> Sugestões da Calculadora Inteligente</div>
+        <div class="cfg-cost-row">
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">Preço Mínimo</div>
+            <div class="cfg-cost-unit">% lucro</div>
+            <input type="number" id="set-cost-sug-min" class="cfg-cost-input" value="20" step="1" min="0">
+          </div>
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">Preço Ideal</div>
+            <div class="cfg-cost-unit">% lucro</div>
+            <input type="number" id="set-cost-sug-ideal" class="cfg-cost-input" value="40" step="1" min="0">
+          </div>
+          <div class="cfg-cost-field">
+            <div class="cfg-cost-label">Preço Premium</div>
+            <div class="cfg-cost-unit">% lucro</div>
+            <input type="number" id="set-cost-sug-premium" class="cfg-cost-input" value="60" step="1" min="0">
+          </div>
+        </div>
+        <div class="cfg-cost-formula"><i class="ti ti-info-circle"></i> Usados como atalhos na Calculadora Inteligente de Precificação (botão 🧮 no Novo Orçamento)</div>
+      </div>
+
       <div id="cfg-cost-preview" style="background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--text2);margin-bottom:14px">
         <div style="font-weight:600;color:var(--blue);margin-bottom:6px"><i class="ti ti-eye"></i> Prévia — impressão de 150g × 8h (PLA, sem mão de obra)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
@@ -3569,6 +3593,44 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" onclick="closeModal('modal-order-detail')">Fechar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: CALCULADORA INTELIGENTE DE PRECIFICAÇÃO ═══
+     Reaproveita 100% do design system existente (.modal-overlay, .modal,
+     .modal-header, .modal-close, .metric-card, .grid-5, .btn) — nenhuma
+     classe nova de estilo foi criada para este popup. -->
+<div id="modal-smart-pricing" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeSmartPricingModal()">
+  <div class="modal" style="width:min(980px,94vw);max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div>
+        <h3 style="margin:0"><i class="ti ti-calculator" style="color:var(--blue);margin-right:6px"></i>Calculadora Inteligente de Precificação</h3>
+        <p style="font-size:12px;color:var(--text2);margin:2px 0 0">Os custos vêm automaticamente do orçamento e das suas configurações — você só ajusta o lucro.</p>
+      </div>
+      <button class="modal-close" onclick="closeSmartPricingModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="overflow-y:auto;padding:4px 2px 2px">
+      <div class="grid-5" id="sp-breakdown-cards" style="margin-bottom:18px"></div>
+
+      <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+        <div class="form-group" style="margin-bottom:0;min-width:180px">
+          <label>Percentual de lucro (%)</label>
+          <input type="number" id="sp-profit-pct" min="0" step="1" style="font-size:20px;font-weight:700;max-width:160px" oninput="updateSmartPricing()">
+        </div>
+        <div id="sp-traffic-light" style="flex:1;min-width:240px"></div>
+      </div>
+
+      <div id="sp-warning" style="margin-bottom:16px"></div>
+      <div id="sp-final-price-card" style="margin-bottom:14px"></div>
+      <div class="grid-5" id="sp-secondary-metrics" style="margin-bottom:22px"></div>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px"><i class="ti ti-bulb"></i> Sugestões rápidas</div>
+      <div id="sp-suggestions" style="margin-bottom:6px"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid var(--border)">
+      <button class="btn btn-secondary" onclick="closeSmartPricingModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="applySmartPricingFinal()"><i class="ti ti-check"></i> Aplicar ao Orçamento</button>
     </div>
   </div>
 </div>
@@ -6398,6 +6460,7 @@ async function saveCostParams() {
   const data = {
     kwh: g('set-cost-kwh'), pla: g('set-cost-pla'), petg: g('set-cost-petg'), abs: g('set-cost-abs'),
     margem: g('set-cost-margem'), watts: g('set-cost-watts'), wear: g('set-cost-wear'),
+    sugestao_min_pct: g('set-cost-sug-min'), sugestao_ideal_pct: g('set-cost-sug-ideal'), sugestao_premium_pct: g('set-cost-sug-premium'),
   };
   localStorage.setItem('anzos_custos', JSON.stringify(data));
   if (sb) {
@@ -6427,6 +6490,7 @@ async function loadCostParamsForm() {
   const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
   set('set-cost-kwh', d.kwh); set('set-cost-pla', d.pla); set('set-cost-petg', d.petg); set('set-cost-abs', d.abs);
   set('set-cost-margem', d.margem); set('set-cost-watts', d.watts); set('set-cost-wear', d.wear);
+  set('set-cost-sug-min', d.sugestao_min_pct); set('set-cost-sug-ideal', d.sugestao_ideal_pct); set('set-cost-sug-premium', d.sugestao_premium_pct);
   setTimeout(updateCostPreview, 50);
 }
 
@@ -11980,6 +12044,214 @@ function refreshQuoteModelOptions() {
   sel.innerHTML = '<option value="">Selecionar modelo...</option>' + modelsData.map(m => `<option value="${m.id}">${escapeHtml(m.name)} (${m.weight}g · ${m.hours}h)</option>`).join('');
   if (cur) sel.value = cur;
 }
+
+// ══════════════════════════════════════════════════════════════
+// Lê o estado atual do formulário de Orçamento e devolve o detalhamento de
+// custo, SEM escrever nada na tela. Espelha exatamente a mesma fonte de
+// dados e a mesma fórmula usada em calcQuote() (resolveQuoteFilamentRate,
+// quoteMaterials, mão de obra, energia/desgaste automáticos, embalagem,
+// frete) — usada pela Calculadora Inteligente de Precificação para nunca
+// divergir do "Custo Total" que já aparece no orçamento.
+// ══════════════════════════════════════════════════════════════
+function getQuoteCostBreakdown() {
+  const qty = Math.max(1, parseInt(document.getElementById('q-qty').value) || 1);
+  const w = parseFloat(document.getElementById('q-weight').value) || 0;
+  const h = parseFloat(document.getElementById('q-hours').value) || 0;
+  const filInfo = resolveQuoteFilamentRate();
+
+  let filCost;
+  if (quoteMode === 'multipartes') {
+    filCost = multiParts.reduce((s, p) => s + (p._custo || 0), 0) * qty;
+  } else {
+    filCost = w * filInfo.rate * qty;
+  }
+
+  const matTotal = quoteMaterials.reduce((s,m) => s + m.qty * m.unit, 0);
+
+  const modelH = parseFloat(document.getElementById('q-lab-model-h').value) || 0;
+  const modelR = parseFloat(document.getElementById('q-lab-model-r').value) || 0;
+  const finishH = parseFloat(document.getElementById('q-lab-finish-h').value) || 0;
+  const finishR = parseFloat(document.getElementById('q-lab-finish-r').value) || 0;
+  const paintH = parseFloat(document.getElementById('q-lab-paint-h').value) || 0;
+  const paintR = parseFloat(document.getElementById('q-lab-paint-r').value) || 0;
+  const laborTotal = (modelH*modelR) + (finishH*finishR) + (paintH*paintR);
+
+  const energy = opEnergyManual ? (parseFloat(document.getElementById('q-op-energy').value)||0) : (h * 0.2 * 0.80 * qty);
+  const wear = opWearManual ? (parseFloat(document.getElementById('q-op-wear').value)||0) : (h * 0.50 * qty);
+  const marketplace = parseFloat(document.getElementById('q-op-marketplace').value) || 0;
+  const otherOp = parseFloat(document.getElementById('q-op-other').value) || 0;
+  const opTotal = energy + wear + marketplace + otherOp;
+
+  const post = parseFloat(document.getElementById('q-post').value) || 0;
+  const pkg = parseFloat(document.getElementById('q-pkg').value) || 0;
+  const postTotal = post * qty;
+  const pkgTotal = pkg * qty;
+
+  const ship = parseFloat(document.getElementById('q-ship-value').value) || 0;
+  const shipPass = document.getElementById('q-ship-passthrough').value === '1';
+
+  const fixedTotal = matTotal + laborTotal + postTotal + pkgTotal + (shipPass ? 0 : ship);
+  const baseCost = filCost + opTotal + fixedTotal;
+
+  return { qty, w, h, filRate: filInfo.rate, filCost, energy, wear, opTotal,
+    matTotal, laborTotal, postTotal, pkgTotal, ship, shipPass, fixedTotal, baseCost };
+}
+
+// ══════════════════════════════════════════════════════════════
+// CALCULADORA INTELIGENTE DE PRECIFICAÇÃO
+// Reutiliza: getQuoteCostBreakdown() (custos), getCostParams() (margem
+// mínima e percentuais de sugestão, já salvos em "custos" — nenhuma
+// configuração nova foi criada), resolveQuoteFilamentRate() (indireto,
+// via getQuoteCostBreakdown), formatCurrency() e showToast() (já
+// existentes no sistema).
+// ══════════════════════════════════════════════════════════════
+let spBreakdownCache = null;
+let spSuggestPcts = { min: 20, ideal: 40, premium: 60 };
+
+function openSmartPricingModal() {
+  spBreakdownCache = getQuoteCostBreakdown();
+  const params = getCostParams();
+  spSuggestPcts = {
+    min: params.sugestao_min_pct != null ? params.sugestao_min_pct : 20,
+    ideal: params.sugestao_ideal_pct != null ? params.sugestao_ideal_pct : 40,
+    premium: params.sugestao_premium_pct != null ? params.sugestao_premium_pct : 60,
+  };
+
+  // Percentual inicial: último usado nesta calculadora > margem já aplicada no orçamento > sugestão "ideal"
+  let lastPct = null;
+  try { lastPct = parseFloat(localStorage.getItem('anzos_smart_pricing_pct')); } catch(e){}
+  const currentMargin = parseFloat(document.getElementById('q-margin')?.value);
+  const initialPct = !isNaN(lastPct) ? lastPct : ((!isNaN(currentMargin) && currentMargin > 0) ? currentMargin : spSuggestPcts.ideal);
+  document.getElementById('sp-profit-pct').value = initialPct;
+
+  renderSmartPricingBreakdownCards();
+  updateSmartPricing();
+  openModal('modal-smart-pricing');
+}
+
+function closeSmartPricingModal() {
+  closeModal('modal-smart-pricing');
+}
+
+function renderSmartPricingBreakdownCards() {
+  const b = spBreakdownCache;
+  document.getElementById('sp-breakdown-cards').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label"><i class="ti ti-3d-cube-sphere"></i> Material</div>
+      <div style="font-size:11px;color:var(--text3)">${b.w}g × ${formatCurrency(b.filRate)}/g</div>
+      <div class="metric-value" style="font-size:18px">${formatCurrency(b.filCost)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label"><i class="ti ti-bolt"></i> Energia</div>
+      <div style="font-size:11px;color:var(--text3)">${b.h}h de impressão</div>
+      <div class="metric-value" style="font-size:18px">${formatCurrency(b.energy)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label"><i class="ti ti-settings"></i> Desgaste</div>
+      <div style="font-size:11px;color:var(--text3)">Máquina, ${b.h}h</div>
+      <div class="metric-value" style="font-size:18px">${formatCurrency(b.wear)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label"><i class="ti ti-package"></i> Custos Fixos</div>
+      <div style="font-size:11px;color:var(--text3)">Mão de obra, embalagem, extras</div>
+      <div class="metric-value" style="font-size:18px">${formatCurrency(b.fixedTotal)}</div>
+    </div>
+    <div class="metric-card" style="border-color:var(--blue)">
+      <div class="metric-label"><i class="ti ti-sum"></i> Custo Total</div>
+      <div style="font-size:11px;color:var(--text3)">Soma de tudo acima</div>
+      <div class="metric-value" style="font-size:18px;color:var(--blue)">${formatCurrency(b.baseCost)}</div>
+    </div>`;
+}
+
+// Custo-fixo (cost-plus): Preço = Custo × (1 + %); Lucro = Preço − Custo;
+// Markup = % digitado (por definição, nesse modelo); Margem = Lucro / Preço.
+function computeSmartPrice(pct) {
+  const b = spBreakdownCache;
+  const price = b.baseCost * (1 + pct/100);
+  const profit = price - b.baseCost;
+  const margem = price > 0 ? (profit/price)*100 : 0;
+  return { price, profit, margem, markup: pct,
+    precoGrama: b.w > 0 ? price / b.w : 0, precoHora: b.h > 0 ? price / b.h : 0 };
+}
+
+function updateSmartPricing() {
+  const pct = parseFloat(document.getElementById('sp-profit-pct').value) || 0;
+  const r = computeSmartPrice(pct);
+  const b = spBreakdownCache;
+  const params = getCostParams();
+  const margemMinima = params.margem != null ? params.margem : 30;
+
+  document.getElementById('sp-final-price-card').innerHTML = `
+    <div class="metric-card" style="background:linear-gradient(135deg,#1e3a5f,#3b82f6);border:none;padding:26px">
+      <div style="font-size:12px;color:rgba(255,255,255,.75);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Preço Final Sugerido</div>
+      <div style="font-size:40px;font-weight:800;color:#fff;letter-spacing:-1px">${formatCurrency(r.price)}</div>
+    </div>`;
+
+  document.getElementById('sp-secondary-metrics').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Preço/grama</div><div class="metric-value" style="font-size:16px">${b.w>0?formatCurrency(r.precoGrama):'—'}</div></div>
+    <div class="metric-card"><div class="metric-label">Preço/hora</div><div class="metric-value" style="font-size:16px">${b.h>0?formatCurrency(r.precoHora):'—'}</div></div>
+    <div class="metric-card"><div class="metric-label">Lucro (R$)</div><div class="metric-value" style="font-size:16px;color:${r.profit>=0?'var(--green)':'var(--red)'}">${formatCurrency(r.profit)}</div></div>
+    <div class="metric-card"><div class="metric-label">Markup</div><div class="metric-value" style="font-size:16px">${pct.toFixed(1)}%</div></div>
+    <div class="metric-card"><div class="metric-label">Margem</div><div class="metric-value" style="font-size:16px">${r.margem.toFixed(1)}%</div></div>`;
+
+  // Semáforo de lucratividade
+  let cor, texto, icone;
+  if (r.profit < 0) { cor='var(--red)'; texto='Abaixo do custo — este preço dá prejuízo'; icone='ti-alert-triangle'; }
+  else if (pct < margemMinima) { cor='var(--amber)'; texto='Margem abaixo do mínimo configurado ('+margemMinima+'%)'; icone='ti-alert-circle'; }
+  else { cor='var(--green)'; texto='Margem saudável'; icone='ti-circle-check'; }
+  document.getElementById('sp-traffic-light').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;background:${cor}1a;border:1px solid ${cor}55;border-radius:var(--radius);padding:12px 16px;height:100%">
+      <i class="ti ${icone}" style="color:${cor};font-size:20px"></i>
+      <span style="font-size:13px;font-weight:600;color:${cor}">${texto}</span>
+    </div>`;
+
+  const warnBox = document.getElementById('sp-warning');
+  if (pct < margemMinima) {
+    const precoMinimo = b.baseCost * (1 + margemMinima/100);
+    warnBox.innerHTML = `<div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:var(--radius);padding:10px 14px">
+      <i class="ti ti-info-circle" style="color:var(--amber)"></i>
+      Este orçamento gera apenas <b>${formatCurrency(r.profit)}</b> de lucro. Recomenda-se vender por <b>${formatCurrency(precoMinimo)}</b> para manter a margem mínima configurada (${margemMinima}%).
+    </div>`;
+  } else {
+    warnBox.innerHTML = '';
+  }
+
+  const mkSuggestCard = (label, pctVal, color) => {
+    const rr = computeSmartPrice(pctVal);
+    return `<div class="metric-card" style="border-color:${color};cursor:pointer" onclick="applySmartPricingPct(${pctVal})" title="Clique para usar este percentual">
+      <div class="metric-label" style="color:${color}">${label}</div>
+      <div style="font-size:11px;color:var(--text3)">Lucro de ${pctVal}%</div>
+      <div class="metric-value" style="font-size:18px;color:${color}">${formatCurrency(rr.price)}</div>
+    </div>`;
+  };
+  document.getElementById('sp-suggestions').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      ${mkSuggestCard('Preço Mínimo', spSuggestPcts.min, 'var(--amber)')}
+      ${mkSuggestCard('Preço Ideal', spSuggestPcts.ideal, 'var(--green)')}
+      ${mkSuggestCard('Preço Premium', spSuggestPcts.premium, 'var(--blue)')}
+    </div>`;
+}
+
+function applySmartPricingPct(pct) {
+  document.getElementById('sp-profit-pct').value = pct;
+  updateSmartPricing();
+}
+
+function applySmartPricingFinal() {
+  const pct = parseFloat(document.getElementById('sp-profit-pct').value) || 0;
+  document.getElementById('q-margin').value = pct;
+  try { localStorage.setItem('anzos_smart_pricing_pct', pct); } catch(e){}
+  calcQuote();
+  closeSmartPricingModal();
+  showToast('Preço aplicado ao orçamento!');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('modal-smart-pricing');
+    if (m && m.style.display !== 'none') closeSmartPricingModal();
+  }
+});
 
 function calcQuote() {
   const qty = Math.max(1, parseInt(document.getElementById('q-qty').value) || 1);
