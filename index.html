@@ -2121,7 +2121,7 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
       <div id="nm-img-dropzone" style="border:2px dashed var(--border2);border-radius:var(--radius);padding:14px;text-align:center;cursor:pointer;transition:all 0.2s" onclick="document.getElementById('nm-img-input').click()">
         <i class="ti ti-photo-plus" style="font-size:24px;color:var(--text3);display:block;margin-bottom:4px"></i>
         <div style="font-size:12px;color:var(--text2)">Clique para adicionar a foto (será comprimida automaticamente)</div>
-        <input type="file" id="nm-img-input" accept="image/*" style="display:none" onchange="handleModelImageUpload(this)">
+        <input type="file" id="nm-img-input" accept="image/*" multiple style="display:none" onchange="handleModelImageUpload(this)">
       </div>
       <div id="nm-img-gallery" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
     </div>
@@ -9029,7 +9029,7 @@ function renderVitrineModels() {
         </div>
         <div>
           <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.4px;margin-bottom:4px;display:block">Descrição para o cliente</label>
-          <input type="text" id="vp-desc-${m.id}" value="${escapeHtml(m.descricaoVitrine||'')}" placeholder="Ex: Peça personalizada em PLA, alta qualidade..."
+          <input type="text" id="vp-desc-${m.id}" value="${escapeHtml(m.descricaoVitrine || m.notes || '')}" placeholder="Ex: Peça personalizada em PLA, alta qualidade..."
             style="width:100%;height:34px;padding:0 10px;background:var(--surface);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px">
         </div>
         <button class="btn btn-primary btn-sm" onclick="saveVitrineFields('${m.id}')" style="height:34px;white-space:nowrap">
@@ -9424,7 +9424,7 @@ async function loadModelsDB() {
     prints: m.impressoes || 0,
     notes: m.observacoes || '',
     location: m.localizacao || '',
-    images: m.capa_base64 ? [m.capa_base64] : [],
+    images: (Array.isArray(m.imagens) && m.imagens.length) ? m.imagens : (m.capa_base64 ? [m.capa_base64] : []),
     modoImpressao: m.modo_impressao || 'simples',
     filamentoId: m.filamento_id || null,
     marca: m.marca || '',
@@ -9947,6 +9947,7 @@ async function saveModel() {
     nome: name, categoria: category, material, formato: format, cor_hex: color,
     peso_g: weight, horas: hours, localizacao: location || null, observacoes: notes || null,
     capa_base64: images[0] || null,
+    imagens: images,
     modo_impressao: modelMode,
     // Modo simples: guarda o rolo/cor/marca escolhidos
     filamento_id: modelMode === 'simples' ? (simpleFil.filamento_id || null) : null,
@@ -10119,21 +10120,25 @@ function compressImageToBase64(file, maxDim = 1000, quality = 0.7) {
 }
 
 async function handleModelImageUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
   input.value = '';
-  if (!file.type.startsWith('image/')) { showToast('Selecione um arquivo de imagem.'); return; }
-  try {
-    const compressed = await compressImageToBase64(file, 1000, 0.7);
-    // Uma capa só: substitui a imagem atual
-    nmImages = [compressed];
-    renderModelImageGallery();
-    // Mostra o tamanho aproximado para o usuário ter noção
-    const kb = Math.round((compressed.length * 0.75) / 1024);
-    showToast(`Imagem adicionada e comprimida (~${kb} KB).`);
-  } catch(e) {
-    showToast('Não foi possível processar a imagem.');
+  const MAX_FOTOS = 6;
+  const restantes = MAX_FOTOS - nmImages.length;
+  if (restantes <= 0) { showToast(`Máximo de ${MAX_FOTOS} fotos por modelo.`); return; }
+  const aProcessar = files.slice(0, restantes);
+  if (files.length > restantes) showToast(`Só cabem mais ${restantes} foto(s) — o restante foi ignorado.`);
+  let adicionadas = 0;
+  for (const file of aProcessar) {
+    if (!file.type.startsWith('image/')) continue;
+    try {
+      const compressed = await compressImageToBase64(file, 1000, 0.7);
+      nmImages.push(compressed);
+      adicionadas++;
+    } catch(e) { /* ignora essa foto e segue pras próximas */ }
   }
+  renderModelImageGallery();
+  if (adicionadas) showToast(`${adicionadas} foto${adicionadas!==1?'s':''} adicionada${adicionadas!==1?'s':''}!`);
 }
 
 function renderModelImageGallery() {

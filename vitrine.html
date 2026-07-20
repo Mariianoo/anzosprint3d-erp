@@ -221,6 +221,14 @@ img{display:block}
 .pdp-main-thumb{aspect-ratio:1/1;background:#eef1f4;border-radius:16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:zoom-in;position:relative}
 .pdp-main-thumb img{max-width:88%;max-height:88%;object-fit:contain;transition:transform .25s ease}
 .pdp-main-thumb.zoomed img{transform:scale(1.7)}
+.pdp-gal-nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.92);border:1px solid var(--border2);box-shadow:var(--shadow-sm);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;font-size:16px}
+.pdp-gal-nav:hover{background:#fff;border-color:var(--blue)}
+.pdp-gal-prev{left:10px}
+.pdp-gal-next{right:10px}
+.pdp-thumbs{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:2px}
+.pdp-thumb-item{flex-shrink:0;width:60px;height:60px;border-radius:9px;border:2px solid var(--border);background:#eef1f4;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.pdp-thumb-item img{max-width:85%;max-height:85%;object-fit:contain}
+.pdp-thumb-item.on{border-color:var(--blue)}
 .pdp-info{display:flex;flex-direction:column;gap:16px}
 .pdp-title{font-size:25px;font-weight:800;color:var(--text);line-height:1.25;letter-spacing:-.3px}
 .pdp-tags{display:flex;gap:6px;flex-wrap:wrap}
@@ -571,8 +579,11 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
     <div class="pdp-grid">
       <div class="pdp-gallery">
         <div class="pdp-main-thumb" id="pdp-thumb-wrap" onmousemove="pdpZoomMove(event)" onmouseleave="pdpZoomOff()">
-          <i class="ti ti-cube-3d-sphere" style="font-size:64px;color:rgba(0,20,40,.15)" aria-hidden="true"></i>
+          <div id="pdp-thumb-img" style="display:contents"><i class="ti ti-cube-3d-sphere" style="font-size:64px;color:rgba(0,20,40,.15)" aria-hidden="true"></i></div>
+          <button class="pdp-gal-nav pdp-gal-prev" id="pdp-gal-prev" onclick="event.stopPropagation();pdpGalStep(-1)" aria-label="Foto anterior" style="display:none"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+          <button class="pdp-gal-nav pdp-gal-next" id="pdp-gal-next" onclick="event.stopPropagation();pdpGalStep(1)" aria-label="Próxima foto" style="display:none"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>
         </div>
+        <div class="pdp-thumbs" id="pdp-thumbs" style="display:none"></div>
       </div>
       <div class="pdp-info">
         <h1 class="pdp-title" id="pdp-title" tabindex="-1">Produto</h1>
@@ -730,6 +741,7 @@ const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 let all=[], filtered=[], cat='Todos', empresa={}, curProd=null;
 let favoriteIds=new Set(), cartItems=[];
+let pdpGalImages=[], pdpGalIndex=0;
 let heroSlideIdx=0, heroTimer=null;
 
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -747,7 +759,7 @@ async function init(){
     const[cfg,prod]=await Promise.all([
       sb.from('configuracoes_publicas').select('chave,valor').in('chave',['empresa','logo']),
       sb.from('modelos_3d')
-        .select('id,nome,categoria,material,peso_g,horas,cor_hex,capa_base64,preco_vitrine,prazo_dias,descricao_vitrine,impressoes,estoque')
+        .select('id,nome,categoria,material,peso_g,horas,cor_hex,capa_base64,imagens,preco_vitrine,prazo_dias,descricao_vitrine,impressoes,estoque')
         .eq('visivel_vitrine',true).is('deleted_at',null).order('created_at',{ascending:false})
     ]);
     if(cfg.error) throw cfg.error;
@@ -1029,10 +1041,9 @@ function openProd(id){
   buildCats();
 
   el('pdp-title').textContent=p.nome||'';
-  const thumbWrap=el('pdp-thumb-wrap');
-  thumbWrap.innerHTML=p.capa_base64
-    ?`<img src="${p.capa_base64}" alt="${esc(p.nome)}">`
-    :`<i class="ti ti-cube-3d-sphere" style="font-size:64px;color:rgba(0,20,40,.15)" aria-hidden="true"></i>`;
+  pdpGalImages = (Array.isArray(p.imagens) && p.imagens.length) ? p.imagens : (p.capa_base64 ? [p.capa_base64] : []);
+  pdpGalIndex = 0;
+  pdpRenderGallery();
 
   const priceArea=el('pdp-price-area');
   const mobPrice=el('pdp-mob-price'), mobLabel=el('pdp-mob-label');
@@ -1097,6 +1108,36 @@ window.addEventListener('popstate',routeFromHash);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape' && el('pdp').style.display==='block') backToCatalog(); });
 
 // ── Zoom da imagem principal (microinteração) ──
+function pdpRenderGallery(){
+  const imgHost = el('pdp-thumb-img');
+  const src = pdpGalImages[pdpGalIndex];
+  imgHost.innerHTML = src
+    ? `<img src="${src}" alt="${esc(curProd?.nome||'')}">`
+    : `<i class="ti ti-cube-3d-sphere" style="font-size:64px;color:rgba(0,20,40,.15)" aria-hidden="true"></i>`;
+
+  const hasMultiple = pdpGalImages.length > 1;
+  el('pdp-gal-prev').style.display = hasMultiple ? 'flex' : 'none';
+  el('pdp-gal-next').style.display = hasMultiple ? 'flex' : 'none';
+
+  const thumbsEl = el('pdp-thumbs');
+  if(hasMultiple){
+    thumbsEl.style.display='flex';
+    thumbsEl.innerHTML = pdpGalImages.map((im,i) => `<button class="pdp-thumb-item ${i===pdpGalIndex?'on':''}" onclick="pdpSetImage(${i})" aria-label="Foto ${i+1}"><img src="${im}" alt=""></button>`).join('');
+  } else {
+    thumbsEl.style.display='none';
+    thumbsEl.innerHTML='';
+  }
+}
+function pdpGalStep(delta){
+  if(!pdpGalImages.length) return;
+  pdpGalIndex = (pdpGalIndex + delta + pdpGalImages.length) % pdpGalImages.length;
+  pdpRenderGallery();
+}
+function pdpSetImage(idx){
+  pdpGalIndex = idx;
+  pdpRenderGallery();
+}
+
 function pdpZoomMove(e){
   const wrap=el('pdp-thumb-wrap'), img=wrap.querySelector('img'); if(!img) return;
   const r=wrap.getBoundingClientRect();
