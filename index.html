@@ -4198,7 +4198,7 @@ let dismissedNotifs = [];   // ids dispensados nesta sessão
 let currentNotifs = [];
 
 // Monta a lista de alertas a partir dos dados reais do sistema
-function buildNotifications() {
+async function buildNotifications() {
   const alerts = [];
   const hoje = new Date(); hoje.setHours(0,0,0,0);
 
@@ -4257,11 +4257,11 @@ function buildNotifications() {
     }
   } catch(e){}
 
-  // 4. Contas a pagar vencidas ou vencendo (7 dias)
+  // 4. Contas a pagar vencidas ou vencendo (7 dias) — exclui pago E cancelado
   try {
     if (typeof payablesData !== 'undefined') {
       payablesData.forEach(p => {
-        if (p.status === 'pago') return;
+        if (p.status === 'pago' || p.status === 'cancelado') return;
         if (!p.due) return;
         const venc = new Date(p.due + 'T00:00:00');
         const dias = Math.round((venc - hoje)/86400000);
@@ -4280,11 +4280,13 @@ function buildNotifications() {
     }
   } catch(e){}
 
-  // 5. Contas a receber vencidas
+  // 5. Contas a receber vencidas — exclui recebido, pago E cancelado
+  // (antes só excluía "recebido"; uma conta paga como "pago" ou uma
+  // cancelada apareciam erradamente como "em atraso")
   try {
     if (typeof receivablesData !== 'undefined') {
       receivablesData.forEach(r => {
-        if (r.status === 'recebido') return;
+        if (r.status === 'recebido' || r.status === 'pago' || r.status === 'cancelado') return;
         if (!r.due) return;
         const venc = new Date(r.due + 'T00:00:00');
         if (venc < hoje) {
@@ -4297,18 +4299,47 @@ function buildNotifications() {
     }
   } catch(e){}
 
+  // 6. Orçamentos aguardando aprovação há mais de 3 dias
+  try {
+    if (typeof quotesDB !== 'undefined') {
+      quotesDB.forEach(q => {
+        if (q.status !== 'aguardando' || !q.created_at) return;
+        const dias = Math.floor((hoje - new Date(q.created_at)) / 86400000);
+        if (dias >= 3) {
+          alerts.push({ id:'orc-'+q.id, type:'warn', icon:'ti-file-clock',
+            title:'Orçamento parado',
+            desc:`${q.numero||''} está aguardando aprovação há ${dias} dia(s).`,
+            page:'quotations' });
+        }
+      });
+    }
+  } catch(e){}
+
+  // 7. Carrinhos abandonados na vitrine (view já existente, consulta leve)
+  try {
+    if (typeof sb !== 'undefined' && sb) {
+      const { data } = await sb.from('carrinhos_abandonados').select('cliente_id,cliente_nome,itens,quantidade_total');
+      (data||[]).forEach(c => {
+        alerts.push({ id:'cart-'+c.cliente_id, type:'info', icon:'ti-shopping-cart-x',
+          title:'Carrinho abandonado',
+          desc:`${c.cliente_nome||'Cliente'} deixou ${c.itens} ite${c.itens!==1?'ns':'m'} (${c.quantidade_total} unidade${c.quantidade_total!==1?'s':''}) parado na vitrine.`,
+          page:'abandonedcarts' });
+      });
+    }
+  } catch(e){}
+
   currentNotifs = alerts.filter(a => !dismissedNotifs.includes(a.id));
   return currentNotifs;
 }
 
-function renderNotifications() {
+async function renderNotifications() {
   const list = document.getElementById('notif-list');
   const empty = document.getElementById('notif-empty');
   const badge = document.getElementById('notif-badge');
   const clearBtn = document.getElementById('notif-clear');
   if (!list) return;
 
-  const notifs = buildNotifications();
+  const notifs = await buildNotifications();
 
   // Badge
   if (badge) {
@@ -4735,7 +4766,7 @@ async function afterLogin(user) {
   // Mostra o app
   const ls = document.getElementById('login-screen');
   ls.style.transition = 'opacity 0.4s'; ls.style.opacity = '0';
-  setTimeout(() => { ls.style.display = 'none'; document.getElementById('app').classList.add('visible'); initCharts(); renderNotifications(); refreshQuoteBadge(); }, 420);
+  setTimeout(() => { ls.style.display = 'none'; document.getElementById('app').classList.add('visible'); initCharts(); renderNotifications(); refreshQuoteBadge(); setInterval(renderNotifications, 120000); }, 420);
   // Atualiza o badge de Pedidos com dados reais do banco (evita número fantasma)
   try { await loadOrdersDB(); refreshOrdersBadge(); } catch(e){}
   showToast(`Bem-vindo, ${currentProfile ? currentProfile.nome : 'usuário'}!`);
