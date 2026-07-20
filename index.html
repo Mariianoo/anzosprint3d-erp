@@ -7238,6 +7238,7 @@ nav = function(page) {
   if (page === 'payables')   { loadPayablesDB(); }
   if (page === 'gallery')    { loadGalleryDB(); }
   if (page === 'settings')   { if (typeof loadSenderInfoForm === 'function') loadSenderInfoForm(); if (typeof loadQuoteConfig === 'function') loadQuoteConfig(); }
+  if (page === 'dashboard')  { if (typeof loadDashboardReal === 'function') loadDashboardReal(typeof currentPeriod !== 'undefined' ? currentPeriod : 'month'); }
 };
 
 // ══════════════════════════════════════════════
