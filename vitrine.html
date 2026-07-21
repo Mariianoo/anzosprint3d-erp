@@ -778,6 +778,48 @@ textarea.fi{height:auto;padding:10px 12px;resize:vertical;min-height:64px}
   </div>
 </div>
 
+<!-- BOAS-VINDAS (só na primeira visita) -->
+<div class="overlay" id="welcome-overlay" onclick="if(event.target===this)closeWelcomeModal()">
+  <div class="modal" style="max-width:440px" onclick="event.stopPropagation()">
+    <div style="padding:28px 28px 8px;text-align:center">
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--blue-d);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <i class="ti ti-rocket" style="font-size:26px;color:#fff" aria-hidden="true"></i>
+      </div>
+      <h2 style="font-size:20px;margin-bottom:8px" id="welcome-title">Bem-vindo(a)! 🚀</h2>
+      <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px" id="welcome-sub">Aqui você encontra peças 3D personalizadas, feitas sob medida pra você.</p>
+    </div>
+    <div style="padding:0 28px 8px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:10px;align-items:flex-start;background:var(--s2);border-radius:10px;padding:12px 14px">
+        <i class="ti ti-heart" style="color:var(--accent);font-size:18px;flex-shrink:0;margin-top:1px" aria-hidden="true"></i>
+        <span style="font-size:12px;color:var(--text2)">Crie sua conta pra salvar <b>favoritos</b> e acompanhar seus pedidos.</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start;background:var(--s2);border-radius:10px;padding:12px 14px">
+        <i class="ti ti-shopping-cart" style="color:var(--blue);font-size:18px;flex-shrink:0;margin-top:1px" aria-hidden="true"></i>
+        <span style="font-size:12px;color:var(--text2)">Monte um <b>carrinho</b> com vários produtos e finalize tudo de uma vez.</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start;background:var(--s2);border-radius:10px;padding:12px 14px">
+        <i class="ti ti-message-chatbot" style="color:var(--green);font-size:18px;flex-shrink:0;margin-top:1px" aria-hidden="true"></i>
+        <span style="font-size:12px;color:var(--text2)">Tem dúvidas? Nosso <b>assistente virtual</b> (canto inferior direito) responde na hora.</span>
+      </div>
+    </div>
+    <div style="padding:20px 28px 28px">
+      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="closeWelcomeModal()">Entendi, vamos lá!</button>
+    </div>
+  </div>
+</div>
+
+<!-- AVISO DE COOKIES -->
+<div id="cookie-banner" style="display:none;position:fixed;left:16px;right:16px;bottom:16px;max-width:640px;margin:0 auto;background:var(--s1);border:1px solid var(--border2);border-radius:14px;box-shadow:var(--shadow-lg);padding:16px 18px;z-index:280;gap:14px;align-items:center;flex-wrap:wrap">
+  <i class="ti ti-cookie" style="font-size:22px;color:var(--accent);flex-shrink:0" aria-hidden="true"></i>
+  <span style="flex:1;min-width:200px;font-size:12px;color:var(--text2);line-height:1.5">
+    Usamos armazenamento local pra manter sua sessão e melhorar sua experiência. Ao continuar navegando, você concorda com nossa <button onclick="openPrivacyModal()" style="background:none;border:none;color:var(--blue);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;font-weight:600">Política de Privacidade</button>.
+  </span>
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <button class="btn btn-ghost btn-sm" onclick="dismissCookieBanner(false)">Depois</button>
+    <button class="btn btn-wpp btn-sm" onclick="dismissCookieBanner(true)">Aceitar</button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -820,6 +862,7 @@ async function init(){
       if(lRow?.valor){const l=el('v-logo');if(l)l.src=lRow.valor}
     }
     applyEmpresa();
+    maybeShowWelcome();
     all=prod.data||[];
     el('stat-products').textContent=all.length;
     el('stat-cats').textContent=new Set(all.map(p=>p.categoria).filter(Boolean)).size||'—';
@@ -1770,6 +1813,40 @@ function openPrivacyModal(){
 function closePrivacyModal(){
   el('privacy-overlay').classList.remove('open');
   document.body.style.overflow='';
+}
+
+// ── Boas-vindas (primeira visita) + aviso de cookies ──
+function maybeShowWelcome(){
+  let seen=null;
+  try{ seen=localStorage.getItem('anzos_welcome_seen'); }catch(e){}
+  if(!seen){
+    const titleEl=el('welcome-title');
+    if(titleEl && empresa.nome) titleEl.textContent='Bem-vindo(a) à '+empresa.nome+'! 🚀';
+    el('welcome-overlay').classList.add('open');
+    document.body.style.overflow='hidden';
+  } else {
+    maybeShowCookieBanner();
+  }
+}
+function closeWelcomeModal(){
+  el('welcome-overlay').classList.remove('open');
+  document.body.style.overflow='';
+  try{ localStorage.setItem('anzos_welcome_seen','1'); }catch(e){}
+  maybeShowCookieBanner();
+}
+function maybeShowCookieBanner(){
+  let consent=null;
+  try{ consent = localStorage.getItem('anzos_cookie_consent') || sessionStorage.getItem('anzos_cookie_dismissed_session'); }catch(e){}
+  if(!consent){
+    setTimeout(()=>{ const b=el('cookie-banner'); if(b) b.style.display='flex'; }, 400);
+  }
+}
+function dismissCookieBanner(remember){
+  const b=el('cookie-banner'); if(b) b.style.display='none';
+  try{
+    if(remember) localStorage.setItem('anzos_cookie_consent','1');
+    else sessionStorage.setItem('anzos_cookie_dismissed_session','1');
+  }catch(e){}
 }
 
 function toggleChatbot(){
