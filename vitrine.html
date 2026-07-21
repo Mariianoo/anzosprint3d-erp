@@ -1298,7 +1298,7 @@ function copiarMsg(){
 // de `clientes` é feita pela função vincular_cliente_apos_cadastro(),
 // criada nesta sessão, que só age sobre a própria conta de quem chama.
 // ══════════════════════════════════════════════════════════════
-let session=null, myProfile=null;
+let session=null, myProfile=null, authPendingEmail='';
 
 async function initAuth(){
   const { data:{ session:s } } = await sb.auth.getSession();
@@ -1351,7 +1351,7 @@ function closeAuth(){
   document.body.style.overflow='';
 }
 function renderAuthBody(mode){
-  const titles={login:'Entrar',signup:'Criar minha conta',forgot:'Recuperar senha',reset:'Nova senha'};
+  const titles={login:'Entrar',signup:'Criar minha conta',forgot:'Recuperar senha',otp:'Digite o código',reset:'Nova senha'};
   el('auth-title').textContent=titles[mode]||'Entrar';
   const body=el('auth-body');
   if(mode==='login'){
@@ -1374,10 +1374,17 @@ function renderAuthBody(mode){
   } else if(mode==='forgot'){
     body.innerHTML=`
       <div class="auth-error" id="auth-error"></div>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Informe seu e-mail — vamos mandar um link para você criar uma nova senha.</p>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Informe seu e-mail — vamos mandar um código de 6 dígitos para você confirmar antes de criar uma nova senha.</p>
       <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-email">E-mail</label><input class="fi" id="au-email" type="email" autocomplete="email"></div>
-      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doForgotPassword()">Enviar link</button>
+      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doForgotPassword()">Enviar código</button>
       <div class="auth-switch"><button onclick="renderAuthBody('login')">Voltar para o login</button></div>`;
+  } else if(mode==='otp'){
+    body.innerHTML=`
+      <div class="auth-error" id="auth-error"></div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Digite o código de 6 dígitos que mandamos para <b>${esc(authPendingEmail||'')}</b>. Ele expira em 1 hora.</p>
+      <div class="fg" style="margin-bottom:16px"><label class="fl" for="au-otp">Código</label><input class="fi" id="au-otp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" style="letter-spacing:6px;font-size:18px;text-align:center;font-weight:700"></div>
+      <button class="btn btn-wpp btn-lg" style="width:100%" onclick="doVerifyOtp()">Verificar código</button>
+      <div class="auth-switch"><button onclick="renderAuthBody('forgot')">Não recebi — tentar outro e-mail</button></div>`;
   } else if(mode==='reset'){
     body.innerHTML=`
       <div class="auth-error" id="auth-error"></div>
@@ -1422,16 +1429,27 @@ async function doSignup(){
 async function doForgotPassword(){
   const email=el('au-email').value.trim();
   if(!email){ authErr('Informe seu e-mail.'); return; }
-  const redirectTo = location.origin + location.pathname;
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-  if(error){ authErr('Não foi possível enviar o link agora.'); return; }
-  closeAuth(); toast('Link enviado! Confira seu e-mail.');
+  const { error } = await sb.auth.resetPasswordForEmail(email);
+  if(error){ authErr('Não foi possível enviar o código agora.'); return; }
+  authPendingEmail = email;
+  toast('Código enviado! Confira seu e-mail.');
+  renderAuthBody('otp');
+}
+async function doVerifyOtp(){
+  const code=el('au-otp').value.trim();
+  if(!code || code.length<6){ authErr('Digite o código de 6 dígitos.'); return; }
+  if(!authPendingEmail){ authErr('Sessão expirada — solicite o código novamente.'); renderAuthBody('forgot'); return; }
+  const { error } = await sb.auth.verifyOtp({ email: authPendingEmail, token: code, type: 'recovery' });
+  if(error){ authErr('Código incorreto ou expirado. Tente novamente.'); return; }
+  // Código confirmado: só agora libera a troca de senha
+  renderAuthBody('reset');
 }
 async function doResetPassword(){
   const pass=el('au-pass').value;
   if(!pass||pass.length<6){ authErr('A senha precisa ter pelo menos 6 caracteres.'); return; }
   const { error } = await sb.auth.updateUser({ password: pass });
   if(error){ authErr('Não foi possível salvar a nova senha.'); return; }
+  authPendingEmail = '';
   closeAuth(); toast('Senha alterada com sucesso!');
 }
 async function logout(){
