@@ -3199,15 +3199,41 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
 </div>
 
 <!-- ═══ MODAL: CONVIDAR USUÁRIO ═══ -->
+<!-- Modal obrigatório: sem X, sem fechar clicando fora — só sai definindo a nova senha -->
+<div id="modal-force-password-change" class="modal-overlay" style="display:none">
+  <div class="modal" style="width:420px;max-width:94vw">
+    <div class="modal-header">
+      <h3><i class="ti ti-lock" style="margin-right:6px;color:var(--amber)"></i>Defina sua nova senha</h3>
+    </div>
+    <div style="padding:4px 0 16px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+        Por segurança, você precisa criar sua própria senha antes de continuar.
+      </p>
+      <div id="fpc-error" style="font-size:12px;color:var(--red);margin-bottom:8px;min-height:14px"></div>
+      <div class="form-group">
+        <label>Nova senha *</label>
+        <input type="password" id="fpc-senha" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter')salvarNovaSenhaObrigatoria()">
+      </div>
+      <div class="form-group">
+        <label>Confirmar nova senha *</label>
+        <input type="password" id="fpc-senha2" placeholder="Digite novamente" onkeydown="if(event.key==='Enter')salvarNovaSenhaObrigatoria()">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="fpc-save-btn" style="width:100%" onclick="salvarNovaSenhaObrigatoria()">Salvar e continuar</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-invite-user" class="modal-overlay" style="display:none">
   <div class="modal" style="width:480px;max-width:94vw">
     <div class="modal-header">
-      <h3><i class="ti ti-user-plus" style="margin-right:6px;color:var(--blue)"></i>Convidar Novo Usuário</h3>
+      <h3><i class="ti ti-user-plus" style="margin-right:6px;color:var(--blue)"></i>Criar Novo Usuário</h3>
       <button class="modal-close" onclick="closeModal('modal-invite-user')"><i class="ti ti-x"></i></button>
     </div>
     <div style="padding:4px 0 16px">
       <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
-        O usuário receberá um e-mail de convite para definir a própria senha e acessar o sistema.
+        Defina uma senha inicial — o usuário poderá ser obrigado a trocá-la no primeiro acesso.
       </p>
       <div class="form-group">
         <label>Nome completo *</label>
@@ -3218,8 +3244,15 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
         <input type="email" id="inv-email" placeholder="joao@email.com">
       </div>
       <div class="form-group">
+        <label>Senha inicial *</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="inv-senha" placeholder="Mínimo 6 caracteres" style="flex:1">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="gerarSenhaInicial()" title="Gerar senha aleatória"><i class="ti ti-refresh"></i> Gerar</button>
+        </div>
+      </div>
+      <div class="form-group">
         <label>Perfil de acesso *</label>
-        <select id="inv-perfil">
+        <select id="inv-perfil" onchange="updatePerfilDesc('inv-perfil','inv-perfil-desc')">
           <option value="operador">Operador — produção, pedidos (sem financeiro)</option>
           <option value="producao">Produção — somente OPs e impressoras</option>
           <option value="financeiro">Financeiro — acesso a lançamentos e contas</option>
@@ -3227,12 +3260,16 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
           <option value="administrador">Administrador — acesso total</option>
         </select>
       </div>
-      <div id="inv-perfil-desc" style="font-size:11px;color:var(--text3);padding:7px 10px;background:var(--surface2);border-radius:var(--radius);margin-top:-8px;margin-bottom:4px;line-height:1.5"></div>
+      <div id="inv-perfil-desc" style="font-size:11px;color:var(--text3);padding:7px 10px;background:var(--surface2);border-radius:var(--radius);margin-top:-8px;margin-bottom:12px;line-height:1.5"></div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2)">
+        <input type="checkbox" id="inv-exigir-troca" checked style="width:16px;height:16px">
+        Exigir troca de senha no primeiro login
+      </label>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-invite-user')">Cancelar</button>
       <button class="btn btn-primary" id="inv-save-btn" onclick="enviarConviteUsuario()">
-        <i class="ti ti-send"></i> Enviar Convite
+        <i class="ti ti-user-plus"></i> Criar Usuário
       </button>
     </div>
   </div>
@@ -4755,7 +4792,17 @@ async function afterLogin(user) {
     }
     prefsLoaded = true;
     applyUserPrefs();
+
+    // Bloqueia o acesso até trocar a senha, se um admin exigiu isso ao criar a conta
+    if (perfil.deve_trocar_senha) {
+      showForcePasswordChangeModal();
+      return;
+    }
   }
+  await finalizarLoginELiberarApp(user);
+}
+
+async function finalizarLoginELiberarApp(user) {
   // Registra login na auditoria
   try { await sb.from('auditoria_logs').insert({ usuario_id: user.id, acao: 'login', modulo: 'auth' }); } catch(e){}
 
@@ -4770,6 +4817,37 @@ async function afterLogin(user) {
   // Atualiza o badge de Pedidos com dados reais do banco (evita número fantasma)
   try { await loadOrdersDB(); refreshOrdersBadge(); } catch(e){}
   showToast(`Bem-vindo, ${currentProfile ? currentProfile.nome : 'usuário'}!`);
+}
+
+function showForcePasswordChangeModal() {
+  const s1 = document.getElementById('fpc-senha'), s2 = document.getElementById('fpc-senha2'), err = document.getElementById('fpc-error');
+  if (s1) s1.value = ''; if (s2) s2.value = ''; if (err) err.textContent = '';
+  openModal('modal-force-password-change');
+}
+
+async function salvarNovaSenhaObrigatoria() {
+  const p1 = document.getElementById('fpc-senha').value;
+  const p2 = document.getElementById('fpc-senha2').value;
+  const errEl = document.getElementById('fpc-error');
+  errEl.textContent = '';
+  if (!p1 || p1.length < 6) { errEl.textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
+  if (p1 !== p2) { errEl.textContent = 'As senhas não coincidem.'; return; }
+
+  const btn = document.getElementById('fpc-save-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Salvando...';
+  try {
+    const { error: upErr } = await sb.auth.updateUser({ password: p1 });
+    if (upErr) throw upErr;
+    await sb.from('perfis').update({ deve_trocar_senha: false }).eq('id', currentUser.id);
+    if (currentProfile) currentProfile.deve_trocar_senha = false;
+    closeModal('modal-force-password-change');
+    showToast('Senha atualizada com sucesso!');
+    await finalizarLoginELiberarApp(currentUser);
+  } catch(e) {
+    errEl.textContent = e.message || 'Não foi possível salvar a nova senha.';
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Salvar e continuar';
+  }
 }
 
 function capitalize(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
@@ -5395,6 +5473,7 @@ function nowStr() {
 }
 
 let ordersData = [];
+let usersData = [];
 let abandonedCartsData = [];
 let nextOrderId = 48;
 let currentOrderId = null;
@@ -6571,6 +6650,7 @@ async function renderSettingsUsers() {
   if (error) { container.innerHTML = `<div style="color:var(--red);font-size:13px">Erro: ${escapeHtml(error.message)}</div>`; return; }
 
   if (!users || !users.length) { container.innerHTML = '<div style="color:var(--text3);font-size:13px">Nenhum usuário encontrado.</div>'; return; }
+  usersData = users;
 
   container.innerHTML = users.map(u => {
     const badge  = PERFIL_BADGES[u.perfil] || 'badge-gray';
@@ -6594,7 +6674,7 @@ async function renderSettingsUsers() {
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
         <span class="badge ${badge}" style="font-size:11px">${label}</span>
-        ${!isSelf ? `<button class="btn btn-secondary btn-sm" onclick="openModalEditarUsuario(${JSON.stringify(u)})" title="Editar"><i class="ti ti-pencil"></i></button>` : ''}
+        ${!isSelf ? `<button class="btn btn-secondary btn-sm" onclick="openModalEditarUsuario('${u.id}')" title="Editar"><i class="ti ti-pencil"></i></button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -6607,50 +6687,54 @@ function openModalConvidarUsuario() {
   }
   document.getElementById('inv-nome').value = '';
   document.getElementById('inv-email').value = '';
+  document.getElementById('inv-senha').value = '';
+  document.getElementById('inv-exigir-troca').checked = true;
   document.getElementById('inv-perfil').value = 'operador';
   updatePerfilDesc('inv-perfil','inv-perfil-desc');
   openModal('modal-invite-user');
 }
 
-// ── Envia convite (signUp com senha temporária) ──
+function gerarSenhaInicial() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let pwd = '';
+  for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  document.getElementById('inv-senha').value = pwd;
+}
+
+// ── Cria o usuário via Edge Function (não afeta a sessão de quem está criando) ──
 async function enviarConviteUsuario() {
   const nome   = document.getElementById('inv-nome').value.trim();
   const email  = document.getElementById('inv-email').value.trim();
+  const senha  = document.getElementById('inv-senha').value;
   const perfil = document.getElementById('inv-perfil').value;
+  const exigirTroca = document.getElementById('inv-exigir-troca').checked;
   if (!nome)  { showToast('Informe o nome completo.'); return; }
   if (!email) { showToast('Informe o e-mail.'); return; }
+  if (!senha || senha.length < 6) { showToast('A senha inicial precisa ter pelo menos 6 caracteres.'); return; }
 
   const btn = document.getElementById('inv-save-btn');
-  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Enviando...';
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Criando...';
 
   try {
-    // Cria o usuário no Auth do Supabase com senha temporária aleatória
-    const tempPwd = 'Anzos@' + Math.random().toString(36).slice(2,10);
-    const { data: authData, error: authErr } = await sb.auth.signUp({
-      email, password: tempPwd,
-      options: { data: { nome } }
+    const { data, error } = await sb.functions.invoke('criar-usuario-erp', {
+      body: { nome, email, senha_inicial: senha, perfil, exigir_troca_senha: exigirTroca }
     });
-    if (authErr) throw authErr;
-    if (!authData.user) throw new Error('Usuário não criado');
-
-    // Atualiza/cria o perfil (o trigger do Supabase pode já ter criado com perfil padrão)
-    await sb.from('perfis').upsert({
-      id: authData.user.id, nome, email,
-      perfil, ativo: true
-    }, { onConflict: 'id' });
+    if (error || !data || data.error) throw new Error(data?.error || error?.message || 'Erro desconhecido');
 
     closeModal('modal-invite-user');
-    showToast(`Convite enviado para ${email}! Peça ao usuário para verificar o e-mail e redefinir a senha.`, 'success', 6000);
+    showToast(`Usuário ${nome} criado! Senha inicial: ${senha} — repasse com segurança.`, 'success', 8000);
     await renderSettingsUsers();
   } catch(e) {
-    showToast('Erro ao convidar: ' + (e.message || e), 'error');
+    showToast('Erro ao criar usuário: ' + (e.message || e), 'error');
   } finally {
-    btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Enviar Convite';
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-user-plus"></i> Criar Usuário';
   }
 }
 
 // ── Abre o modal de editar ──
-function openModalEditarUsuario(u) {
+function openModalEditarUsuario(id) {
+  const u = usersData.find(x => x.id === id);
+  if (!u) { showToast('Usuário não encontrado — atualize a lista e tente de novo.'); return; }
   document.getElementById('eu-id').value    = u.id;
   document.getElementById('eu-nome').value  = u.nome || '';
   document.getElementById('eu-email').value = u.email || '';
