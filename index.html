@@ -6924,6 +6924,24 @@ async function gerarLinkPagamento(tipo) {
   const o = ordersData.find(x => x.id === currentOrderId);
   if (!o || !o._uuid) { showToast('Pedido não encontrado.'); return; }
   if (!sb) { showToast('Sem conexão com o banco.'); return; }
+
+  // Confirmação obrigatória: mostra cliente/valor/tipo antes de gerar,
+  // pra evitar mandar link errado (ex.: pedido errado aberto no popup).
+  const params = (typeof quoteConfigCache === 'object' && quoteConfigCache) ? quoteConfigCache : {};
+  const descPct = Number(params.desconto_pix_pct) || 0;
+  const valorBase = Number(o.value) || 0;
+  const valorExibido = tipo === 'pix' ? valorBase * (1 - descPct / 100) : valorBase;
+  const tipoLabel = tipo === 'pix' ? `PIX à vista${descPct > 0 ? ' (' + descPct + '% de desconto)' : ''}` : 'Parcelado (preço cheio)';
+
+  const confirmado = await confirmAction({
+    title: 'Confirmar link de pagamento',
+    message: `${o.id} — ${o.client}. Tipo: ${tipoLabel}. Valor: ${formatCurrency(valorExibido)}. Confere se é o cliente e o valor certos antes de continuar.`,
+    confirmLabel: 'Confirmar e Gerar Link',
+    danger: false,
+    icon: 'ti-credit-card',
+  });
+  if (!confirmado) return;
+
   showToast('Gerando link de pagamento...');
   try {
     const { data, error } = await sb.functions.invoke('criar-link-pagamento', { body: { pedido_id: o._uuid, tipo } });
