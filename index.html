@@ -6927,8 +6927,12 @@ async function gerarLinkPagamento(tipo) {
   showToast('Gerando link de pagamento...');
   try {
     const { data, error } = await sb.functions.invoke('criar-link-pagamento', { body: { pedido_id: o._uuid, tipo } });
+    console.log('[criar-link-pagamento] resposta completa:', data, error);
     if (error || !data || data.error) {
-      showToast('Erro ao gerar link: ' + (data?.error || error?.message || 'desconhecido'));
+      let msg = data?.error || error?.message || 'desconhecido';
+      if (data?.diagnostico_erro_supabase) msg += ' | detalhe: ' + JSON.stringify(data.diagnostico_erro_supabase);
+      if (data?.diagnostico_tipo_pedido_id) msg += ' | tipo do id enviado: ' + data.diagnostico_tipo_pedido_id;
+      showToast('Erro ao gerar link: ' + msg, 'error', 12000);
       return;
     }
     try { await navigator.clipboard.writeText(data.url); } catch (e) {}
