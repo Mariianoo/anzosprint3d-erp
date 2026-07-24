@@ -1142,13 +1142,15 @@ function openProd(id){
   if(p.preco_vitrine){
     const descPct = Number(paymentConfig.desconto_pix_pct)||0;
     const maxParc = Number(paymentConfig.parcelas_max)||1;
+    const taxaParcPct = paymentConfig.repassar_taxa_parcelamento ? (Number(paymentConfig.taxa_parcelamento_pct)||0) : 0;
     let paymentHtml = '';
     if(descPct>0){
       const pixPrice = p.preco_vitrine * (1 - descPct/100);
       paymentHtml += `<div style="font-size:12px;color:#16a34a;font-weight:700;margin-top:8px"><i class="ti ti-brand-pix" aria-hidden="true"></i> ${brl(pixPrice)} à vista no PIX (${descPct}% off)</div>`;
     }
     if(maxParc>1){
-      paymentHtml += `<div style="font-size:12px;color:var(--text2);margin-top:3px"><i class="ti ti-credit-card" aria-hidden="true"></i> ou até ${maxParc}x de ${brl(p.preco_vitrine/maxParc)}</div>`;
+      const totalParcelado = p.preco_vitrine * (1 + taxaParcPct/100);
+      paymentHtml += `<div style="font-size:12px;color:var(--text2);margin-top:3px"><i class="ti ti-credit-card" aria-hidden="true"></i> ou até ${maxParc}x de ${brl(totalParcelado/maxParc)}</div>`;
     }
     priceArea.innerHTML=`<div class="pdp-price-from">a partir de</div><div class="pdp-price-big">${brl(p.preco_vitrine)}</div>${paymentHtml}`;
     mobPrice.textContent=brl(p.preco_vitrine); mobLabel.style.display='';

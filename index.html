@@ -3091,6 +3091,16 @@ textarea.fi{height:auto;padding:8px 10px;resize:vertical}
         <span style="font-size:11px;color:var(--text3)">O @ que aparece no canto superior esquerdo do app InfinitePay, sem o símbolo $.</span>
       </div>
 
+      <div class="form-group">
+        <label>Taxa de parcelamento no máximo de vezes (%)</label>
+        <input type="number" id="cfg-taxa-parcelamento" value="0" min="0" max="100" step="0.1" style="max-width:120px">
+        <span style="font-size:11px;color:var(--text3)">Consulte a taxa real no app da InfinitePay (Menu → Taxas) para o número de parcelas configurado acima. Ela varia conforme seu plano.</span>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2);margin-bottom:8px">
+        <input type="checkbox" id="cfg-repassar-taxa" style="width:16px;height:16px">
+        Repassar essa taxa pro cliente no preço parcelado (senão, você absorve o custo)
+      </label>
+
       <button class="btn btn-primary" style="margin-top:8px" onclick="saveQuoteConfig()"><i class="ti ti-device-floppy"></i> Salvar Configurações de Pagamento</button>
     </div>
     </div>
@@ -6504,6 +6514,7 @@ let quoteConfigCache = {
   mostrar_imagem: true, mostrar_filamento: true, mostrar_extras: true,
   validade_dias: 7,
   desconto_pix_pct: 10, parcelas_max: 12, infinitepay_handle: '',
+  taxa_parcelamento_pct: 0, repassar_taxa_parcelamento: false,
 };
 
 function saveQuoteConfig() {
@@ -6515,6 +6526,8 @@ function saveQuoteConfig() {
     mostrar_extras: document.getElementById('cfg-mostrar-extras')?.checked ?? true,
     desconto_pix_pct: parseFloat(document.getElementById('cfg-desconto-pix')?.value) || 0,
     parcelas_max: parseInt(document.getElementById('cfg-parcelas-max')?.value) || 1,
+    taxa_parcelamento_pct: parseFloat(document.getElementById('cfg-taxa-parcelamento')?.value) || 0,
+    repassar_taxa_parcelamento: document.getElementById('cfg-repassar-taxa')?.checked || false,
     infinitepay_handle: document.getElementById('cfg-infinitepay-handle')?.value?.trim().replace(/^\$/, '') || '',
   };
   quoteConfigCache = cfg;
@@ -6558,6 +6571,8 @@ function applyQuoteConfigForm() {
   set('cfg-desconto-pix', quoteConfigCache.desconto_pix_pct);
   set('cfg-parcelas-max', quoteConfigCache.parcelas_max);
   set('cfg-infinitepay-handle', quoteConfigCache.infinitepay_handle);
+  set('cfg-taxa-parcelamento', quoteConfigCache.taxa_parcelamento_pct);
+  chk('cfg-repassar-taxa', quoteConfigCache.repassar_taxa_parcelamento);
 }
 
 async function saveCompanyData() {
@@ -6929,9 +6944,12 @@ async function gerarLinkPagamento(tipo) {
   // pra evitar mandar link errado (ex.: pedido errado aberto no popup).
   const params = (typeof quoteConfigCache === 'object' && quoteConfigCache) ? quoteConfigCache : {};
   const descPct = Number(params.desconto_pix_pct) || 0;
+  const taxaParcPct = params.repassar_taxa_parcelamento ? (Number(params.taxa_parcelamento_pct) || 0) : 0;
   const valorBase = Number(o.value) || 0;
-  const valorExibido = tipo === 'pix' ? valorBase * (1 - descPct / 100) : valorBase;
-  const tipoLabel = tipo === 'pix' ? `PIX à vista${descPct > 0 ? ' (' + descPct + '% de desconto)' : ''}` : 'Parcelado (preço cheio)';
+  const valorExibido = tipo === 'pix' ? valorBase * (1 - descPct / 100) : valorBase * (1 + taxaParcPct / 100);
+  const tipoLabel = tipo === 'pix'
+    ? `PIX à vista${descPct > 0 ? ' (' + descPct + '% de desconto)' : ''}`
+    : `Parcelado${taxaParcPct > 0 ? ' (com taxa de ' + taxaParcPct + '% repassada)' : ' (preço cheio)'}`;
 
   const confirmado = await confirmAction({
     title: 'Confirmar link de pagamento',
@@ -12590,8 +12608,10 @@ function calcQuote() {
   // À vista (PIX) com desconto configurado, e parcelamento máximo configurado
   const descPixPct = quoteConfigCache?.desconto_pix_pct || 0;
   const maxParcelas = quoteConfigCache?.parcelas_max || 1;
+  const taxaParcPct = quoteConfigCache?.repassar_taxa_parcelamento ? (quoteConfigCache?.taxa_parcelamento_pct || 0) : 0;
+  const totalParcelado = finalComDesconto * (1 + taxaParcPct/100);
   set('qs-price-pix', brlFmt(finalComDesconto * (1 - descPixPct/100)));
-  set('qs-price-parcelado', maxParcelas > 1 ? `até ${maxParcelas}x de ${brlFmt(finalComDesconto/maxParcelas)}` : brlFmt(finalComDesconto));
+  set('qs-price-parcelado', maxParcelas > 1 ? `até ${maxParcelas}x de ${brlFmt(totalParcelado/maxParcelas)}` : brlFmt(totalParcelado));
 
   // Badge de brinde
   const brindeBadge = document.getElementById('qs-brinde-badge');
