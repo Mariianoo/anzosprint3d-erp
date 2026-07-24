@@ -242,7 +242,7 @@ img{display:block}
 .pdp-price-big{font-size:32px;font-weight:900;color:var(--text);letter-spacing:-.5px}
 .pdp-price-consult{font-size:16px;font-weight:700;color:var(--amber);display:flex;align-items:center;gap:6px}
 .pdp-prazo{margin-top:8px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px}
-.pdp-desc{font-size:13px;color:var(--text2);line-height:1.75}
+.pdp-desc{font-size:13px;color:var(--text2);line-height:1.75;white-space:pre-line}
 .qty-row{display:flex;align-items:center;gap:14px}
 .qty-label{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
 .qty-stepper{display:flex;align-items:center;border:1px solid var(--border2);border-radius:10px;overflow:hidden}
@@ -1163,7 +1163,7 @@ function openProd(id){
   el('pdp-tags').innerHTML=tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('');
   const descWrap=el('pdp-desc-wrap');
   if(p.descricao_vitrine && p.descricao_vitrine.trim()){
-    el('pdp-desc').textContent=p.descricao_vitrine;
+    el('pdp-desc').textContent=formatDescricaoVitrine(p.descricao_vitrine);
     descWrap.style.display='';
   } else {
     descWrap.style.display='none';
@@ -1240,6 +1240,15 @@ function pdpSetImage(idx){
   pdpRenderGallery();
 }
 
+// Muitas descrições foram escritas como texto corrido, usando emojis pra
+// marcar o início de cada seção (📏 Especificações, 🎁 Ideal para... etc).
+// Insere quebra de linha antes de cada um pra separar visualmente em
+// parágrafos, mesmo em descrições já cadastradas.
+function formatDescricaoVitrine(text){
+  if(!text) return '';
+  return text.replace(/\s*([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}])/gu, '\n\n$1').trim();
+}
+
 function pdpZoomMove(e){
   const wrap=el('pdp-thumb-wrap'), img=wrap.querySelector('img'); if(!img) return;
   const r=wrap.getBoundingClientRect();
@@ -1268,7 +1277,10 @@ function updateQtyTotal(){
   line.style.display='';
 }
 
-// ── Identidade do pedido: cliente logado não redigita nome/whatsapp/e-mail ──
+// ── Identidade do pedido: cliente logado não redigita nome/whatsapp/e-mail.
+// Os campos continuam preenchidos por trás (o buildMsg() usa eles), mas a
+// caixa de confirmação não aparece mais na tela — informação a menos, já
+// que o WhatsApp final já leva os dados de qualquer forma.
 function applyPdpIdentity(){
   const guestFields=el('pdp-guest-fields'), confirmBox=el('pdp-identity-confirm');
   if(!guestFields || !confirmBox) return;
@@ -1276,12 +1288,8 @@ function applyPdpIdentity(){
     el('f-nome').value=myProfile.nome;
     el('f-wpp').value=myProfile.telefone||'';
     el('f-email').value=myProfile.email||'';
-    el('pdp-identity-name').textContent=myProfile.nome;
-    const wppWrap=el('pdp-identity-wpp-wrap');
-    if(myProfile.telefone){ el('pdp-identity-wpp').textContent=myProfile.telefone; wppWrap.style.display=''; }
-    else { wppWrap.style.display='none'; }
     guestFields.style.display='none';
-    confirmBox.style.display='flex';
+    confirmBox.style.display='none';
   } else {
     guestFields.style.display='';
     confirmBox.style.display='none';
@@ -1760,7 +1768,8 @@ function buildCartMsg(numeros){
   cartItems.forEach((item,i)=>{
     const m=item.modelo;
     const preco=m.preco_vitrine?brl(m.preco_vitrine):'Sob consulta';
-    t+=`${i+1}. *${m.nome}* — Qtd: ${item.quantidade} — ${preco}\n`;
+    const link=location.origin+location.pathname+'#/produto/'+m.id;
+    t+=`${i+1}. *${m.nome}* — Qtd: ${item.quantidade} — ${preco}\n   Ver produto: ${link}\n`;
     if(m.preco_vitrine!=null) subtotal+=m.preco_vitrine*item.quantidade;
   });
   t+=`\n💰 *Subtotal estimado:* ${brl(subtotal)}\n`;

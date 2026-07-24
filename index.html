@@ -9329,9 +9329,9 @@ function renderVitrineModels() {
             style="width:100%;height:34px;padding:0 10px;background:var(--surface);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px">
         </div>
         <div>
-          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.4px;margin-bottom:4px;display:block">Descrição para o cliente</label>
-          <input type="text" id="vp-desc-${m.id}" value="${escapeHtml(m.descricaoVitrine || m.notes || '')}" placeholder="Ex: Peça personalizada em PLA, alta qualidade..."
-            style="width:100%;height:34px;padding:0 10px;background:var(--surface);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px">
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.4px;margin-bottom:4px;display:block">Descrição para o cliente <span style="font-weight:400;text-transform:none">(pode usar várias linhas)</span></label>
+          <textarea id="vp-desc-${m.id}" rows="4" placeholder="Ex: Peça personalizada em PLA, alta qualidade..."
+            style="width:100%;padding:8px 10px;background:var(--surface);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:13px;resize:vertical;font-family:inherit">${escapeHtml(m.descricaoVitrine || m.notes || '')}</textarea>
         </div>
         <button class="btn btn-primary btn-sm" onclick="saveVitrineFields('${m.id}')" style="height:34px;width:100%">
           <i class="ti ti-device-floppy"></i> Salvar
