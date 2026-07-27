@@ -4358,14 +4358,15 @@ async function buildNotifications() {
     return new Date(+y, +m-1, +d);
   };
 
-  // 1. Filamentos com estoque baixo (current <= 300g)
+  // 1. Filamentos com estoque baixo (mesma regra da tela de Filamentos: ≤25% do rolo)
   try {
     if (typeof filamentsData !== 'undefined') {
       filamentsData.forEach(f => {
-        if (f.current != null && f.current <= 300) {
-          alerts.push({ id:'fil-'+f.id, type:'crit', icon:'ti-cylinder',
+        const pct = f.total > 0 ? (f.current / f.total) * 100 : 0;
+        if (f.current != null && pct <= 25) {
+          alerts.push({ id:'fil-'+f.id, type: pct <= 15 ? 'crit' : 'warn', icon:'ti-cylinder',
             title:'Filamento em estoque baixo',
-            desc:`${f.type||''} ${f.color||''} (${f.brand||''}) está em ${f.current}g.`.replace(/\s+/g,' ').trim(),
+            desc:`${f.type||''} ${f.color||''} (${f.brand||''}) está em ${f.current}g (${Math.round(pct)}% do rolo).`.replace(/\s+/g,' ').trim(),
             page:'filaments' });
         }
       });
