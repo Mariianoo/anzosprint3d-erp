@@ -845,12 +845,19 @@ async function init(){
   el('v-footer-year').textContent=new Date().getFullYear();
   showLoadingSkeleton();
   try{
-    const[cfg,prod]=await Promise.all([
+    // Limite de tempo: se a rede travar sem nunca dar erro (ex: bloqueio
+    // silencioso de firewall/rede lenta), depois de 15s cai no aviso de
+    // erro com "tentar de novo" em vez de ficar preso no esqueleto pra sempre.
+    const withTimeout=(p,ms)=>Promise.race([
+      p,
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tempo esgotado ao carregar — verifique sua conexão.')), ms))
+    ]);
+    const[cfg,prod]=await withTimeout(Promise.all([
       sb.from('configuracoes_publicas').select('chave,valor').in('chave',['empresa','logo','orcamento_config']),
       sb.from('modelos_3d')
         .select('id,nome,categoria,material,peso_g,horas,cor_hex,capa_base64,imagens,preco_vitrine,prazo_dias,descricao_vitrine,impressoes,estoque')
         .eq('visivel_vitrine',true).is('deleted_at',null).order('created_at',{ascending:false})
-    ]);
+    ]), 15000);
     if(cfg.error) throw cfg.error;
     if(prod.error) throw prod.error;
     if(cfg.data){
